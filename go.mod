@@ -8,9 +8,9 @@ require (
 )
 
 require (
-	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929051710-1b2ef1bbbf89 // indirect
-	github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260929001736-816678e0992b // indirect
-	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929000558-a1b13482ab8f // indirect
+	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929141529-64ba9d0bf96c // indirect
+	github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260929200408-f94fc8a0f398 // indirect
+	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929164147-03ef03e1e1ac // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/gen2brain/go-fitz v1.28.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
