@@ -27,6 +27,11 @@ func newDocCmd() *cobra.Command {
 		renderPageFlag   int
 		renderDPIFlag    int
 		renderOutputFlag string
+
+		syncOutputDirFlag string
+		syncFormatFlag    string
+		syncDPIFlag       int
+		syncForceFlag     bool
 	)
 
 	docListCmd := &cobra.Command{
@@ -169,10 +174,65 @@ func newDocCmd() *cobra.Command {
 	docRenderCmd.Flags().StringVarP(&renderOutputFlag, "output", "o", "", "Destination path for PNG image")
 	_ = docRenderCmd.MarkFlagRequired("output")
 
+	docSyncCmd := &cobra.Command{
+		Use:   "sync <id-or-name>",
+		Short: "Synchronize document pages (png, svg, or rm) to a local directory",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+			defer cancel()
+
+			client, err := newCloudClient(ctx)
+			if err != nil {
+				return err
+			}
+
+			opts := doc.SyncDocOptions{
+				OutputDir: syncOutputDirFlag,
+				Format:    syncFormatFlag,
+				DPI:       syncDPIFlag,
+				Force:     syncForceFlag,
+			}
+
+			results, err := doc.SyncDocument(ctx, client, args[0], opts)
+			if err != nil {
+				agent.PrintStatus(cmd.OutOrStdout(), "error", fmt.Sprintf("Document sync failed: %v", err))
+				return err
+			}
+
+			if agent.IsAgentMode() {
+				for _, r := range results {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", r.State, r.Path)
+				}
+				return nil
+			}
+
+			written := 0
+			skipped := 0
+			for _, r := range results {
+				if r.State == "written" {
+					written++
+					agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Synced %s", r.Path))
+				} else {
+					skipped++
+					agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("Skipped unchanged %s", r.Path))
+				}
+			}
+			agent.PrintSeparator(cmd.OutOrStdout())
+			agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Sync complete: %d written, %d skipped", written, skipped))
+			return nil
+		},
+	}
+	docSyncCmd.Flags().StringVarP(&syncOutputDirFlag, "output-dir", "o", ".", "Output directory for exported pages")
+	docSyncCmd.Flags().StringVar(&syncFormatFlag, "format", "png", "Page format (png, svg, rm)")
+	docSyncCmd.Flags().IntVar(&syncDPIFlag, "dpi", 200, "Rendering resolution DPI for PNGs")
+	docSyncCmd.Flags().BoolVarP(&syncForceFlag, "force", "f", false, "Force re-export even if page already exists")
+
 	docCmd.AddCommand(docListCmd)
 	docCmd.AddCommand(docTreeCmd)
 	docCmd.AddCommand(docInspectCmd)
 	docCmd.AddCommand(docCatCmd)
 	docCmd.AddCommand(docRenderCmd)
+	docCmd.AddCommand(docSyncCmd)
 	return docCmd
 }

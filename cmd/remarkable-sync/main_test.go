@@ -40,40 +40,6 @@ func TestRootCommand_HelpAndVersion(t *testing.T) {
 	}
 }
 
-func TestPlannerListCommand(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// 1. Empty human mode
-	t.Setenv("AGENT", "0")
-	out, err := executeRoot("planner", "list", "--output-dir", tmpDir)
-	if err != nil {
-		t.Fatalf("planner list failed: %v", err)
-	}
-	if !strings.Contains(out, "[INFO]") || !strings.Contains(out, "No planner captures found") {
-		t.Errorf("unexpected output: %s", out)
-	}
-
-	// 2. Populated
-	_ = os.WriteFile(filepath.Join(tmpDir, "2026-09-28-day.png"), []byte("png"), 0644)
-	out, err = executeRoot("planner", "list", "--output-dir", tmpDir)
-	if err != nil {
-		t.Fatalf("planner list failed: %v", err)
-	}
-	if !strings.Contains(out, "2026-09-28") {
-		t.Errorf("expected date in output: %s", out)
-	}
-
-	// 3. Agent mode
-	t.Setenv("AGENT", "1")
-	outAgent, errAgent := executeRoot("planner", "list", "--output-dir", tmpDir)
-	if errAgent != nil {
-		t.Fatalf("agent list failed: %v", errAgent)
-	}
-	if strings.TrimSpace(outAgent) != "2026-09-28" {
-		t.Errorf("expected clean line output, got %q", outAgent)
-	}
-}
-
 func TestStrokeCommands(t *testing.T) {
 	tmpDir := t.TempDir()
 	strokePath := filepath.Join(tmpDir, "test.rm")

@@ -1,12 +1,12 @@
 # remarkable-sync
 
-High-performance CLI gateway and planner synchronizer for reMarkable Cloud Sync v3, vector stroke parsing, and stationery compositing.
+High-performance, generic CLI gateway for reMarkable Cloud Sync v3, vector stroke decoding, and stationery compositing.
 
 # What It Does
 
 - **Unified API Gateway**: Full access to reMarkable Cloud Sync v3 without requiring slow USB exports or device modifications.
-- **Fast Planner Sync**: Fetches only the ~20 KB vector stroke files (`.rm`) for requested dates rather than downloading the entire multi-hundred-page annual PDF.
 - **Document & Filesystem Browsing**: List documents, render virtual folder trees, inspect metadata, and extract pages.
+- **Document Synchronization**: Sync any notebook or PDF pages to disk as PNG, SVG, or raw `.rm` strokes (`doc sync`).
 - **Stroke Reverse Engineering & SVG Conversion**: Inspect binary v6 stroke blocks, point curves, tool breakdown, and export standalone vector SVGs.
 - **Layer-Aware Vector Rendering**: Layers highlighter and shader strokes underneath pen ink in painter's order with Paper Pro 24-bit BGRA color decoding and crisp 200 DPI PNG outputs.
 - **Dual-Mode Output (`AGENT=1`)**: Beautiful ASCII tables, box trees, and divider bars in human mode; compact token-conservative flat TSV and key-values when `AGENT=1` is set.
@@ -51,11 +51,8 @@ remarkable-sync
 │   ├── inspect <id-or-name>          Display detailed document metadata and page structure
 │   ├── list                          List documents and folders in reMarkable Cloud
 │   ├── render <id-or-name>           Render document page with strokes to a high-resolution PNG
+│   ├── sync <id-or-name>             Synchronize document pages (png, svg, or rm) to a local directory
 │   ╰─ tree                           Display virtual folder and document hierarchy as a tree
-├── planner                           Synchronize and inspect reMarkable daily planner pages
-│   ├── inspect <date>                Inspect planner captures for a specific YYYY-MM-DD date
-│   ├── list                          List all captured planner dates present in output directory
-│   ╰─ sync [dates...]                Sync daily planner pages directly from reMarkable Cloud in seconds
 ╰─ stroke                             Inspect and convert reMarkable v6 binary stroke (.rm) files
     ├── export <file.rm>              Convert binary .rm file directly into a standalone layered SVG
     ╰─ inspect <file.rm>              Inspect structure, tools, and color palette of a .rm file
@@ -84,28 +81,16 @@ remarkable-sync doc list --limit 10
 remarkable-sync doc tree
 
 # Inspect document metadata
-remarkable-sync doc inspect "2026 - Daily"
+remarkable-sync doc inspect "Quick sheets"
 
 # Stream page 0 strokes as SVG to stdout
-remarkable-sync doc cat "2026 - Daily" --page 0 --format svg > page0.svg
+remarkable-sync doc cat "Quick sheets" --page 0 --format svg > page0.svg
 
-# Render page 5 as 200 DPI PNG
-remarkable-sync doc render "2026 - Daily" --page 5 --output page5.png
-```
+# Render page 0 as 200 DPI PNG
+remarkable-sync doc render "Quick sheets" --page 0 --output page0.png
 
-### Daily Planner Synchronization
-```bash
-# Sync today + last uncaptured business day
-remarkable-sync planner sync
-
-# Sync specific dates
-remarkable-sync planner sync 2026-09-28 2026-09-29
-
-# Force re-rendering of existing dates
-remarkable-sync planner sync 2026-09-28 --force
-
-# List captured dates on disk
-remarkable-sync planner list
+# Sync all pages of a notebook to a directory
+remarkable-sync doc sync "Meeting Notes" --output-dir ./export/ --format png
 ```
 
 ### Stroke Files
@@ -123,9 +108,6 @@ remarkable-sync stroke export page.rm -o page.svg
 | :--- | :--- | :--- | :--- |
 | `--config` | `-c` | `~/.config/remarkable-sync/config.json` | Path to credentials file (fallback: `~/.rmapi`) |
 | `--cache-dir` | | `~/.cache/remarkable-sync` | Path to stationery template cache directory |
-| `--output-dir` | `-o` | `modules/remarkable/data` | Output directory for planner page captures |
-| `--dpi` | | `200` | Rendering resolution DPI |
-| `--force` | `-f` | `false` | Force re-rendering of existing planner days |
 | `--help` | `-h` | `false` | Display command help and hierarchical tree |
 | `--version` | `-v` | `false` | Display raw version string |
 

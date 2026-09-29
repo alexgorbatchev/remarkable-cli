@@ -30,12 +30,10 @@ func newRootCmd() *cobra.Command {
 	// Domain subject command groups
 	cmd.AddCommand(newAuthCmd())
 	cmd.AddCommand(newDocCmd())
-	cmd.AddCommand(newPlannerCmd())
 	cmd.AddCommand(newStrokeCmd())
 
-	// Top-level convenience shortcuts
+	// Top-level convenience shortcut
 	cmd.AddCommand(newStatusShortcutCmd())
-	cmd.AddCommand(newListShortcutCmd())
 
 	catalog := cobrahelptree.TechCatalog{
 		"remarkable-sync auth pair": {
@@ -59,16 +57,11 @@ func newRootCmd() *cobra.Command {
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-sync planner sync": {
+		"remarkable-sync doc sync": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "[dates...]", Description: "Optional YYYY-MM-DD dates to sync (defaults to today and last business day)"},
+				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 			MutatesDB: true,
-		},
-		"remarkable-sync planner inspect": {
-			Args: []cobrahelptree.ArgSpec{
-				{Name: "<date>", Description: "Target planner date in YYYY-MM-DD format"},
-			},
 		},
 		"remarkable-sync stroke inspect": {
 			Args: []cobrahelptree.ArgSpec{

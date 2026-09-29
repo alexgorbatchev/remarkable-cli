@@ -255,3 +255,147 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	}
 	return os.WriteFile(outputPath, pngBytes, 0644)
 }
+
+// SyncDocOptions configures document page synchronization.
+type SyncDocOptions struct {
+	OutputDir string
+	Format    string // "png", "svg", "rm"
+	DPI       int
+	Force     bool
+	Pages     []int // optional specific page indices (empty means all pages)
+}
+
+// SyncPageResult tracks the state of an individual synced page.
+type SyncPageResult struct {
+	PageIndex int
+	PageID    string
+	Path      string
+	State     string // "written", "skipped"
+}
+
+// SyncDocument synchronizes pages of any document to local disk.
+func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, opts SyncDocOptions) ([]SyncPageResult, error) {
+	if opts.OutputDir == "" {
+		opts.OutputDir = "."
+	}
+	if opts.Format == "" {
+		opts.Format = "png"
+	}
+	if opts.DPI <= 0 {
+		opts.DPI = render.DefaultDPI
+	}
+
+	item, err := client.Resolve(ctx, idOrName)
+	if err != nil {
+		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)
+	}
+
+	docContent, err := item.GetContent(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching content schema: %w", err)
+	}
+
+	manifest, err := item.GetManifest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching document manifest: %w", err)
+	}
+
+	var pdfBytes []byte
+	if opts.Format == "png" {
+		pdfFile := manifest.Find(item.ID + ".pdf")
+		if pdfFile == nil {
+			pdfFile = manifest.FindSuffix(".pdf")
+		}
+		if pdfFile != nil {
+			pdfBytes, _ = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+		}
+	}
+
+	// Determine which pages to sync
+	pageIndices := opts.Pages
+	if len(pageIndices) == 0 {
+		for i := 0; i < len(docContent.Pages); i++ {
+			pageIndices = append(pageIndices, i)
+		}
+	}
+
+	docDir := filepath.Join(opts.OutputDir, sanitizeFilename(item.Metadata.VisibleName))
+	var results []SyncPageResult
+
+	for _, pageIdx := range pageIndices {
+		if pageIdx < 0 || pageIdx >= len(docContent.Pages) {
+			continue
+		}
+		pageID := docContent.Pages[pageIdx]
+		filename := fmt.Sprintf("page-%03d.%s", pageIdx, opts.Format)
+		outPath := filepath.Join(docDir, filename)
+
+		if !opts.Force {
+			if _, err := os.Stat(outPath); err == nil {
+				results = append(results, SyncPageResult{
+					PageIndex: pageIdx,
+					PageID:    pageID,
+					Path:      outPath,
+					State:     "skipped",
+				})
+				continue
+			}
+		}
+
+		// Download stroke blob
+		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
+		var rmBytes []byte
+		entry := manifest.Find(rmName)
+		if entry == nil {
+			entry = manifest.FindSuffix(pageID + ".rm")
+		}
+		if entry != nil {
+			rmBytes, err = client.GetBlob(ctx, entry.Hash, rmName)
+			if err != nil {
+				return results, fmt.Errorf("downloading strokes for page %d: %w", pageIdx, err)
+			}
+		}
+
+		if err := os.MkdirAll(docDir, 0755); err != nil {
+			return results, fmt.Errorf("creating document output directory: %w", err)
+		}
+
+		switch opts.Format {
+		case "png":
+			pngBytes, err := render.RenderPlannerPage(pdfBytes, pageIdx, rmBytes, opts.DPI)
+			if err != nil {
+				return results, fmt.Errorf("rendering page %d: %w", pageIdx, err)
+			}
+			if err := os.WriteFile(outPath, pngBytes, 0644); err != nil {
+				return results, fmt.Errorf("writing %s: %w", outPath, err)
+			}
+		case "svg":
+			svgStr, err := rmscene.RenderRMToSVG(rmBytes)
+			if err != nil {
+				return results, fmt.Errorf("converting page %d to SVG: %w", pageIdx, err)
+			}
+			if err := os.WriteFile(outPath, []byte(svgStr), 0644); err != nil {
+				return results, fmt.Errorf("writing %s: %w", outPath, err)
+			}
+		case "rm":
+			if err := os.WriteFile(outPath, rmBytes, 0644); err != nil {
+				return results, fmt.Errorf("writing %s: %w", outPath, err)
+			}
+		}
+
+		results = append(results, SyncPageResult{
+			PageIndex: pageIdx,
+			PageID:    pageID,
+			Path:      outPath,
+			State:     "written",
+		})
+	}
+
+	return results, nil
+}
+
+func sanitizeFilename(s string) string {
+	s = strings.ReplaceAll(s, "/", "-")
+	s = strings.ReplaceAll(s, "\\", "-")
+	return strings.TrimSpace(s)
+}

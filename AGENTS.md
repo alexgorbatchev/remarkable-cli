@@ -4,15 +4,14 @@ Instructions for autonomous coding agents working on `remarkable-sync`.
 
 ## What This Tool Does
 
-`remarkable-sync` is a CLI gateway and daily planner synchronization tool for reMarkable Cloud Sync v3, binary stroke decoding, and vector stationery compositing.
+`remarkable-sync` is a generic CLI gateway for reMarkable Cloud Sync v3, binary stroke decoding, and vector stationery compositing.
 
 ## Architecture
 
-- `cmd/remarkable-sync/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `planner.go`, `stroke.go`, `main.go`).
+- `cmd/remarkable-sync/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `stroke.go`, `main.go`).
 - `internal/agent/` — Dual-mode formatting primitives (`IsAgentMode`, `PrintTable`, `PrintKeyValues`, `PrintTree`, `PrintStatus`, `PrintSeparator`).
 - `internal/config/` — XDG Base Directory resolution (`$XDG_CONFIG_HOME`, `$XDG_CACHE_HOME`, fallback to `~/.rmapi`).
-- `internal/doc/` — Document browsing, virtual tree construction, inspection, and page streaming.
-- `internal/planner/` — Date indexing, planner page synchronization, and skip logic.
+- `internal/doc/` — Document browsing, virtual tree construction, inspection, page streaming, and synchronization.
 - `internal/stroke/` — Binary v6 `.rm` inspection, block statistics, and SVG export.
 
 ## Development Loop
