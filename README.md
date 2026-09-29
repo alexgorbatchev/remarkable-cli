@@ -140,7 +140,8 @@ remarkable-cli stroke export page.rm -o page.svg
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--config` | `-c` | `~/.config/remarkable-cli/config.json` | Path to credentials file (fallback: `~/.rmapi`) |
-| `--cache-dir` | | `~/.cache/remarkable-cli` | Path to stationery template cache directory |
+| `--cache-dir` | | `~/.cache/remarkable-cli` | Path to content-addressed blob cache directory |
+| `--no-cache` | | `false` | Disable local disk caching (force network downloads) |
 | `--debug` | | `false` | Log outgoing reMarkable API requests and latencies |
 | `--help` | `-h` | `false` | Display command help and hierarchical tree |
 | `--version` | `-v` | `false` | Display raw version string |

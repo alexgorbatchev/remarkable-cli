@@ -16,6 +16,7 @@ var (
 	cfgFlag      string
 	cacheDirFlag string
 	debugFlag    bool
+	noCacheFlag  bool
 )
 
 type debugTransport struct {
@@ -55,6 +56,10 @@ func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 		cloud.WithConfigFile(configPath),
 		cloud.WithAutoRenew(true),
 		cloud.WithSaveOnRenew(true),
+	}
+
+	if !noCacheFlag {
+		opts = append(opts, cloud.WithCacheDir(config.ResolveCacheDir(cacheDirFlag)))
 	}
 
 	if debugFlag {
