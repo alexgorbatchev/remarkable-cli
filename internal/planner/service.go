@@ -116,7 +116,7 @@ func EnsureStationeryPDF(ctx context.Context, client *cloud.Client, item *cloud.
 		return cachedPDF, nil
 	}
 
-	manifest, err := client.GetManifest(ctx, item.Hash, item.ID)
+	manifest, err := item.GetManifest(ctx)
 	if err != nil {
 		return "", fmt.Errorf("fetching planner manifest: %w", err)
 	}
@@ -172,12 +172,12 @@ func SyncPlanner(ctx context.Context, client *cloud.Client, opts SyncOptions) ([
 		return nil, fmt.Errorf("indexing planner dates: %w", err)
 	}
 
-	docContent, err := client.GetDocumentContent(ctx, docItem.Hash, docItem.ID)
+	docContent, err := docItem.GetContent(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching planner content schema: %w", err)
 	}
 
-	manifest, err := client.GetManifest(ctx, docItem.Hash, docItem.ID)
+	manifest, err := docItem.GetManifest(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching planner manifest: %w", err)
 	}

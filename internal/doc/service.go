@@ -115,7 +115,7 @@ func Inspect(ctx context.Context, client *cloud.Client, idOrName string) (*DocDe
 	}
 
 	// Try fetching document content
-	if docContent, err := client.GetDocumentContent(ctx, item.Hash, item.ID); err == nil && docContent != nil {
+	if docContent, err := item.GetContent(ctx); err == nil && docContent != nil {
 		details.Pages = docContent.PageCount
 		details.FileType = docContent.FileType
 	}
@@ -130,7 +130,7 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		return fmt.Errorf("resolving document %q: %w", idOrName, err)
 	}
 
-	manifest, err := client.GetManifest(ctx, item.Hash, item.ID)
+	manifest, err := item.GetManifest(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
@@ -154,7 +154,7 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 
 	case "rm", "svg":
 		// Find stroke file for page index
-		docContent, err := client.GetDocumentContent(ctx, item.Hash, item.ID)
+		docContent, err := item.GetContent(ctx)
 		if err != nil {
 			return fmt.Errorf("fetching content schema: %w", err)
 		}
@@ -200,7 +200,7 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 		return fmt.Errorf("resolving document %q: %w", idOrName, err)
 	}
 
-	manifest, err := client.GetManifest(ctx, item.Hash, item.ID)
+	manifest, err := item.GetManifest(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
@@ -219,7 +219,7 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	}
 
 	// 2. Download page strokes
-	docContent, err := client.GetDocumentContent(ctx, item.Hash, item.ID)
+	docContent, err := item.GetContent(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching content schema: %w", err)
 	}
