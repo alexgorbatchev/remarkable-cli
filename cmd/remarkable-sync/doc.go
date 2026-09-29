@@ -224,7 +224,9 @@ func newDocCmd() *cobra.Command {
 			agent.PrintKeyValues(cmd.OutOrStdout(), pairs)
 
 			if inspectPagesFlag && len(details.PageList) > 0 {
-				agent.PrintSeparator(cmd.OutOrStdout())
+				if !agent.IsAgentMode() {
+					fmt.Fprintln(cmd.OutOrStdout())
+				}
 				headers := []string{"PAGE", "PAGE ID", "STROKES"}
 				rows := make([][]string, 0, len(details.PageList))
 				for _, p := range details.PageList {
