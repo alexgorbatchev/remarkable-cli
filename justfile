@@ -1,4 +1,5 @@
 set dotenv-load := false
+set positional-arguments
 
 # Default recipe: list available recipes
 default:
@@ -6,11 +7,11 @@ default:
 
 # Run CLI in human mode (default)
 run *args:
-    go run ./cmd/remarkable-sync {{args}}
+    go run ./cmd/remarkable-sync "$@"
 
 # Run CLI in agent-facing mode
 run-ai *args:
-    AGENT=1 go run ./cmd/remarkable-sync {{args}}
+    AGENT=1 go run ./cmd/remarkable-sync "$@"
 
 # Run test suite
 test:
