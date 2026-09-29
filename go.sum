@@ -4,6 +4,8 @@ github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929000653-3ac8775c24ed
 github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929000653-3ac8775c24ed/go.mod h1:8f3Tefpoe53jHXZKob/J51eFOnlr5He+vL6OdE7pimM=
 github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929031041-89493833967e h1:6+DsXZkc60DTuUGC1DxmD0x9+VIkoW83A0GKGO6dNdU=
 github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929031041-89493833967e/go.mod h1:8f3Tefpoe53jHXZKob/J51eFOnlr5He+vL6OdE7pimM=
+github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929051710-1b2ef1bbbf89 h1:kRI6KwWyrpa23V5L3PPi5nzZFPwyhGiD1AZzWSvU8XQ=
+github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929051710-1b2ef1bbbf89/go.mod h1:8f3Tefpoe53jHXZKob/J51eFOnlr5He+vL6OdE7pimM=
 github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260929001736-816678e0992b h1:JIofAfdlfVi1OFYYVysaiO8raFMXnmvafy5OQMGXH2A=
 github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260929001736-816678e0992b/go.mod h1:YMD5rWuJ6wSsvfroTmjI1Kbc56iCusFJM6W3rwnxBlQ=
 github.com/alexgorbatchev/go-rmscene v0.0.0-20260929000558-a1b13482ab8f h1:38Qzn33wAvGKqM9i+ShLixdq2KdxlV+uQKytieT16wE=

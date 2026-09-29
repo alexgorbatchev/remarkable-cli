@@ -116,13 +116,34 @@ func ResolveCacheDir(explicit string) string {
 	return filepath.Join(".tmp", "remarkable_cache")
 }
 
+func ResolveOutputDir(dir string) string {
+	if dir == "" {
+		dir = filepath.Join("modules", "remarkable", "data")
+	}
+	if filepath.IsAbs(dir) {
+		return dir
+	}
+	if _, err := os.Stat(dir); err == nil {
+		return dir
+	}
+	candidates := []string{
+		filepath.Join("..", dir),
+		filepath.Join("..", "..", dir),
+		filepath.Join("..", "..", "..", dir),
+	}
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	return dir
+}
+
 func SyncPlanner(ctx context.Context, opts SyncOptions) ([]SyncResult, error) {
 	if opts.DPI <= 0 {
 		opts.DPI = 200
 	}
-	if opts.OutputDir == "" {
-		opts.OutputDir = filepath.Join("modules", "remarkable", "data")
-	}
+	opts.OutputDir = ResolveOutputDir(opts.OutputDir)
 
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create output dir: %w", err)

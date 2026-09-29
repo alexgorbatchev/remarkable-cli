@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -40,9 +39,7 @@ func newSyncCommand() *cobra.Command {
 				}
 			}
 
-			if outputDir == "" {
-				outputDir = filepath.Join("modules", "remarkable", "data")
-			}
+			outputDir = sync.ResolveOutputDir(outputDir)
 
 			if len(dates) == 0 {
 				dates = sync.DefaultTargets(outputDir, time.Now())

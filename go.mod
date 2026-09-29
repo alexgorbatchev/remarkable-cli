@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929031041-89493833967e // indirect
+	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20260929051710-1b2ef1bbbf89 // indirect
 	github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260929001736-816678e0992b // indirect
 	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929000558-a1b13482ab8f // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
