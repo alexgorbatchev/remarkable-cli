@@ -26,6 +26,7 @@ func newRootCmd() *cobra.Command {
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (defaults to ~/.config/remarkable-sync/config.json or ~/.rmapi)")
 	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to template cache directory (defaults to ~/.cache/remarkable-sync)")
+	cmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print outgoing reMarkable API requests for diagnostics")
 
 	// Domain subject command groups
 	cmd.AddCommand(newAuthCmd())
