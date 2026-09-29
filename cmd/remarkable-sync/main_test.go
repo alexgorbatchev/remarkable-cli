@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/alexgorbatchev/go-rmscene"
 )
 
-func executeCommand(args ...string) (string, error) {
+func executeRoot(args ...string) (string, error) {
+	cmd := newRootCmd()
 	buf := new(bytes.Buffer)
-	cmd := newRootCommand()
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs(args)
@@ -21,82 +23,87 @@ func executeCommand(args ...string) (string, error) {
 
 func TestRootCommand_HelpAndVersion(t *testing.T) {
 	t.Setenv("AGENT", "0")
-	out, err := executeCommand("--help")
+	out, err := executeRoot("--help")
 	if err != nil {
 		t.Fatalf("help failed: %v", err)
 	}
-	if len(out) == 0 {
-		t.Fatal("expected help output")
+	if !strings.Contains(out, "remarkable-sync") {
+		t.Fatalf("expected remarkable-sync in help, got: %s", out)
 	}
 
-	outVer, errVer := executeCommand("--version")
+	outVer, errVer := executeRoot("--version")
 	if errVer != nil {
 		t.Fatalf("version failed: %v", errVer)
 	}
 	if outVer != version+"\n" {
-		t.Errorf("expected '%s\\n', got %q", version, outVer)
+		t.Errorf("expected version '%s\\n', got %q", version, outVer)
 	}
 }
 
-func TestListCommand_Empty(t *testing.T) {
-	t.Setenv("AGENT", "0")
+func TestPlannerListCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	out, err := executeCommand("list", "--output-dir", tmpDir)
-	if err != nil {
-		t.Fatalf("list failed: %v", err)
-	}
-	if !strings.Contains(out, "[INFO] No planner days captured") {
-		t.Errorf("expected info output, got %q", out)
-	}
-}
-
-func TestListCommand_Populated(t *testing.T) {
-	tmpDir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(tmpDir, "2026-09-28-day.png"), []byte("png"), 0o644)
-
+	// 1. Empty human mode
 	t.Setenv("AGENT", "0")
-	out, err := executeCommand("list", "--output-dir", tmpDir)
+	out, err := executeRoot("planner", "list", "--output-dir", tmpDir)
 	if err != nil {
-		t.Fatalf("list failed: %v", err)
+		t.Fatalf("planner list failed: %v", err)
+	}
+	if !strings.Contains(out, "[INFO]") || !strings.Contains(out, "No planner captures found") {
+		t.Errorf("unexpected output: %s", out)
+	}
+
+	// 2. Populated
+	_ = os.WriteFile(filepath.Join(tmpDir, "2026-09-28-day.png"), []byte("png"), 0644)
+	out, err = executeRoot("planner", "list", "--output-dir", tmpDir)
+	if err != nil {
+		t.Fatalf("planner list failed: %v", err)
 	}
 	if !strings.Contains(out, "2026-09-28") {
-		t.Errorf("expected date in output, got %q", out)
+		t.Errorf("expected date in output: %s", out)
 	}
 
-	// Agent mode: one per line
+	// 3. Agent mode
 	t.Setenv("AGENT", "1")
-	outAgent, errAgent := executeCommand("list", "--output-dir", tmpDir)
+	outAgent, errAgent := executeRoot("planner", "list", "--output-dir", tmpDir)
 	if errAgent != nil {
 		t.Fatalf("agent list failed: %v", errAgent)
 	}
 	if strings.TrimSpace(outAgent) != "2026-09-28" {
-		t.Errorf("expected plain date line, got %q", outAgent)
+		t.Errorf("expected clean line output, got %q", outAgent)
 	}
 }
 
-func TestSyncCommand_SkipExisting(t *testing.T) {
+func TestStrokeCommands(t *testing.T) {
 	tmpDir := t.TempDir()
-	// Pre-create both day and notes
-	_ = os.WriteFile(filepath.Join(tmpDir, "2026-09-28-day.png"), []byte("png"), 0o644)
-	_ = os.WriteFile(filepath.Join(tmpDir, "2026-09-28-notes.png"), []byte("png"), 0o644)
+	strokePath := filepath.Join(tmpDir, "test.rm")
+	_ = os.WriteFile(strokePath, []byte(rmscene.HeaderV6), 0644)
 
+	// 1. Stroke inspect
 	t.Setenv("AGENT", "0")
-	out, err := executeCommand("sync", "2026-09-28", "--output-dir", tmpDir)
+	out, err := executeRoot("stroke", "inspect", strokePath)
 	if err != nil {
-		t.Fatalf("sync failed: %v", err)
+		t.Fatalf("stroke inspect failed: %v", err)
 	}
-	if !strings.Contains(out, "[SKIPPED]") || !strings.Contains(out, "2026-09-28 day (already on disk)") {
-		t.Errorf("expected skipped output, got %q", out)
+	if !strings.Contains(out, "Total Blocks:") {
+		t.Errorf("expected Total Blocks in inspect output, got %s", out)
 	}
 
-	// Agent mode
-	t.Setenv("AGENT", "1")
-	outAgent, errAgent := executeCommand("sync", "2026-09-28", "--output-dir", tmpDir)
-	if errAgent != nil {
-		t.Fatalf("agent sync failed: %v", errAgent)
+	// 2. Stroke export
+	outSvgPath := filepath.Join(tmpDir, "exported.svg")
+	_, err = executeRoot("stroke", "export", strokePath, "-o", outSvgPath)
+	if err != nil {
+		t.Fatalf("stroke export failed: %v", err)
 	}
-	if !strings.Contains(outAgent, "skipped:") {
-		t.Errorf("expected agent skipped output, got %q", outAgent)
+	content, err := os.ReadFile(outSvgPath)
+	if err != nil || !strings.Contains(string(content), "<svg") {
+		t.Fatalf("expected valid SVG file at %s", outSvgPath)
+	}
+}
+
+func TestAuthPairValidation(t *testing.T) {
+	_, err := executeRoot("auth", "pair", "short")
+	if err == nil {
+		t.Fatal("expected error on short pairing code")
 	}
 }

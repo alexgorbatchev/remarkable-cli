@@ -1,32 +1,33 @@
----
-created_on: 2026-09-28 17:07
-status: current
----
+# AGENTS.md
 
-# remarkable-sync
+Instructions for autonomous coding agents working on `remarkable-sync`.
 
-reMarkable Cloud daily planner sync and document export CLI
+## What This Tool Does
 
-## Commands
-- **Build Local Binary:** `just build` (compiles to `bin/remarkable-sync`)
-- **Run CLI with Arguments:** `just run [args...]`
-- **Run CLI in Agent Mode:** `just run-ai [args...]` (`AGENT=1`)
-- **Run Tests:** `just test` (`go test -v ./...`)
-- **Run Static Analysis & Tests:** `just check` (`go vet ./... && go test -v ./...`)
-- **Run Linter / Static Analysis:** `just vet` or `just lint` (`go vet ./...`)
-- **Format Source Code:** `just fmt` (`go fmt ./...`)
+`remarkable-sync` is a CLI gateway and daily planner synchronization tool for reMarkable Cloud Sync v3, binary stroke decoding, and vector stationery compositing.
 
-## Setup & Environment
-- **Prerequisites:** Go 1.26.2+, `just`.
-- **Temporary Files:** Temporary file operations use `.tmp/` within the project root.
+## Architecture
 
-## Conventions
-- **Output Formatting & No Decorative Headers:** All CLI output must be plain text without emojis across all modes.
-- **Tree Rendering:** Help screens and hierarchies render using `cobra-help-tree`.
-- **Agent Mode (`AGENT=1`):** When `AGENT=1` is set, output compact key-value pairs or bullets.
-- **Hermetic Unit Tests:** All unit tests must remain 100% offline and hermetic.
+- `cmd/remarkable-sync/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `planner.go`, `stroke.go`, `main.go`).
+- `internal/agent/` — Dual-mode formatting primitives (`IsAgentMode`, `PrintTable`, `PrintKeyValues`, `PrintTree`, `PrintStatus`, `PrintSeparator`).
+- `internal/config/` — XDG Base Directory resolution (`$XDG_CONFIG_HOME`, `$XDG_CACHE_HOME`, fallback to `~/.rmapi`).
+- `internal/doc/` — Document browsing, virtual tree construction, inspection, and page streaming.
+- `internal/planner/` — Date indexing, planner page synchronization, and skip logic.
+- `internal/stroke/` — Binary v6 `.rm` inspection, block statistics, and SVG export.
 
-## Boundaries
-- **Always:** Maintain >= 90% statement code coverage across Go packages.
-- **Always:** Run `just test` and `just vet` before committing changes.
-- **Never:** Commit compiled Go binaries (e.g. `bin/remarkable-sync`) to git.
+## Development Loop
+
+- Run unit tests: `just test`
+- Run lint and checks: `just check`
+- Build binary: `just build` (outputs strictly to `bin/remarkable-sync`)
+- Run human mode: `just run <args>`
+- Run agent mode: `just run-ai <args>`
+
+## Standards & Constraints
+
+- Go 1.26+ required.
+- Subject-first noun-verb CLI structure (`cli <subject> <verb>`).
+- Strict ban on emojis in both human and agent modes.
+- Dual-mode formatting via `AGENT=1` required on all output pathways.
+- Aligned tree-view help screens powered by `github.com/alexgorbatchev/cobra-help-tree/v2`.
+- `--version` prints strictly the raw version string followed by a newline.
