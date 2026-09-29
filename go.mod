@@ -1,4 +1,4 @@
-module github.com/alexgorbatchev/remarkable-sync
+module github.com/alexgorbatchev/remarkable-cli
 
 go 1.26.2
 

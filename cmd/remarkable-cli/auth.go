@@ -9,8 +9,8 @@ import (
 	"time"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
-	"github.com/alexgorbatchev/remarkable-sync/internal/agent"
-	"github.com/alexgorbatchev/remarkable-sync/internal/config"
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
+	"github.com/alexgorbatchev/remarkable-cli/internal/config"
 	"github.com/spf13/cobra"
 )
 

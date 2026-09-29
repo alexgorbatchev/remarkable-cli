@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/alexgorbatchev/remarkable-sync/internal/agent"
-	"github.com/alexgorbatchev/remarkable-sync/internal/stroke"
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
+	"github.com/alexgorbatchev/remarkable-cli/internal/stroke"
 	"github.com/spf13/cobra"
 )
 

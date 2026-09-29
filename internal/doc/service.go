@@ -13,7 +13,7 @@ import (
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	render "github.com/alexgorbatchev/go-remarkable-render"
 	"github.com/alexgorbatchev/go-rmscene"
-	"github.com/alexgorbatchev/remarkable-sync/internal/agent"
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/gen2brain/go-fitz"
 )
 

@@ -7,11 +7,11 @@ default:
 
 # Run CLI in human mode (default)
 run *args:
-    go run ./cmd/remarkable-sync "$@"
+    go run ./cmd/remarkable-cli "$@"
 
 # Run CLI in agent-facing mode
 run-ai *args:
-    AGENT=1 go run ./cmd/remarkable-sync "$@"
+    AGENT=1 go run ./cmd/remarkable-cli "$@"
 
 # Run test suite
 test:
@@ -20,11 +20,11 @@ test:
 # Build binary into bin/
 build:
     mkdir -p bin
-    go build -o bin/remarkable-sync ./cmd/remarkable-sync
+    go build -o bin/remarkable-cli ./cmd/remarkable-cli
 
 # Install binary to GOPATH bin directory
 install:
-    go install ./cmd/remarkable-sync
+    go install ./cmd/remarkable-cli
 
 # Run static analysis and vet
 lint:

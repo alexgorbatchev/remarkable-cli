@@ -1,11 +1,11 @@
 version: 2
 
-project_name: remarkable-sync
+project_name: remarkable-cli
 
 builds:
-  - id: remarkable-sync
-    main: ./cmd/remarkable-sync
-    binary: remarkable-sync
+  - id: remarkable-cli
+    main: ./cmd/remarkable-cli
+    binary: remarkable-cli
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:

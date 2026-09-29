@@ -48,7 +48,7 @@ func TestResolveCacheDir(t *testing.T) {
 	// 3. Default fallback
 	os.Unsetenv("REMARKABLE_CACHE_DIR")
 	home, _ := os.UserHomeDir()
-	expected := filepath.Join(home, ".cache", "remarkable-sync")
+	expected := filepath.Join(home, ".cache", "remarkable-cli")
 	if got := ResolveCacheDir(""); got != expected {
 		t.Fatalf("expected %s, got %s", expected, got)
 	}

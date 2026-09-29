@@ -12,8 +12,8 @@ var version = "0.2.0"
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remarkable-sync",
-		Short: "High-performance CLI gateway and planner synchronizer for reMarkable Cloud Sync v3",
+		Use:   "remarkable-cli",
+		Short: "High-performance, generic CLI gateway for reMarkable Cloud Sync v3",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
@@ -24,8 +24,8 @@ func newRootCmd() *cobra.Command {
 	cmd.SetVersionTemplate("{{.Version}}\n")
 
 	// Global flags
-	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (defaults to ~/.config/remarkable-sync/config.json or ~/.rmapi)")
-	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to template cache directory (defaults to ~/.cache/remarkable-sync)")
+	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (defaults to ~/.config/remarkable-cli/config.json or ~/.rmapi)")
+	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to template cache directory (defaults to ~/.cache/remarkable-cli)")
 	cmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print outgoing reMarkable API requests for diagnostics")
 
 	// Domain subject command groups
@@ -37,50 +37,50 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStatusShortcutCmd())
 
 	catalog := cobrahelptree.TechCatalog{
-		"remarkable-sync auth pair": {
+		"remarkable-cli auth pair": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<code>", Description: "8-character device registration code from my.remarkable.com/device/desktop/connect"},
 			},
 			MutatesDB: true,
 		},
-		"remarkable-sync doc search": {
+		"remarkable-cli doc search": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 				{Name: "<query>", Description: "Text string to search across document pages"},
 			},
 		},
-		"remarkable-sync doc links": {
+		"remarkable-cli doc links": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-sync doc inspect": {
+		"remarkable-cli doc inspect": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-sync doc cat": {
+		"remarkable-cli doc cat": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-sync doc render": {
+		"remarkable-cli doc render": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-sync doc sync": {
+		"remarkable-cli doc sync": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 			MutatesDB: true,
 		},
-		"remarkable-sync stroke inspect": {
+		"remarkable-cli stroke inspect": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<file.rm>", Description: "Path to reMarkable v6 binary stroke file"},
 			},
 		},
-		"remarkable-sync stroke export": {
+		"remarkable-cli stroke export": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<file.rm>", Description: "Path to reMarkable v6 binary stroke file"},
 			},

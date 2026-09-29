@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alexgorbatchev/remarkable-sync/internal/agent"
-	"github.com/alexgorbatchev/remarkable-sync/internal/doc"
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
+	"github.com/alexgorbatchev/remarkable-cli/internal/doc"
 	"github.com/spf13/cobra"
 )
 

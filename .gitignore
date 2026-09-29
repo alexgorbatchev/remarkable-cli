@@ -1,6 +1,6 @@
 # Binaries
 bin/
-/remarkable-sync
+/remarkable-cli
 /remarkable-sync
 *.exe
 *.exe~
