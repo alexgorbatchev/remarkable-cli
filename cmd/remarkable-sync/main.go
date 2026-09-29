@@ -42,6 +42,17 @@ func newRootCmd() *cobra.Command {
 			},
 			MutatesDB: true,
 		},
+		"remarkable-sync doc search": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				{Name: "<query>", Description: "Text string to search across document pages"},
+			},
+		},
+		"remarkable-sync doc links": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+			},
+		},
 		"remarkable-sync doc inspect": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},

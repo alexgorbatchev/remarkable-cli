@@ -6,12 +6,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	render "github.com/alexgorbatchev/go-remarkable-render"
 	"github.com/alexgorbatchev/go-rmscene"
 	"github.com/alexgorbatchev/remarkable-sync/internal/agent"
+	"github.com/gen2brain/go-fitz"
 )
 
 // ItemSummary represents a user-facing document or folder.
@@ -23,19 +26,24 @@ type ItemSummary struct {
 	Parent   string
 }
 
-// List returns a list of cloud items optionally filtered by folder or type.
-func List(ctx context.Context, client *cloud.Client, folderID, docType string, limit int) ([]ItemSummary, error) {
+// List returns a list of cloud items optionally filtered by folder, type, or name query.
+func List(ctx context.Context, client *cloud.Client, folderID, docType, query string, limit int) ([]ItemSummary, error) {
 	items, err := client.ListItems(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing cloud items: %w", err)
 	}
 
 	summaries := make([]ItemSummary, 0, len(items))
+	query = strings.ToLower(strings.TrimSpace(query))
+
 	for _, it := range items {
 		if folderID != "" && it.Metadata.Parent != folderID {
 			continue
 		}
 		if docType != "" && string(it.Metadata.Type) != docType {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(it.Metadata.VisibleName), query) {
 			continue
 		}
 		summaries = append(summaries, ItemSummary{
@@ -59,7 +67,6 @@ func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, erro
 		return nil, fmt.Errorf("fetching items for tree: %w", err)
 	}
 
-	// Index by parent ID
 	byParent := make(map[string][]*cloud.Item)
 	byID := make(map[string]*cloud.Item)
 	for _, it := range items {
@@ -88,6 +95,14 @@ func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, erro
 	return rootNode, nil
 }
 
+// PageDetail holds page-level metadata and stroke presence.
+type PageDetail struct {
+	Index       int
+	ID          string
+	HasStrokes  bool
+	StrokeBytes int64
+}
+
 // DocDetails holds detailed information about a document.
 type DocDetails struct {
 	ID           string
@@ -98,10 +113,11 @@ type DocDetails struct {
 	FileType     string
 	Pinned       bool
 	Bookmarked   bool
+	PageList     []PageDetail
 }
 
 // Inspect fetches detailed metadata for a document.
-func Inspect(ctx context.Context, client *cloud.Client, idOrName string) (*DocDetails, error) {
+func Inspect(ctx context.Context, client *cloud.Client, idOrName string, includePages bool) (*DocDetails, error) {
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
 		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)
@@ -114,16 +130,169 @@ func Inspect(ctx context.Context, client *cloud.Client, idOrName string) (*DocDe
 		LastModified: item.Metadata.LastModified,
 	}
 
-	// Try fetching document content
-	if docContent, err := item.GetContent(ctx); err == nil && docContent != nil {
-		details.Pages = docContent.PageCount
+	docContent, err := item.GetContent(ctx)
+	if err == nil && docContent != nil {
+		pageIDs := getPageIDs(docContent)
+		details.Pages = len(pageIDs)
 		details.FileType = docContent.FileType
+
+		if includePages {
+			manifest, _ := item.GetManifest(ctx)
+			for i, pageID := range pageIDs {
+				pd := PageDetail{
+					Index: i,
+					ID:    pageID,
+				}
+				if manifest != nil {
+					if entry := manifest.FindSuffix(pageID + ".rm"); entry != nil {
+						pd.HasStrokes = true
+						pd.StrokeBytes = entry.Size
+					}
+				}
+				details.PageList = append(details.PageList, pd)
+			}
+		}
 	}
 
 	return details, nil
 }
 
-// Cat streams document page contents (pdf, rm, or svg) directly to w.
+// SearchMatch represents a page matching a query.
+type SearchMatch struct {
+	PageIndex int
+	Snippet   string
+}
+
+// SearchDocument searches text within a PDF-based document and returns matching page indices.
+func SearchDocument(ctx context.Context, client *cloud.Client, idOrName, query string) ([]SearchMatch, error) {
+	item, err := client.Resolve(ctx, idOrName)
+	if err != nil {
+		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)
+	}
+
+	manifest, err := item.GetManifest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching document manifest: %w", err)
+	}
+
+	pdfFile := manifest.Find(item.ID + ".pdf")
+	if pdfFile == nil {
+		pdfFile = manifest.FindSuffix(".pdf")
+	}
+	if pdfFile == nil {
+		return nil, fmt.Errorf("document %q has no searchable PDF text", idOrName)
+	}
+
+	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	if err != nil {
+		return nil, fmt.Errorf("downloading template PDF: %w", err)
+	}
+
+	doc, err := fitz.NewFromMemory(pdfBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing PDF: %w", err)
+	}
+	defer doc.Close()
+
+	queryLower := strings.ToLower(query)
+	var matches []SearchMatch
+
+	for i := 0; i < doc.NumPage(); i++ {
+		text, err := doc.Text(i)
+		if err != nil {
+			continue
+		}
+
+		if idx := strings.Index(strings.ToLower(text), queryLower); idx != -1 {
+			start := idx - 20
+			if start < 0 {
+				start = 0
+			}
+			end := idx + len(query) + 40
+			if end > len(text) {
+				end = len(text)
+			}
+
+			snippet := strings.ReplaceAll(text[start:end], "\n", " ")
+			snippet = strings.Join(strings.Fields(snippet), " ")
+
+			matches = append(matches, SearchMatch{
+				PageIndex: i,
+				Snippet:   snippet,
+			})
+		}
+	}
+
+	return matches, nil
+}
+
+// PageLink represents an internal or external hyperlink on a page.
+type PageLink struct {
+	Index      int
+	TargetPage int
+	URI        string
+}
+
+var pageLinkRe = regexp.MustCompile(`#page=(\d+)`)
+
+// GetLinks extracts all hyperlinks from a specific document page.
+func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int) ([]PageLink, error) {
+	item, err := client.Resolve(ctx, idOrName)
+	if err != nil {
+		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)
+	}
+
+	manifest, err := item.GetManifest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching document manifest: %w", err)
+	}
+
+	pdfFile := manifest.Find(item.ID + ".pdf")
+	if pdfFile == nil {
+		pdfFile = manifest.FindSuffix(".pdf")
+	}
+	if pdfFile == nil {
+		return nil, fmt.Errorf("document %q has no PDF link annotations", idOrName)
+	}
+
+	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	if err != nil {
+		return nil, fmt.Errorf("downloading template PDF: %w", err)
+	}
+
+	doc, err := fitz.NewFromMemory(pdfBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing PDF: %w", err)
+	}
+	defer doc.Close()
+
+	if pageIdx < 0 || pageIdx >= doc.NumPage() {
+		return nil, fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, doc.NumPage())
+	}
+
+	fitzLinks, err := doc.Links(pageIdx)
+	if err != nil {
+		return nil, fmt.Errorf("reading links: %w", err)
+	}
+
+	links := make([]PageLink, 0, len(fitzLinks))
+	for i, fl := range fitzLinks {
+		targetPage := -1
+		if match := pageLinkRe.FindStringSubmatch(fl.URI); match != nil {
+			if p, err := strconv.Atoi(match[1]); err == nil {
+				targetPage = p - 1 // convert 1-based page to 0-based
+			}
+		}
+		links = append(links, PageLink{
+			Index:      i,
+			TargetPage: targetPage,
+			URI:        fl.URI,
+		})
+	}
+	return links, nil
+}
+
+// Cat streams document page contents (pdf, rm, svg, or text) directly to w.
 func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int, format string, w io.Writer) error {
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
@@ -152,16 +321,44 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		_, err = w.Write(data)
 		return err
 
+	case "text":
+		pdfFile := manifest.Find(item.ID + ".pdf")
+		if pdfFile == nil {
+			pdfFile = manifest.FindSuffix(".pdf")
+		}
+		if pdfFile == nil {
+			return fmt.Errorf("document %q has no PDF text to extract", idOrName)
+		}
+		pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+		if err != nil {
+			return fmt.Errorf("downloading PDF blob: %w", err)
+		}
+		doc, err := fitz.NewFromMemory(pdfBytes)
+		if err != nil {
+			return fmt.Errorf("opening PDF: %w", err)
+		}
+		defer doc.Close()
+
+		if pageIdx < 0 || pageIdx >= doc.NumPage() {
+			return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, doc.NumPage())
+		}
+		text, err := doc.Text(pageIdx)
+		if err != nil {
+			return fmt.Errorf("extracting text: %w", err)
+		}
+		_, err = io.WriteString(w, text)
+		return err
+
 	case "rm", "svg":
-		// Find stroke file for page index
 		docContent, err := item.GetContent(ctx)
 		if err != nil {
 			return fmt.Errorf("fetching content schema: %w", err)
 		}
-		if pageIdx < 0 || pageIdx >= len(docContent.Pages) {
-			return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(docContent.Pages))
+		pageIDs := getPageIDs(docContent)
+		if pageIdx < 0 || pageIdx >= len(pageIDs) {
+			return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(pageIDs))
 		}
-		pageID := docContent.Pages[pageIdx]
+		pageID := pageIDs[pageIdx]
 		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
 		fileEntry := manifest.Find(rmName)
 		if fileEntry == nil {
@@ -180,7 +377,6 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 			return err
 		}
 
-		// Convert to SVG
 		svgStr, err := rmscene.RenderRMToSVG(rmBytes)
 		if err != nil {
 			return fmt.Errorf("converting strokes to SVG: %w", err)
@@ -189,7 +385,7 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		return err
 
 	default:
-		return fmt.Errorf("unsupported format %q (choose from: pdf, rm, svg)", format)
+		return fmt.Errorf("unsupported format %q (choose from: pdf, text, rm, svg)", format)
 	}
 }
 
@@ -205,28 +401,27 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
 
-	// 1. Download PDF background
 	pdfFile := manifest.Find(item.ID + ".pdf")
 	if pdfFile == nil {
 		pdfFile = manifest.FindSuffix(".pdf")
 	}
-	if pdfFile == nil {
-		return fmt.Errorf("document %q has no PDF stationery template", idOrName)
-	}
-	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
-	if err != nil {
-		return fmt.Errorf("downloading template PDF: %w", err)
+	var pdfBytes []byte
+	if pdfFile != nil {
+		pdfBytes, err = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+		if err != nil {
+			return fmt.Errorf("downloading template PDF: %w", err)
+		}
 	}
 
-	// 2. Download page strokes
 	docContent, err := item.GetContent(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching content schema: %w", err)
 	}
-	if pageIdx < 0 || pageIdx >= len(docContent.Pages) {
-		return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(docContent.Pages))
+	pageIDs := getPageIDs(docContent)
+	if pageIdx < 0 || pageIdx >= len(pageIDs) {
+		return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(pageIDs))
 	}
-	pageID := docContent.Pages[pageIdx]
+	pageID := pageIDs[pageIdx]
 	rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
 
 	var rmBytes []byte
@@ -241,7 +436,6 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 		}
 	}
 
-	// 3. Composite with render engine
 	if dpi <= 0 {
 		dpi = render.DefaultDPI
 	}
@@ -311,10 +505,10 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 		}
 	}
 
-	// Determine which pages to sync
+	pageIDs := getPageIDs(docContent)
 	pageIndices := opts.Pages
 	if len(pageIndices) == 0 {
-		for i := 0; i < len(docContent.Pages); i++ {
+		for i := 0; i < len(pageIDs); i++ {
 			pageIndices = append(pageIndices, i)
 		}
 	}
@@ -323,10 +517,10 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 	var results []SyncPageResult
 
 	for _, pageIdx := range pageIndices {
-		if pageIdx < 0 || pageIdx >= len(docContent.Pages) {
+		if pageIdx < 0 || pageIdx >= len(pageIDs) {
 			continue
 		}
-		pageID := docContent.Pages[pageIdx]
+		pageID := pageIDs[pageIdx]
 		filename := fmt.Sprintf("page-%03d.%s", pageIdx, opts.Format)
 		outPath := filepath.Join(docDir, filename)
 
@@ -342,7 +536,6 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 			}
 		}
 
-		// Download stroke blob
 		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
 		var rmBytes []byte
 		entry := manifest.Find(rmName)
@@ -392,6 +585,19 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 	}
 
 	return results, nil
+}
+
+func getPageIDs(dc *cloud.DocumentContent) []string {
+	if len(dc.Pages) > 0 {
+		return dc.Pages
+	}
+	var ids []string
+	for _, p := range dc.CPages.Pages {
+		if p.ID != "" {
+			ids = append(ids, p.ID)
+		}
+	}
+	return ids
 }
 
 func sanitizeFilename(s string) string {

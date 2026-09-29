@@ -50,7 +50,7 @@ func TestDocListAndInspect_MockServer(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	items, err := List(ctx, client, "", "", 10)
+	items, err := List(ctx, client, "", "", "", 10)
 	if err != nil {
 		t.Fatalf("List error: %v", err)
 	}

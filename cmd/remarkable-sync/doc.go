@@ -19,10 +19,13 @@ func newDocCmd() *cobra.Command {
 	var (
 		docFolderFlag string
 		docTypeFlag   string
+		docQueryFlag  string
 		docLimitFlag  int
 
 		catPageFlag   int
 		catFormatFlag string
+
+		linksPageFlag int
 
 		renderPageFlag   int
 		renderDPIFlag    int
@@ -32,6 +35,8 @@ func newDocCmd() *cobra.Command {
 		syncFormatFlag    string
 		syncDPIFlag       int
 		syncForceFlag     bool
+
+		inspectPagesFlag bool
 	)
 
 	docListCmd := &cobra.Command{
@@ -46,7 +51,7 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
-			items, err := doc.List(ctx, client, docFolderFlag, docTypeFlag, docLimitFlag)
+			items, err := doc.List(ctx, client, docFolderFlag, docTypeFlag, docQueryFlag, docLimitFlag)
 			if err != nil {
 				return err
 			}
@@ -68,6 +73,7 @@ func newDocCmd() *cobra.Command {
 	}
 	docListCmd.Flags().StringVar(&docFolderFlag, "folder", "", "Filter items by parent folder ID")
 	docListCmd.Flags().StringVar(&docTypeFlag, "type", "", "Filter items by type (DocumentType, CollectionType)")
+	docListCmd.Flags().StringVarP(&docQueryFlag, "query", "q", "", "Filter items matching title substring")
 	docListCmd.Flags().IntVar(&docLimitFlag, "limit", 0, "Maximum number of items to return")
 
 	docTreeCmd := &cobra.Command{
@@ -92,12 +98,12 @@ func newDocCmd() *cobra.Command {
 		},
 	}
 
-	docInspectCmd := &cobra.Command{
-		Use:   "inspect <id-or-name>",
-		Short: "Display detailed document metadata and page structure",
-		Args:  cobra.ExactArgs(1),
+	docSearchCmd := &cobra.Command{
+		Use:   "search <id-or-name> <query>",
+		Short: "Search text within document pages and return matching page numbers",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 
 			client, err := newCloudClient(ctx)
@@ -105,7 +111,103 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
-			details, err := doc.Inspect(ctx, client, args[0])
+			matches, err := doc.SearchDocument(ctx, client, args[0], args[1])
+			if err != nil {
+				return err
+			}
+
+			if agent.IsAgentMode() {
+				for _, m := range matches {
+					fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\n", m.PageIndex, m.Snippet)
+				}
+				return nil
+			}
+
+			if len(matches) == 0 {
+				agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No matches found for %q", args[1]))
+				return nil
+			}
+
+			headers := []string{"PAGE", "SNIPPET"}
+			rows := make([][]string, 0, len(matches))
+			for _, m := range matches {
+				rows = append(rows, []string{
+					fmt.Sprintf("%d", m.PageIndex),
+					m.Snippet,
+				})
+			}
+			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
+			return nil
+		},
+	}
+
+	docLinksCmd := &cobra.Command{
+		Use:   "links <id-or-name>",
+		Short: "List internal and external hyperlinks on a document page",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			defer cancel()
+
+			client, err := newCloudClient(ctx)
+			if err != nil {
+				return err
+			}
+
+			links, err := doc.GetLinks(ctx, client, args[0], linksPageFlag)
+			if err != nil {
+				return err
+			}
+
+			if agent.IsAgentMode() {
+				for _, l := range links {
+					targetStr := "-"
+					if l.TargetPage >= 0 {
+						targetStr = fmt.Sprintf("%d", l.TargetPage)
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\t%s\n", l.Index, targetStr, l.URI)
+				}
+				return nil
+			}
+
+			if len(links) == 0 {
+				agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No hyperlinks found on page %d", linksPageFlag))
+				return nil
+			}
+
+			headers := []string{"LINK #", "TARGET PAGE", "URI"}
+			rows := make([][]string, 0, len(links))
+			for _, l := range links {
+				targetStr := "-"
+				if l.TargetPage >= 0 {
+					targetStr = fmt.Sprintf("%d", l.TargetPage)
+				}
+				rows = append(rows, []string{
+					fmt.Sprintf("%d", l.Index),
+					targetStr,
+					l.URI,
+				})
+			}
+			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
+			return nil
+		},
+	}
+	docLinksCmd.Flags().IntVar(&linksPageFlag, "page", 0, "Page index to inspect links from (0-based)")
+
+	docInspectCmd := &cobra.Command{
+		Use:   "inspect <id-or-name>",
+		Short: "Display detailed document metadata and page structure",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 25*time.Second)
+			defer cancel()
+
+			client, err := newCloudClient(ctx)
+			if err != nil {
+				return err
+			}
+
+			details, err := doc.Inspect(ctx, client, args[0], inspectPagesFlag)
 			if err != nil {
 				return err
 			}
@@ -120,13 +222,32 @@ func newDocCmd() *cobra.Command {
 			}
 
 			agent.PrintKeyValues(cmd.OutOrStdout(), pairs)
+
+			if inspectPagesFlag && len(details.PageList) > 0 {
+				agent.PrintSeparator(cmd.OutOrStdout())
+				headers := []string{"PAGE", "PAGE ID", "STROKES"}
+				rows := make([][]string, 0, len(details.PageList))
+				for _, p := range details.PageList {
+					strokeStr := "empty"
+					if p.HasStrokes {
+						strokeStr = fmt.Sprintf("present (%d bytes)", p.StrokeBytes)
+					}
+					rows = append(rows, []string{
+						fmt.Sprintf("%d", p.Index),
+						p.ID,
+						strokeStr,
+					})
+				}
+				agent.PrintTable(cmd.OutOrStdout(), headers, rows)
+			}
 			return nil
 		},
 	}
+	docInspectCmd.Flags().BoolVar(&inspectPagesFlag, "pages", false, "Include page-by-page stroke presence listing")
 
 	docCatCmd := &cobra.Command{
 		Use:   "cat <id-or-name>",
-		Short: "Stream document page content (pdf, rm strokes, or svg) to stdout",
+		Short: "Stream document page content (pdf, rm strokes, svg, or text) to stdout",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
@@ -141,7 +262,7 @@ func newDocCmd() *cobra.Command {
 		},
 	}
 	docCatCmd.Flags().IntVar(&catPageFlag, "page", 0, "Page index to extract (0-based)")
-	docCatCmd.Flags().StringVar(&catFormatFlag, "format", "svg", "Output format (pdf, rm, svg)")
+	docCatCmd.Flags().StringVar(&catFormatFlag, "format", "svg", "Output format (pdf, text, rm, svg)")
 
 	docRenderCmd := &cobra.Command{
 		Use:   "render <id-or-name>",
@@ -230,6 +351,8 @@ func newDocCmd() *cobra.Command {
 
 	docCmd.AddCommand(docListCmd)
 	docCmd.AddCommand(docTreeCmd)
+	docCmd.AddCommand(docSearchCmd)
+	docCmd.AddCommand(docLinksCmd)
 	docCmd.AddCommand(docInspectCmd)
 	docCmd.AddCommand(docCatCmd)
 	docCmd.AddCommand(docRenderCmd)
