@@ -7,14 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	render "github.com/alexgorbatchev/go-remarkable-render"
 	"github.com/alexgorbatchev/go-rmscene"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
-	"github.com/gen2brain/go-fitz"
 )
 
 // ItemSummary represents a user-facing document or folder.
@@ -188,11 +186,11 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName, query s
 		return nil, fmt.Errorf("downloading template PDF: %w", err)
 	}
 
-	doc, err := fitz.NewFromMemory(pdfBytes)
+	doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
 	if err != nil {
 		return nil, fmt.Errorf("parsing PDF: %w", err)
 	}
-	defer doc.Close()
+	defer cleanup()
 
 	queryLower := strings.ToLower(query)
 	var matches []SearchMatch
@@ -260,33 +258,23 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 		return nil, fmt.Errorf("downloading template PDF: %w", err)
 	}
 
-	doc, err := fitz.NewFromMemory(pdfBytes)
+	doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
 	if err != nil {
 		return nil, fmt.Errorf("parsing PDF: %w", err)
 	}
-	defer doc.Close()
+	defer cleanup()
 
-	if pageIdx < 0 || pageIdx >= doc.NumPage() {
-		return nil, fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, doc.NumPage())
-	}
-
-	fitzLinks, err := doc.Links(pageIdx)
+	docLinks, err := doc.Links(pageIdx)
 	if err != nil {
-		return nil, fmt.Errorf("reading links: %w", err)
+		return nil, err
 	}
 
-	links := make([]PageLink, 0, len(fitzLinks))
-	for i, fl := range fitzLinks {
-		targetPage := -1
-		if match := pageLinkRe.FindStringSubmatch(fl.URI); match != nil {
-			if p, err := strconv.Atoi(match[1]); err == nil {
-				targetPage = p - 1 // convert 1-based page to 0-based
-			}
-		}
+	links := make([]PageLink, 0, len(docLinks))
+	for _, dl := range docLinks {
 		links = append(links, PageLink{
-			Index:      i,
-			TargetPage: targetPage,
-			URI:        fl.URI,
+			Index:      dl.Index,
+			TargetPage: dl.TargetPage,
+			URI:        dl.URI,
 		})
 	}
 	return links, nil
@@ -333,15 +321,12 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		if err != nil {
 			return fmt.Errorf("downloading PDF blob: %w", err)
 		}
-		doc, err := fitz.NewFromMemory(pdfBytes)
+		doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
 		if err != nil {
 			return fmt.Errorf("opening PDF: %w", err)
 		}
-		defer doc.Close()
+		defer cleanup()
 
-		if pageIdx < 0 || pageIdx >= doc.NumPage() {
-			return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, doc.NumPage())
-		}
 		text, err := doc.Text(pageIdx)
 		if err != nil {
 			return fmt.Errorf("extracting text: %w", err)

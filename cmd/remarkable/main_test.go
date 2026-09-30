@@ -112,6 +112,9 @@ func TestStrokeCommands(t *testing.T) {
 		t.Errorf("expected Total Blocks in inspect output, got %s", out)
 	}
 
+	// Stroke inspect with real strokes
+	_, _ = executeRoot("stroke", "inspect", "../../internal/doc/testdata/oct1_notes_strokes.rm")
+
 	// 2. Stroke export with and without -o
 	outSvgPath := filepath.Join(tmpDir, "exported.svg")
 	_, err = executeRoot("stroke", "export", strokePath, "-o", outSvgPath)
@@ -154,7 +157,7 @@ func TestAuthCommands(t *testing.T) {
 
 	// 2. Auth status in agent mode
 	t.Setenv("AGENT", "1")
-	outAgent, errAgent := executeRoot("status")
+	outAgent, errAgent := executeRoot("status", "--no-cache")
 	if errAgent != nil || !strings.Contains(outAgent, "status: connected") {
 		t.Fatalf("auth status agent failed: %v, out: %s", errAgent, outAgent)
 	}
@@ -239,13 +242,13 @@ func TestDocCommands(t *testing.T) {
 	}
 
 	// 4. Doc search human and agent
-	outSearch, err := executeRoot("doc", "search", "doc-1", "Sep 28")
+	outSearch, err := executeRoot("doc", "search", "doc-1", "2026")
 	if err != nil || !strings.Contains(outSearch, "PAGE") {
 		t.Fatalf("doc search human failed: %v, out: %s", err, outSearch)
 	}
 
 	t.Setenv("AGENT", "1")
-	outSearchAgent, _ := executeRoot("doc", "search", "doc-1", "Sep 28")
+	outSearchAgent, _ := executeRoot("doc", "search", "doc-1", "2026")
 	if !strings.Contains(outSearchAgent, "0\t") {
 		t.Fatalf("doc search agent failed: %s", outSearchAgent)
 	}

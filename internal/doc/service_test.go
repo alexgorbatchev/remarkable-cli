@@ -147,7 +147,7 @@ func TestDocService_Comprehensive(t *testing.T) {
 	}
 
 	// 4. SearchDocument
-	matches, err := SearchDocument(ctx, client, "doc-1", "Sep 28")
+	matches, err := SearchDocument(ctx, client, "doc-1", "2026")
 	if err != nil || len(matches) == 0 {
 		t.Fatalf("SearchDocument failed: %v, matches: %+v", err, matches)
 	}
