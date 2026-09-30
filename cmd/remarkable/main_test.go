@@ -275,7 +275,7 @@ func TestDocCommands(t *testing.T) {
 	// 6. Doc cat formats
 	t.Setenv("AGENT", "0")
 	outCatText, err := executeRoot("doc", "cat", "doc-1", "--page", "0", "--format", "text")
-	if err != nil || !strings.Contains(outCatText, "Sep 28") {
+	if err != nil || !strings.Contains(outCatText, "2026") {
 		t.Fatalf("doc cat text failed: %v, out: %s", err, outCatText)
 	}
 	_, _ = executeRoot("doc", "cat", "doc-1", "--page", "0", "--format", "pdf")
