@@ -9,6 +9,7 @@ require (
 	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929164147-03ef03e1e1ac
 	github.com/olekukonko/tablewriter v1.1.5
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	golang.org/x/term v0.45.0
 )
 
@@ -28,7 +29,6 @@ require (
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

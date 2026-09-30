@@ -5,6 +5,7 @@ import (
 	"os"
 
 	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v2"
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,7 @@ func newRootCmd() *cobra.Command {
 
 	// Top-level convenience shortcut
 	cmd.AddCommand(newStatusShortcutCmd())
+	cmd.AddCommand(newSkillCmd())
 
 	catalog := cobrahelptree.TechCatalog{
 		"remarkable auth pair": {
@@ -94,6 +96,17 @@ func newRootCmd() *cobra.Command {
 		Tree: cobrahelptree.TreeOptions{
 			HideGeneratedCommands: true,
 		},
+	})
+
+	help := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if agent.IsAgentMode() {
+			if _, err := fmt.Fprintln(c.OutOrStdout(), "ALERT: Agents must read `AGENT=1 remarkable skill` before using this tool."); err != nil {
+				c.PrintErrln(err)
+				return
+			}
+		}
+		help(c, args)
 	})
 
 	return cmd
