@@ -40,10 +40,10 @@ func setupMockServerWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/token/v2/user":
 			w.Write([]byte("mock-token"))
 		case "/sync/v3/root":
-			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
+			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":4}`))
 		case "/sync/v3/files/root-hash":
-			// 6 items: folder, doc with strokes, doc without strokes, suffix doc, nocontent doc, corrupt doc
-			w.Write([]byte("folder-hash:folder-1:0:10\ndoc-hash:doc-1:0:100\nnopdf-hash:doc-nopdf:0:100\nnostroke-hash:doc-nostroke:0:100\nsuffix-hash:doc-suffix:0:100\nnocontent-hash:doc-nocontent:0:100\ncorrupt-hash:doc-corrupt:0:100\n"))
+			// Seven items plus the schema v4 aggregate record.
+			w.Write([]byte("4\n0:.:75:211191896\nfolder-hash:folder-1:0:10\ndoc-hash:doc-1:0:100\nnopdf-hash:doc-nopdf:0:100\nnostroke-hash:doc-nostroke:0:100\nsuffix-hash:doc-suffix:0:100\nnocontent-hash:doc-nocontent:0:100\ncorrupt-hash:doc-corrupt:0:100\n"))
 		case "/sync/v3/files/nocontent-hash":
 			w.Write([]byte("nocontent-meta:doc-nocontent.metadata:0:50\npdf-hash:doc-nocontent.pdf:0:1000\n"))
 		case "/sync/v3/files/nocontent-meta":
@@ -194,6 +194,13 @@ func TestDocService_Comprehensive(t *testing.T) {
 	queryMatch, err := List(ctx, client, "", "", "Document", 10)
 	if err != nil || len(queryMatch) != 1 || queryMatch[0].ID != "doc-1" {
 		t.Fatalf("List query failed: %v", err)
+	}
+	if queryMatch[0].Name != "My Document" || queryMatch[0].Modified != "2026-09-29T10:00:00Z" {
+		t.Fatalf("List lost document metadata: %+v", queryMatch[0])
+	}
+	byTitle, err := Inspect(ctx, client, "My Document", false)
+	if err != nil || byTitle.ID != "doc-1" || byTitle.Name != "My Document" {
+		t.Fatalf("Inspect by title failed: %v, %+v", err, byTitle)
 	}
 
 	// 2. BuildTree
