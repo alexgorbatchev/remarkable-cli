@@ -20,7 +20,7 @@
 # How it Really Works
 
 - Manifests, background PDFs, and vector stroke files are content-addressed and cached by their SHA-256 hash in `$XDG_CACHE_HOME/remarkable-cli/blobs/`, so repeat renders and unchanged pages hit local disk with zero network requests.
-- Document lookups by UUID resolve directly against `root.docSchema` in $O(1)$ time, eliminating recursive library scans.
+- Document lookups by UUID scan the root manifest in O(n) time and fetch the matching document's manifest and metadata. Name and path lookups load metadata across the library.
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
 - When `AGENT=1` is set in the environment, tree glyphs, borders, and column alignment spaces are omitted in favor of flat key-values and raw tab-separated lines.
 - Diagnostic logs and API request counters write to stderr, while requested page content (SVG, raw text, or binary strokes) streams directly to stdout for clean shell redirection.
