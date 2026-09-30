@@ -16,6 +16,7 @@ bin/
 dist/
 build/
 coverage.out
+node_modules/
 
 # OS / Editor files
 .DS_Store

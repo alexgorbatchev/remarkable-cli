@@ -23,6 +23,17 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 - Run human mode: `just run <args>`
 - Run agent mode: `just run-ai <args>`
 
+## Manual Native Import Check
+
+- Requires Bun 1.4.2+ and cloud credentials configured for `remarkable`.
+- Type-check the script: `just native-import-typecheck`.
+- Run outside CI: `just native-import-check <disposable-destination-uuid> --mapping <mapping.json>`.
+- Mapping uses the same source paths and 0-based page indexes as `doc import`; include at least one page with pen strokes.
+- The recipe builds the CLI and installs locked script dependencies. It imports into the destination, verifies fresh native downloads, source preservation, page IDs, and PDF background bytes, then saves SVG/PNG previews and `report.json` in a unique `.tmp/native-import-check/` directory.
+- Open the printed document title on the tablet and the printed preview paths on the computer. The script prints both 0-based CLI indexes and 1-based tablet page positions.
+- After selection, movement, erasure, background, and sync/reopen checks, the user answers `y` or `n`. Only `y` records a tablet pass; `n` or EOF exits nonzero. This is a human attestation, not automated tablet UI verification.
+- Keep this manual check outside the CI loop. Do not write tests for this check script; use type checking and manual execution.
+
 ## Standards & Constraints
 
 - Go 1.26+ required.

@@ -43,6 +43,16 @@ fmt:
 # Run static analysis and test suite in sequence
 check: lint test
 
+# Run the live import/tablet check manually on a disposable document
+native-import-check *args: build
+    bun install --cwd scripts/native-import-check --frozen-lockfile
+    bun scripts/native-import-check/runCheck.ts "$@"
+
+# Type-check the manual script without live cloud writes
+native-import-typecheck:
+    bun install --cwd scripts/native-import-check --frozen-lockfile
+    bun run --cwd scripts/native-import-check typecheck
+
 # Clean up build binaries and temporary files
 clean:
     rm -rf bin coverage.out .tmp dist
