@@ -151,3 +151,34 @@ func TestPrintTree_HumanVsAgent(t *testing.T) {
 		t.Errorf("unexpected agent tree output: %s", bufAgent.String())
 	}
 }
+
+func TestTerminalWidthAndSeparator(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+
+	_ = TerminalWidth()
+
+	// Human separator
+	os.Unsetenv("AGENT")
+	var bufHuman bytes.Buffer
+	PrintSeparator(&bufHuman)
+	if len(bufHuman.String()) == 0 {
+		t.Error("expected non-empty separator in human mode")
+	}
+
+	// Agent separator (should be omitted)
+	os.Setenv("AGENT", "1")
+	var bufAgent bytes.Buffer
+	PrintSeparator(&bufAgent)
+	if len(bufAgent.String()) != 0 {
+		t.Errorf("expected empty separator in agent mode, got %q", bufAgent.String())
+	}
+}
+
+func TestPrintTree_Nil(t *testing.T) {
+	var buf bytes.Buffer
+	PrintTree(&buf, nil)
+	if buf.Len() != 0 {
+		t.Errorf("expected empty for nil tree")
+	}
+}

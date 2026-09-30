@@ -58,6 +58,17 @@ func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 		cloud.WithSaveOnRenew(true),
 	}
 
+	if host := os.Getenv("REMARKABLE_HOST"); host != "" {
+		opts = append(opts,
+			cloud.WithEndpoints(&cloud.Endpoints{
+				RawHost:     host,
+				WebappHost:  host,
+				StorageHost: host,
+			}),
+			cloud.WithAuthBaseURL(host),
+		)
+	}
+
 	if !noCacheFlag {
 		opts = append(opts, cloud.WithCacheDir(config.ResolveCacheDir(cacheDirFlag)))
 	}

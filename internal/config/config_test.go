@@ -21,6 +21,23 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Fatalf("expected /tmp/env.rmapi, got %s", got)
 	}
 
+	// 2b. XDG_CONFIG_HOME override
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+	os.Unsetenv("REMARKABLE_CONFIG")
+
+	tmpXDG := t.TempDir()
+	xdgConfigDir := filepath.Join(tmpXDG, "remarkable-cli")
+	_ = os.MkdirAll(xdgConfigDir, 0755)
+	xdgConfigFile := filepath.Join(xdgConfigDir, "config.json")
+	_ = os.WriteFile(xdgConfigFile, []byte("{}"), 0644)
+	os.Setenv("XDG_CONFIG_HOME", tmpXDG)
+
+	if got := ResolveConfigPath(""); got != xdgConfigFile {
+		t.Fatalf("expected %s, got %s", xdgConfigFile, got)
+	}
+	os.Unsetenv("XDG_CONFIG_HOME")
+
 	// 3. Fallback to ~/.rmapi
 	os.Unsetenv("REMARKABLE_CONFIG")
 	home, _ := os.UserHomeDir()
@@ -44,6 +61,18 @@ func TestResolveCacheDir(t *testing.T) {
 	if got := ResolveCacheDir(""); got != "/tmp/env_cache" {
 		t.Fatalf("expected /tmp/env_cache, got %s", got)
 	}
+
+	// 2b. XDG_CACHE_HOME
+	origXDG := os.Getenv("XDG_CACHE_HOME")
+	defer os.Setenv("XDG_CACHE_HOME", origXDG)
+	os.Unsetenv("REMARKABLE_CACHE_DIR")
+	tmpXDG := t.TempDir()
+	os.Setenv("XDG_CACHE_HOME", tmpXDG)
+	expectedXDG := filepath.Join(tmpXDG, "remarkable-cli")
+	if got := ResolveCacheDir(""); got != expectedXDG {
+		t.Fatalf("expected %s, got %s", expectedXDG, got)
+	}
+	os.Unsetenv("XDG_CACHE_HOME")
 
 	// 3. Default fallback
 	os.Unsetenv("REMARKABLE_CACHE_DIR")

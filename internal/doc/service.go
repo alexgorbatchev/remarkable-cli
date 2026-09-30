@@ -405,12 +405,12 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	if pdfFile == nil {
 		pdfFile = manifest.FindSuffix(".pdf")
 	}
-	var pdfBytes []byte
-	if pdfFile != nil {
-		pdfBytes, err = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
-		if err != nil {
-			return fmt.Errorf("downloading template PDF: %w", err)
-		}
+	if pdfFile == nil {
+		return fmt.Errorf("document %q has no PDF stationery template", idOrName)
+	}
+	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	if err != nil {
+		return fmt.Errorf("downloading template PDF: %w", err)
 	}
 
 	docContent, err := item.GetContent(ctx)
