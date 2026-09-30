@@ -6,6 +6,7 @@
 - **Document hierarchy navigation**: Lists documents and collections, inspects page-level stroke presence, and renders virtual folder trees.
 - **Full-text search & link inspection**: Searches text inside PDF documents and resolves internal navigation hyperlinks on any page.
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
+- **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
 - **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
 - **Dual-mode output**: Formats aligned ASCII tables and trees for humans, and compact token-conservative TSV for scripts and AI agents (`AGENT=1`).
@@ -16,6 +17,7 @@
 - Discovers documents and collections in cloud storage, resolving them by UUID or title.
 - Retrieves content-addressed blobs for document manifests, content schemas, background templates, and vector stroke files.
 - Converts vector stroke lines to SVG or composites them over stationery templates into standard PNG images.
+- Imports mapped native stroke files after validating the destination's initialized pages and checking for handwriting conflicts, then downloads uploaded data to verify bytes and page associations.
 
 # How it Really Works
 
@@ -120,6 +122,46 @@ Sample Output:
 | `--format <fmt>` | | `png` | Page format (`png`, `svg`, `rm`) |
 | `--dpi <n>` | | `200` | Rendering resolution DPI for PNGs |
 | `--force` | `-f` | `false` | Overwrite existing local page files |
+
+### `remarkable doc import <destination-uuid>`
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--mapping <path>` | — | none | Required JSON file mapping native stroke paths to 0-based destination page indexes |
+
+Use local v6 `.rm` files, including metadata-only files. Extract archives
+before importing. Paths are relative to the mapping file's directory or
+absolute. For example, save this as `mapping.json` beside the stroke files:
+
+```json
+[
+  {"source": "page-000.rm", "page": 0},
+  {"source": "page-457.rm", "page": 457}
+]
+```
+
+```bash
+remarkable doc import 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --mapping mapping.json
+```
+
+The destination must have initialized native page IDs. Import preserves
+source files, layers, coordinates, and native bytes, including annotations
+on future dates. It preserves the destination's PDF background and page
+structure and updates its modification timestamp. Existing handwriting,
+text, annotations, and unsupported native destination blocks cause a
+page-specific conflict; metadata-only destination files can be replaced.
+Every mapping is checked before any upload.
+
+Uploads are staged before a generation-checked root commit broadcasts the
+update. The operation downloads data directly from the cloud to compare
+bytes and page associations. Successful output reports `verified`. Errors
+report `staged`, `commit-unknown`, or `committed`, plus confirmed uploads;
+they return a nonzero exit status. Staged blobs remain unreferenced if the
+root commit fails. Inspect the destination after an uncertain commit or
+failed post-commit verification. The operation has a five-minute timeout.
+
+For tablet verification, use a disposable destination and confirm that
+imported handwriting can be selected, moved, and erased.
 
 ### `remarkable stroke export`
 

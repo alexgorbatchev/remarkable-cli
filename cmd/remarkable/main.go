@@ -41,6 +41,12 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillCmd())
 
 	catalog := cobrahelptree.TechCatalog{
+		"remarkable doc import": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<destination-uuid>", Description: "UUID of the initialized destination document"},
+			},
+			MutatesDB: true,
+		},
 		"remarkable auth pair": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<code>", Description: "8-character device registration code from my.remarkable.com/device/desktop/connect"},

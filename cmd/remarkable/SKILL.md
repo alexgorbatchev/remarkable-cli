@@ -2,12 +2,12 @@
 name: remarkable
 description: >-
   REQUIRED when using the remarkable CLI to pair, browse reMarkable Cloud,
-  inspect documents, search PDF text, extract links, render or sync pages,
+  inspect documents, search PDF text, extract links, render, sync, or import pages,
   or inspect and export local .rm strokes.
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-09-30 10:03
+  last_modified: 2026-09-30 15:53
   status: current
 ---
 
@@ -209,6 +209,59 @@ returns the underlying download error when fetching its background PDF fails.
 | `--format` | — | `string` | `png` | Use exactly `png`, `svg`, or `rm`; PNG includes background and strokes, SVG/RM contain strokes only. |
 | `--dpi` | — | `int` | `200` | Set PNG resolution; nonpositive values use 200. |
 | `--force` | `-f` | `bool` | `false` | Overwrite existing page files; otherwise skip any path that exists. |
+
+## `remarkable doc import <destination-uuid>`
+
+Supply exactly one destination document UUID and a required mapping file.
+Import local v6 native `.rm` files into initialized destination pages. Keep
+source bytes, layers, coordinates, and metadata-only files intact. Import
+mapped pages regardless of calendar date. Preserve the destination PDF
+and `.content` bytes; update its metadata `lastModified` timestamp.
+
+| Flag | Short | Type | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `--mapping` | — | `string` | `""` | Required JSON array mapping native file paths to 0-based destination page indexes. |
+
+Use this mapping format, with paths relative to the mapping file's directory
+or absolute paths:
+
+```json
+[
+  {"source": "page-000.rm", "page": 0},
+  {"source": "page-457.rm", "page": 457}
+]
+```
+
+Require both `source` and `page` in every row. Accept v6 native files;
+archives require extraction before mapping. Reject unknown JSON fields,
+empty mappings, duplicate destination indexes, missing files, malformed
+native blocks, and out-of-range indexes. Validate initialized, unique
+native destination page IDs before upload. Reject existing handwriting,
+text, annotations, and unsupported destination blocks with page-specific
+errors. Metadata-only destination files can be replaced.
+
+Preflight errors write no cloud data. Stage files and manifests, then commit
+through a generation check and broadcast the update to cloud clients.
+Download every uploaded file again without using the local cache and verify
+its bytes and committed document/page association. Use a five-minute total
+operation timeout.
+
+Emit `state: STATE`, one `uploaded: NAME` line per file whose upload was
+verified, and TSV columns `PAGE`, `PAGE ID`, `SOURCE`, `STATE` when transfer
+has started. A verified metadata upload also appears in `uploaded` output.
+Read the process exit status alongside those lines:
+
+- `verified`: root commit, native byte comparison, and associations passed.
+- `staged`: destination changes were not committed; some unreferenced blobs
+  may have been uploaded. A generation conflict returns this state.
+- `commit-unknown`: a root commit was attempted but its result could not be
+  confirmed. Inspect the destination before selecting the next action.
+- `committed`: root commit succeeded but subsequent verification failed.
+  Inspect the destination before selecting the next action.
+
+Failures return a nonzero exit status. Use a disposable destination for
+the tablet check: select imported handwriting, move it, and erase it to
+confirm editability separately from cloud byte verification.
 
 ## `remarkable stroke`
 
