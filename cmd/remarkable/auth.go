@@ -33,7 +33,10 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	items, _ := client.ListItems(ctx)
+	items, err := client.ListItems(ctx)
+	if err != nil {
+		return fmt.Errorf("listing cloud items: %w", err)
+	}
 
 	if agent.IsAgentMode() {
 		agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{

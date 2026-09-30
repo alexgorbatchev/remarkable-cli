@@ -16,6 +16,11 @@ import (
 
 func setupMockServer(t *testing.T) (*httptest.Server, *cloud.Client) {
 	t.Helper()
+	return setupMockServerWithFailure(t, "")
+}
+
+func setupMockServerWithFailure(t *testing.T, failedPath string) (*httptest.Server, *cloud.Client) {
+	t.Helper()
 
 	pdfData, err := os.ReadFile("testdata/linked_pages.pdf")
 	if err != nil {
@@ -27,6 +32,10 @@ func setupMockServer(t *testing.T) (*httptest.Server, *cloud.Client) {
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == failedPath {
+			http.Error(w, "injected cloud failure", http.StatusBadGateway)
+			return
+		}
 		switch r.URL.Path {
 		case "/token/v2/user":
 			w.Write([]byte("mock-token"))
@@ -91,6 +100,64 @@ func setupMockServer(t *testing.T) (*httptest.Server, *cloud.Client) {
 	}
 
 	return ts, client
+}
+
+func TestSyncDocumentRejectsUnsupportedFormats(t *testing.T) {
+	for _, format := range []string{"jpg", "PNG", "../escape"} {
+		t.Run(format, func(t *testing.T) {
+			ts, client := setupMockServer(t)
+			defer ts.Close()
+			outputDir := t.TempDir()
+			results, err := SyncDocument(context.Background(), client, "doc-1", SyncDocOptions{
+				OutputDir: outputDir,
+				Format:    format,
+			})
+			if err == nil || !strings.Contains(err.Error(), "unsupported format") {
+				t.Fatalf("expected unsupported format error, got %v; results: %+v", err, results)
+			}
+			if len(results) != 0 {
+				t.Errorf("invalid format returned page results: %+v", results)
+			}
+			entries, err := os.ReadDir(outputDir)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("invalid format created output: %v, %v", entries, err)
+			}
+		})
+	}
+}
+
+func TestSyncDocumentPDFDownloadFailure(t *testing.T) {
+	for _, format := range []string{"png", "svg", "rm"} {
+		t.Run(format, func(t *testing.T) {
+			ts, client := setupMockServerWithFailure(t, "/sync/v3/files/pdf-hash")
+			defer ts.Close()
+			outputDir := t.TempDir()
+			results, err := SyncDocument(context.Background(), client, "doc-1", SyncDocOptions{
+				OutputDir: outputDir,
+				Format:    format,
+			})
+			if format == "png" {
+				if err == nil || !strings.Contains(err.Error(), "downloading background PDF") || !strings.Contains(err.Error(), "502") {
+					t.Fatalf("expected contextual PDF download error, got %v; results: %+v", err, results)
+				}
+				if len(results) != 0 {
+					t.Errorf("PDF download failure returned page results: %+v", results)
+				}
+				entries, err := os.ReadDir(outputDir)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("PDF download failure created output: %v, %v", entries, err)
+				}
+				return
+			}
+			if err != nil || len(results) != 1 || results[0].State != "written" {
+				t.Fatalf("stroke-only sync needs no PDF: %v; results: %+v", err, results)
+			}
+			data, err := os.ReadFile(results[0].Path)
+			if err != nil || len(data) == 0 {
+				t.Fatalf("stroke-only sync wrote no data: %v", err)
+			}
+		})
+	}
 }
 
 func TestDocService_Comprehensive(t *testing.T) {

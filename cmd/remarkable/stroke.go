@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/alexgorbatchev/go-rmscene"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/alexgorbatchev/remarkable-cli/internal/stroke"
 	"github.com/spf13/cobra"
@@ -90,8 +91,8 @@ func newStrokeCmd() *cobra.Command {
 		},
 	}
 	strokeExportCmd.Flags().StringVarP(&strokeOutputFlag, "output", "o", "", "Destination file for SVG (defaults to stdout)")
-	strokeExportCmd.Flags().Float64Var(&strokeWidthFlag, "width", 0, "Canvas width in points (default: 447.87)")
-	strokeExportCmd.Flags().Float64Var(&strokeHeightFlag, "height", 0, "Canvas height in points (default: 608.20)")
+	strokeExportCmd.Flags().Float64Var(&strokeWidthFlag, "width", 0, fmt.Sprintf("Canvas width in points (default: %g)", rmscene.DefaultWidthPt))
+	strokeExportCmd.Flags().Float64Var(&strokeHeightFlag, "height", 0, fmt.Sprintf("Canvas height in points (default: %g)", rmscene.DefaultHeightPt))
 
 	strokeCmd.AddCommand(strokeInspectCmd)
 	strokeCmd.AddCommand(strokeExportCmd)

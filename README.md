@@ -126,8 +126,10 @@ Sample Output:
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--output <path>` | `-o` | stdout | Destination file for exported SVG |
-| `--width <pt>` | | `447.87` | Viewport width in points |
-| `--height <pt>` | | `608.20` | Viewport height in points |
+| `--width <pt>` | | `447.874` | Viewport width in points |
+| `--height <pt>` | | `595.275` | Viewport height in points |
+
+Set both width and height to positive values to override the renderer's canvas dimensions.
 
 # License
 

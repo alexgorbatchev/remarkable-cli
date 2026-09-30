@@ -460,6 +460,11 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 	if opts.Format == "" {
 		opts.Format = "png"
 	}
+	switch opts.Format {
+	case "png", "svg", "rm":
+	default:
+		return nil, fmt.Errorf("unsupported format %q (choose from: png, svg, rm)", opts.Format)
+	}
 	if opts.DPI <= 0 {
 		opts.DPI = render.DefaultDPI
 	}
@@ -486,7 +491,10 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 			pdfFile = manifest.FindSuffix(".pdf")
 		}
 		if pdfFile != nil {
-			pdfBytes, _ = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+			pdfBytes, err = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+			if err != nil {
+				return nil, fmt.Errorf("downloading background PDF: %w", err)
+			}
 		}
 	}
 

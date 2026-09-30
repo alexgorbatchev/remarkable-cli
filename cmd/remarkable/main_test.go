@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,6 +26,11 @@ func executeRoot(args ...string) (string, error) {
 
 func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
+	return setupCLITestEnvWithFailure(t, "")
+}
+
+func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Server, string) {
+	t.Helper()
 
 	pdfData, err := os.ReadFile("../../internal/doc/testdata/linked_pages.pdf")
 	if err != nil {
@@ -36,6 +42,10 @@ func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == failedPath {
+			http.Error(w, "injected cloud failure", http.StatusBadGateway)
+			return
+		}
 		switch r.URL.Path {
 		case "/token/v2/user", "/token/json/2/user/new":
 			w.Write([]byte("mock-token"))
@@ -68,6 +78,77 @@ func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 	t.Setenv("REMARKABLE_CONFIG", configPath)
 
 	return ts, configPath
+}
+
+func TestAuthStatusListingFailure(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		for _, args := range [][]string{{"auth", "status"}, {"status"}} {
+			t.Run(mode+"/"+strings.Join(args, " "), func(t *testing.T) {
+				t.Setenv("AGENT", mode)
+				ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/files/root-hash")
+				defer ts.Close()
+				out, err := executeRoot(append(args, "--no-cache")...)
+				if err == nil || !strings.Contains(err.Error(), "listing cloud items") || !strings.Contains(err.Error(), "502") {
+					t.Fatalf("expected contextual item listing error, got %v; output: %s", err, out)
+				}
+				if strings.Contains(out, "status: connected") || strings.Contains(out, "[OK]") || strings.Contains(out, "items: 0") {
+					t.Fatalf("failed item listing reported success: %s", out)
+				}
+			})
+		}
+	}
+}
+
+func TestDocSyncCloudFailures(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("AGENT", mode)
+			ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/files/pdf-hash")
+			defer ts.Close()
+			for _, format := range []string{"jpg", "png"} {
+				out, err := executeRoot("doc", "sync", "doc-1", "--format", format, "--no-cache", "-o", t.TempDir())
+				if err == nil {
+					t.Fatalf("sync %s must fail; output: %s", format, out)
+				}
+				if strings.Contains(out, "written:") || strings.Contains(out, "[OK]") {
+					t.Fatalf("failed sync reported success: %s", out)
+				}
+			}
+		})
+	}
+}
+
+func TestStrokeExportHelpMatchesCanvas(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("AGENT", mode)
+			t.Setenv("COLUMNS", "200")
+			path := filepath.Join(t.TempDir(), "empty.rm")
+			if err := os.WriteFile(path, []byte(rmscene.HeaderV6), 0600); err != nil {
+				t.Fatal(err)
+			}
+			out, err := executeRoot("stroke", "export", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var svg struct {
+				Width  string `xml:"width,attr"`
+				Height string `xml:"height,attr"`
+			}
+			if err := xml.Unmarshal([]byte(out), &svg); err != nil {
+				t.Fatal(err)
+			}
+			help, err := executeRoot("stroke", "export", "--help")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, dimension := range []string{svg.Width, svg.Height} {
+				if dimension == "" || !strings.Contains(help, "default: "+dimension+")") {
+					t.Errorf("help omits actual exported canvas dimension %q: %s", dimension, help)
+				}
+			}
+		})
+	}
 }
 
 func TestRootCommand_HelpAndVersion(t *testing.T) {
