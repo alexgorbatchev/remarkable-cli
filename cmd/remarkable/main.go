@@ -8,11 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.2.0"
+// Injected during build via -ldflags "-X main.version=1.0.0"
+var version = "dev"
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remarkable-cli",
+		Use:   "remarkable",
 		Short: "High-performance, generic CLI gateway for reMarkable Cloud Sync v3",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
@@ -38,50 +39,50 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStatusShortcutCmd())
 
 	catalog := cobrahelptree.TechCatalog{
-		"remarkable-cli auth pair": {
+		"remarkable auth pair": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<code>", Description: "8-character device registration code from my.remarkable.com/device/desktop/connect"},
 			},
 			MutatesDB: true,
 		},
-		"remarkable-cli doc search": {
+		"remarkable doc search": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 				{Name: "<query>", Description: "Text string to search across document pages"},
 			},
 		},
-		"remarkable-cli doc links": {
+		"remarkable doc links": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-cli doc inspect": {
+		"remarkable doc inspect": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-cli doc cat": {
+		"remarkable doc cat": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-cli doc render": {
+		"remarkable doc render": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 		},
-		"remarkable-cli doc sync": {
+		"remarkable doc sync": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
 			MutatesDB: true,
 		},
-		"remarkable-cli stroke inspect": {
+		"remarkable stroke inspect": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<file.rm>", Description: "Path to reMarkable v6 binary stroke file"},
 			},
 		},
-		"remarkable-cli stroke export": {
+		"remarkable stroke export": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<file.rm>", Description: "Path to reMarkable v6 binary stroke file"},
 			},

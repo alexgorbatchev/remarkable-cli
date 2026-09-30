@@ -76,8 +76,8 @@ func TestRootCommand_HelpAndVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("help failed: %v", err)
 	}
-	if !strings.Contains(out, "remarkable-cli") {
-		t.Fatalf("expected remarkable-cli in help, got: %s", out)
+	if !strings.Contains(out, "remarkable") {
+		t.Fatalf("expected remarkable in help, got: %s", out)
 	}
 
 	outVer, errVer := executeRoot("--version")

@@ -1,4 +1,4 @@
-`remarkable-cli` is a high-performance CLI gateway to reMarkable Cloud Sync v3, providing document inspection, full-text page search, internal link analysis, vector stroke extraction, and stationery compositing.
+`remarkable` is a high-performance CLI gateway to reMarkable Cloud Sync v3, providing document inspection, full-text page search, internal link analysis, vector stroke extraction, and stationery compositing.
 
 # What It Does
 
@@ -31,25 +31,25 @@ Download the prebuilt binary for your platform from the [latest release](https:/
 
 ```bash
 # macOS (Apple Silicon)
-curl -sSL https://github.com/alexgorbatchev/remarkable-cli/releases/latest/download/remarkable-cli_X.X.X_darwin_arm64.tar.gz | tar -xz -C ~/.local/bin
+curl -sSL https://github.com/alexgorbatchev/remarkable-cli/releases/latest/download/remarkable_X.X.X_darwin_arm64.tar.gz | tar -xz -C ~/.local/bin
 ```
 
 # Setup
 
-- [Pairing Code](https://my.remarkable.com/device/desktop/connect) - Required for initial device registration. Run `remarkable-cli auth pair <code>` to generate and save a device token.
+- [Pairing Code](https://my.remarkable.com/device/desktop/connect) - Required for initial device registration. Run `remarkable auth pair <code>` to generate and save a device token.
 - [Configuration](~/.config/remarkable-cli/config.json) - Saved automatically to `$XDG_CONFIG_HOME/remarkable-cli/config.json` with fallback to `~/.rmapi`. Override with `--config` or `REMARKABLE_CONFIG`.
 
 # Quick Start
 
 ```bash
 # Check cloud connection and document count
-remarkable-cli auth status
+remarkable auth status
 
 # Search for pages containing specific text
-remarkable-cli doc search "2026 - Daily" "Oct 1"
+remarkable doc search "2026 - Daily" "Oct 1"
 
 # Render a specific page directly to PNG
-remarkable-cli doc render 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --page 457 -o oct1-notes.png
+remarkable doc render 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --page 457 -o oct1-notes.png
 ```
 
 Sample Output:
@@ -69,7 +69,7 @@ Sample Output:
 | `--version` | `-v` | `false` | Print raw version string |
 | `--help` | `-h` | `false` | Print command line help |
 
-### `remarkable-cli doc list`
+### `remarkable doc list`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -78,33 +78,33 @@ Sample Output:
 | `--query <str>` | `-q` | none | Filter items matching title substring |
 | `--limit <n>` | | `0` | Maximum number of items to return (0 for all) |
 
-### `remarkable-cli doc inspect`
+### `remarkable doc inspect`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--pages` | | `false` | Include page-by-page stroke presence and byte sizes |
 
-### `remarkable-cli doc search`
+### `remarkable doc search`
 
 | Argument | Description |
 | :--- | :--- |
 | `<id-or-name>` | Document UUID or exact visible title |
 | `<query>` | Text string to search across document pages |
 
-### `remarkable-cli doc links`
+### `remarkable doc links`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--page <n>` | | `0` | 0-based page index to extract hyperlinks from |
 
-### `remarkable-cli doc cat`
+### `remarkable doc cat`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--page <n>` | | `0` | 0-based page index to extract |
 | `--format <fmt>` | | `svg` | Stream format (`svg`, `text`, `rm`, `pdf`) |
 
-### `remarkable-cli doc render`
+### `remarkable doc render`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -112,7 +112,7 @@ Sample Output:
 | `--dpi <n>` | | `200` | Rendering resolution DPI |
 | `--output <path>` | `-o` | none | Destination output path for the PNG image (required) |
 
-### `remarkable-cli doc sync`
+### `remarkable doc sync`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -121,7 +121,7 @@ Sample Output:
 | `--dpi <n>` | | `200` | Rendering resolution DPI for PNGs |
 | `--force` | `-f` | `false` | Overwrite existing local page files |
 
-### `remarkable-cli stroke export`
+### `remarkable stroke export`
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |

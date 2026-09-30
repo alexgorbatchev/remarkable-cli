@@ -49,7 +49,7 @@ func (t *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 	configPath := config.ResolveConfigPath(cfgFlag)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("credentials file not found at %s: run 'remarkable-cli auth pair <code>' first", configPath)
+		return nil, fmt.Errorf("credentials file not found at %s: run 'remarkable auth pair <code>' first", configPath)
 	}
 
 	opts := []cloud.Option{

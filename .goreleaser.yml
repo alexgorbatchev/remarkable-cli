@@ -1,11 +1,11 @@
 version: 2
 
-project_name: remarkable-cli
+project_name: remarkable
 
 builds:
-  - id: remarkable-cli
-    main: ./cmd/remarkable-cli
-    binary: remarkable-cli
+  - id: remarkable
+    main: ./cmd/remarkable
+    binary: remarkable
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:

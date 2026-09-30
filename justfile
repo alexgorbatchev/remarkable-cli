@@ -1,17 +1,19 @@
 set dotenv-load := false
 set positional-arguments
 
+version := env('VERSION', `git describe --tags --always 2>/dev/null || echo "1.0.0"`)
+
 # Default recipe: list available recipes
 default:
     @just --list
 
 # Run CLI in human mode (default)
 run *args:
-    go run ./cmd/remarkable-cli "$@"
+    go run -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable "$@"
 
 # Run CLI in agent-facing mode
 run-ai *args:
-    AGENT=1 go run ./cmd/remarkable-cli "$@"
+    AGENT=1 go run -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable "$@"
 
 # Run test suite
 test:
@@ -20,11 +22,11 @@ test:
 # Build binary into bin/
 build:
     mkdir -p bin
-    go build -o bin/remarkable-cli ./cmd/remarkable-cli
+    go build -ldflags "-s -w -X main.version={{version}}" -o bin/remarkable ./cmd/remarkable
 
 # Install binary to GOPATH bin directory
 install:
-    go install ./cmd/remarkable-cli
+    go install -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable
 
 # Run static analysis and vet
 lint:

@@ -4,11 +4,11 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 
 ## What This Tool Does
 
-`remarkable-cli` is a generic CLI gateway for reMarkable Cloud Sync v3, binary stroke decoding, and vector stationery compositing.
+`remarkable-cli` provides the `remarkable` command-line tool, a generic CLI gateway for reMarkable Cloud Sync v3, binary stroke decoding, and vector stationery compositing.
 
 ## Architecture
 
-- `cmd/remarkable-cli/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `stroke.go`, `main.go`).
+- `cmd/remarkable/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `stroke.go`, `main.go`).
 - `internal/agent/` — Dual-mode formatting primitives (`IsAgentMode`, `PrintTable`, `PrintKeyValues`, `PrintTree`, `PrintStatus`, `PrintSeparator`).
 - `internal/config/` — XDG Base Directory resolution (`$XDG_CONFIG_HOME`, `$XDG_CACHE_HOME`, fallback to `~/.rmapi`).
 - `internal/doc/` — Document browsing, virtual tree construction, inspection, page search, hyperlinks, and page rendering.
@@ -18,7 +18,7 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 
 - Run unit tests: `just test`
 - Run lint and checks: `just check`
-- Build binary: `just build` (outputs strictly to `bin/remarkable-cli`)
+- Build binary: `just build` (outputs strictly to `bin/remarkable`)
 - Run human mode: `just run <args>`
 - Run agent mode: `just run-ai <args>`
 
