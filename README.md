@@ -7,6 +7,7 @@
 - **Full-text search & link inspection**: Searches text inside PDF documents and resolves internal navigation hyperlinks on any page.
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
+- **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
 - **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
 - **Dual-mode output**: Formats aligned ASCII tables and trees for humans, and compact token-conservative TSV for scripts and AI agents (`AGENT=1`).
@@ -18,6 +19,7 @@
 - Retrieves content-addressed blobs for document manifests, content schemas, background templates, and vector stroke files.
 - Converts vector stroke lines to SVG or composites them over stationery templates into standard PNG images.
 - Imports mapped native stroke files after validating the destination's initialized pages and checking for handwriting conflicts, then downloads uploaded data to verify bytes and page associations.
+- Exports a complete native document snapshot to a ZIP at an explicit output path, preserving existing local files and leaving the source document unchanged.
 
 # How it Really Works
 
@@ -26,6 +28,7 @@
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
 - When `AGENT=1` is set in the environment, tree glyphs, borders, and column alignment spaces are omitted in favor of flat key-values and raw tab-separated lines.
 - Diagnostic logs and API request counters write to stderr, while requested page content (SVG, raw text, or binary strokes) streams directly to stdout for clean shell redirection.
+- Native archives download every attachment directly from the cloud, verify its hash and byte length, and check that the root hash and generation remain unchanged. A concurrent cloud change causes an error, including a change to another document. Complete ZIP bytes are published only after verification; existing output paths are preserved even if created during the export.
 
 # Installation
 
@@ -162,6 +165,45 @@ failed post-commit verification. The operation has a five-minute timeout.
 
 For tablet verification, use a disposable destination and confirm that
 imported handwriting can be selected, moved, and erased.
+
+### `remarkable doc archive <id-or-name>`
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--output <path>` | `-o` | none | Required ZIP output path; existing files are preserved |
+
+```bash
+remarkable doc archive "2026 - Daily" --output daily-native.zip
+```
+
+The ZIP contains `files/<original-native-name>` for every document-manifest
+entry, including raw `.content`, `.metadata`, PDF, `.pagedata`, `.rm`, and
+unknown attachments when present. Raw content preserves both native page
+schemas, native page IDs, PDF redirections, inserted/deleted page records,
+tags, viewport settings, and metadata-only stroke bytes without rendering
+or rebuilding them. Extract `files/` to access the native files.
+
+`evidence/document.docSchema` contains the original manifest bytes.
+`evidence/snapshot.json` records archive format version 1, document UUID,
+native document-manifest hash, root hash/generation/schema version, the
+raw manifest SHA-256, and each file's native name, cloud hash, downloaded
+SHA-256, and byte length. The native document-manifest hash uses the cloud's
+ordered file-hash scheme; it differs from the raw manifest SHA-256.
+Success prints this identity and per-file evidence to stdout in both
+output modes, with `state: verified` and TSV file rows in agent mode.
+Compare it with a fresh archive to check source preservation; the evidence
+records the source state checked at export time.
+
+Export uses a five-minute timeout and writes a private `0600` ZIP through
+a temporary file beside the destination. Its parent directory must exist
+and support hard links for publication without replacement. A failed
+download, checksum mismatch, concurrent cloud change, or existing output
+path returns a nonzero exit status and removes the temporary archive.
+An stdout write failure occurs after publication; inspect the completed ZIP
+at the printed or requested output path before retrying.
+The operation exports documents with a native document manifest and
+requires their `.content` and `.metadata` entries. It performs no document
+uploads or edits; credentials may renew through the normal cloud client.
 
 ### `remarkable stroke export`
 

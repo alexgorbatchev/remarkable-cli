@@ -41,6 +41,11 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillCmd())
 
 	catalog := cobrahelptree.TechCatalog{
+		"remarkable doc archive": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<id-or-name>", Description: "Document UUID, exact display name, or folder path"},
+			},
+		},
 		"remarkable doc import": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<destination-uuid>", Description: "UUID of the initialized destination document"},

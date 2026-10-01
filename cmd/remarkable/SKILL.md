@@ -2,12 +2,12 @@
 name: remarkable
 description: >-
   REQUIRED when using the remarkable CLI to pair, browse reMarkable Cloud,
-  inspect documents, search PDF text, extract links, render, sync, or import pages,
+  inspect documents, search PDF text, extract links, render, sync, archive, or import pages,
   or inspect and export local .rm strokes.
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-09-30 15:53
+  last_modified: 2026-10-01 11:02
   status: current
 ---
 
@@ -210,6 +210,53 @@ returns the underlying download error when fetching its background PDF fails.
 | `--dpi` | — | `int` | `200` | Set PNG resolution; nonpositive values use 200. |
 | `--force` | `-f` | `bool` | `false` | Overwrite existing page files; otherwise skip any path that exists. |
 
+## `remarkable doc archive <id-or-name>`
+
+Supply exactly one document ID, exact display name, or folder/document path.
+Save a complete native snapshot as a ZIP at an explicit output path.
+
+| Flag | Short | Type | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `--output` | `-o` | `string` | `""` | Required ZIP destination; preserve every existing path, including a path created during export. |
+
+Require an existing parent directory with hard-link support. Write a private
+`0600` temporary ZIP beside the destination and publish complete bytes only
+after verification. Export all entries from the native document manifest,
+requiring `.content` and `.metadata`. Native archives have this layout:
+
+- `files/<original-native-name>`: every native attachment with unchanged
+  names and bytes, including raw content/metadata, PDF, pagedata, strokes,
+  metadata-only strokes, deleted-page files, and unknown attachments present.
+- `evidence/document.docSchema`: unchanged document manifest bytes.
+- `evidence/snapshot.json`: `format_version` 1, `document_id`,
+  `document_hash`, `root` (`hash`, `generation`, `schemaVersion`),
+  `manifest_sha256`, and `files` containing `name`, `hash`, `sha256`, `size`.
+
+Keep both native page schemas and their page IDs, PDF redirections,
+inserted/deleted state, tags, and viewport settings through raw byte
+preservation. Extract `files/` to access native data for explicit mappings.
+
+Download every archive file and manifest fresh from cloud storage. Check
+each file's cloud SHA-256 and byte length, and validate the native manifest
+address against its ordered binary file hashes. Record the raw manifest's
+SHA-256 separately. Pin the resolved document to a fresh root manifest;
+compare the root hash, generation, and schema version again after download.
+Any concurrent cloud root change, even to another document, returns an
+error. The source check records state at export time. Compare this evidence
+with a later fresh export to check that the source remains unchanged.
+
+Emit `state: verified`, `output`, `document_id`, `document_hash`,
+`root_hash`, `generation`, and `manifest_sha256` key-value lines, followed
+by TSV columns `NAME`, `HASH`, `SHA256`, `BYTES` in agent mode. These rows
+describe native file names and downloaded bytes. Success requires all
+downloads, hashes, and the final source revision check to pass.
+
+Use a five-minute total timeout. Errors return nonzero and remove temporary
+data while preserving existing output paths. Export writes no document
+changes to the cloud; normal credential renewal can still persist tokens.
+An stdout write error can occur after ZIP publication. Inspect the requested
+output path before retrying with another unused destination path.
+
 ## `remarkable doc import <destination-uuid>`
 
 Supply exactly one destination document UUID and a required mapping file.
@@ -357,4 +404,5 @@ remarkable stroke inspect page-000.rm
 remarkable stroke export page-000.rm --output page-000.svg
 remarkable doc render "2026 - Daily" --page 0 --dpi 200 --output page-000.png
 remarkable doc sync "2026 - Daily" --output-dir exports --format png --force
+remarkable doc archive "2026 - Daily" --output daily-native.zip
 ```

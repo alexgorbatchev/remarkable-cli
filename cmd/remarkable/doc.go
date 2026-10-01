@@ -360,5 +360,6 @@ func newDocCmd() *cobra.Command {
 	docCmd.AddCommand(docRenderCmd)
 	docCmd.AddCommand(docSyncCmd)
 	docCmd.AddCommand(newDocImportCmd())
+	docCmd.AddCommand(newDocArchiveCmd())
 	return docCmd
 }
