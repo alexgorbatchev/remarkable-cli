@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -224,29 +225,26 @@ func remapPageTags(source, destination []map[string]json.RawMessage, pages []map
 		tag["pageId"] = raw
 		remapped[dst] = append(remapped[dst], tag)
 	}
-	mappedIDs := make(map[string]bool)
-	for _, dst := range pageMap {
-		mappedIDs[dst] = true
-	}
-	var retained []map[string]json.RawMessage
+	// Keep existing rows in place, including matching mapped pages and their
+	// original numeric tokens, so identical settings remain a byte-preserving no-op.
+	retained := slices.Clone(destination)
 	existing := make(map[string][]map[string]json.RawMessage)
 	for _, tag := range destination {
 		var id string
 		if err := json.Unmarshal(tag["pageId"], &id); err != nil {
 			return nil, err
 		}
-		if mappedIDs[id] {
-			existing[id] = append(existing[id], tag)
-		} else {
-			retained = append(retained, tag)
-		}
+		existing[id] = append(existing[id], tag)
 	}
 	// Use the explicit row order, never map iteration, for deterministic remapping.
 	var conflicts []error
 	for _, page := range pages {
 		id := page.destination
-		if len(existing[id]) > 0 && !sameTagRows(existing[id], remapped[id]) {
-			conflicts = append(conflicts, fmt.Errorf("destination page %d (%s) tags conflict", page.index, id))
+		if len(existing[id]) > 0 {
+			if !sameTagRows(existing[id], remapped[id]) {
+				conflicts = append(conflicts, fmt.Errorf("destination page %d (%s) tags conflict", page.index, id))
+			}
+			continue
 		}
 		retained = append(retained, remapped[id]...)
 	}
