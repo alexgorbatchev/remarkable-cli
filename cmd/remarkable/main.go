@@ -41,6 +41,13 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillCmd())
 
 	catalog := cobrahelptree.TechCatalog{
+		"remarkable doc settings transfer": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<source-uuid>", Description: "UUID of the source document with initialized native pages"},
+				{Name: "<destination-uuid>", Description: "UUID of the separate initialized destination document"},
+			},
+			MutatesDB: true,
+		},
 		"remarkable doc upload": {
 			Args:      []cobrahelptree.ArgSpec{{Name: "<pdf>", Description: "Local PDF path"}},
 			MutatesDB: true,

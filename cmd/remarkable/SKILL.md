@@ -3,11 +3,11 @@ name: remarkable
 description: >-
   REQUIRED when using the remarkable CLI to pair, browse reMarkable Cloud,
   inspect documents, search PDF text, extract links, render, sync, archive, upload PDFs, check uploads, or import pages,
-  or inspect and export local .rm strokes.
+  transfer mapped document tags and viewport settings, or inspect and export local .rm strokes.
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-01 12:10
+  last_modified: 2026-10-01 12:33
   status: current
 ---
 
@@ -375,6 +375,98 @@ document hash, changed root during checking, or differing bytes returns
 nonzero; retain evidence and inspect the document before retrying creation.
 Tablet initialization or later edits may change its document hash and
 therefore require inspection. Read exit status to establish fresh verification.
+
+## `remarkable doc settings`
+
+Print help for the document settings subtree. Accept no positional arguments
+or command-specific flags.
+
+## `remarkable doc settings transfer <source-uuid> <destination-uuid>`
+
+Supply exactly two separate document UUIDs and an explicit page mapping file.
+Transfer structured document tags, mapped page tags, and eight viewport fields
+from a fresh source snapshot. Keep stroke-only `doc import` as its separate
+operation. Both documents require initialized native pages, using legacy
+`pages` or modern `cPages.pages`; preserve destination native IDs/order,
+CRDT fields, PDF redirections, every unrelated content field, and all files
+other than destination `.content`, including PDF, strokes, and metadata.
+
+| Flag | Short | Type | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `--mapping` | — | `string` | `""` | Required JSON array with exact integer source_page and destination_page keys, both 0-based. |
+| `--replace-viewport` | — | `bool` | `false` | Permit differing destination viewport values/presence; report every difference. Tag conflicts remain errors. |
+
+Save this page-map format as `settings-map.json`:
+
+```json
+[
+  {"source_page": 0, "destination_page": 1},
+  {"source_page": 457, "destination_page": 458}
+]
+```
+
+Map every source page referenced by a page tag; untagged source pages may
+be omitted. Use `[]` when no page tags need transferring. Every row requires
+both nonnegative indexes within the initialized page lists, with distinct
+source and destination indexes. Require exact keys and one JSON array.
+Missing mappings for tagged pages, unknown tag page IDs, duplicate indexes
+or JSON object keys, unsupported field types, null arrays/viewport values,
+deleted pages, disagreeing native schemas, and uninitialized pages return
+errors before uploads. UUID and local mapping validation precede credentials.
+
+Preserve each tag's complete structured payload, including numeric timestamp
+and unknown properties; change only a page tag's `pageId` to the mapped native
+destination ID. Transfer source document tags if destination document tags
+are empty or identical. Transfer each mapped page's tags if that destination
+page's tags are empty or identical; retain tags on unmapped destination pages.
+Different nonempty destination document tags or mapped page tags cause explicit
+conflicts. Equality includes tag payloads and order, including timestamps.
+
+Transfer these exact viewport fields: `zoomMode`, `viewBackgroundFilter`,
+`customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`,
+`customZoomPageHeight`, `customZoomPageWidth`, `customZoomScale`. Copy source
+presence/absence as well as values; omitted source fields remove corresponding
+destination fields. Differences include additions and removals and require
+`--replace-viewport`. Preserve unknown destination `customZoom*` fields.
+Supported zoom modes are `bestFit`, `customFit`, `fitToHeight`, `fitToWidth`;
+background filters are `off` and `fullpage`; custom orientation is `portrait`
+or `landscape`; the other custom fields are numeric without a UI-range clamp.
+Omitting the background filter retains firmware's adaptive text-area behavior.
+Document `orientation` remains a destination field.
+
+Pin both document snapshots to one fresh root hash/generation and validate
+every native file's hash and byte length before upload. Commit destination
+content through that root's generation check, rejecting any intervening root
+change, including changes to another document. Download all source files and
+all destination files fresh after commit, verifying source preservation,
+unchanged destination files, and the expected complete content. Check that the
+verification root remains stable. An identical repeat performs these fresh
+checks without uploading or changing the cloud root.
+
+Emit `state`, `source_id`, `destination_id`, `source_hash`, `destination_hash`,
+`root_hash`, `generation`, and `uploaded` key-value lines. `generation` is the
+preflight generation; `root_hash` is the intended committed hash, or the
+unchanged preflight root on a no-op. Destination hash becomes the verified
+resulting hash after preservation checks; on earlier failures it remains the
+preflight destination hash. Both modes show viewport old/new presence and
+values even for default conflict errors. Agent difference columns are `FIELD`,
+`DESTINATION PRESENT`, `DESTINATION VALUE`, `SOURCE PRESENT`, `SOURCE VALUE`;
+use literal `absent` with presence `false` for a missing value.
+
+`verified` requires all transfer and preservation checks. `staged` means
+no confirmed root commit, including preflight conflicts; unreferenced uploads
+may exist. `commit-unknown` means a root commit was attempted without a
+confirmed result. `committed` means the root committed but complete verification
+failed. Read nonzero exit status alongside partial output. Inspect both cloud
+documents before choosing a retry after `commit-unknown` or `committed`;
+the command does not automatically retry. Stdout write failure can follow
+a successful cloud update. Use a five-minute total timeout. Verification
+output contains revision identity and filenames, without credentials.
+
+```sh
+AGENT=1 remarkable doc settings transfer 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444 --mapping settings-map.json
+AGENT=1 remarkable doc settings transfer 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444 --mapping settings-map.json --replace-viewport
+```
 
 ## `remarkable stroke`
 

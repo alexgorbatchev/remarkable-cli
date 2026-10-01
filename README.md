@@ -9,6 +9,7 @@
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
 - **Separate PDF uploads**: Creates a cloud document from a local multi-page PDF, preserving its bytes and links and saving recovery identity before committing.
+- **Migration settings transfer**: Copies document tags, mapped page tags, and view settings to a separate document while preserving its PDF and handwriting.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
 - **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
 - **Dual-mode output**: Formats aligned ASCII tables and trees for humans, and compact token-conservative TSV for scripts and AI agents (`AGENT=1`).
@@ -22,6 +23,7 @@
 - Imports mapped native stroke files after validating the destination's initialized pages and checking for handwriting conflicts, then downloads uploaded data to verify bytes and page associations.
 - Exports a complete native document snapshot to a ZIP at an explicit output path, preserving existing local files and leaving the source document unchanged.
 - Uploads a valid local PDF under an explicit title in the root or an existing folder, rejecting a duplicate title in that folder and reporting the new document UUID.
+- Transfers source tags and view settings through an explicit page map, showing conflicts and freshly verifying both documents' preserved native files.
 
 # How it Really Works
 
@@ -167,6 +169,66 @@ failed post-commit verification. The operation has a five-minute timeout.
 
 For tablet verification, use a disposable destination and confirm that
 imported handwriting can be selected, moved, and erased.
+
+### `remarkable doc settings transfer <source-uuid> <destination-uuid>`
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--mapping <path>` | — | none | Required JSON array with 0-based source_page and destination_page indexes |
+| `--replace-viewport` | — | `false` | Permit differing destination view settings and show every difference; tag conflicts remain errors |
+
+Save a separate settings mapping as `settings-map.json`:
+
+```json
+[
+  {"source_page": 0, "destination_page": 1},
+  {"source_page": 457, "destination_page": 458}
+]
+```
+
+```bash
+remarkable doc settings transfer 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444 --mapping settings-map.json
+```
+
+Both documents need initialized native page IDs. Map every tagged source
+page; untagged pages may be omitted, and `[]` is valid when the source has
+no page tags. Missing tagged pages, duplicate indexes, out-of-range indexes,
+incompatible structures or fields, and equal source/destination identities
+cause errors before uploads. Page tags retain their complete payloads and
+timestamps, with native page IDs remapped. Destination document tags and
+mapped-page tags must be empty or identical to the source values. Different
+nonempty tags cause explicit conflicts; unmapped destination page tags stay
+intact. Identical tag comparisons include payload and order.
+
+The operation copies `zoomMode`, `viewBackgroundFilter`, and the six fields
+`customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`,
+`customZoomPageHeight`, `customZoomPageWidth`, and `customZoomScale`.
+Any value or presence difference is reported and rejected by default.
+Review the old/new values, then use `--replace-viewport` to authorize these
+differences. A missing source field removes that destination field; omission
+of the background filter has different firmware behavior from `off`.
+Unknown destination fields, other view settings, native page IDs/order,
+redirections, PDF bytes, strokes, and metadata are preserved. Existing
+stroke-only `doc import` continues preserving destination content.
+
+Both snapshots use one root revision. A concurrent root change causes an
+error, including changes to unrelated documents. Only destination content
+is submitted for update. After the generation-checked commit, every source
+and destination file is downloaded fresh and checked for the expected bytes
+and preserved associations. Identical transfers perform fresh verification
+without uploads. Successful output reports `verified`, both document UUIDs
+and hashes, the intended root hash, preflight generation, confirmed uploads,
+and viewport differences. In `AGENT=1`, differences include explicit presence
+and JSON values in TSV columns; absent values are marked `false` and `absent`.
+
+Errors return nonzero with available progress: `staged` has no confirmed
+commit, `commit-unknown` has an uncertain commit outcome, and `committed`
+has a confirmed commit with incomplete verification. Default conflicts show
+their old/new viewport values before returning an error. Inspect both cloud
+documents before retrying uncertain or committed operations; the command
+does not retry automatically. A stdout failure can occur after a verified
+cloud change. The operation has a five-minute timeout, and its verification
+output contains no credentials.
 
 ### `remarkable doc archive <id-or-name>`
 
