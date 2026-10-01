@@ -63,7 +63,6 @@ remarkable doc render 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --page 457 -o oct1-no
 
 Sample Output:
 ```
-[API #1] GET https://internal.cloud.remarkable.com/sync/v3/root -> 200 OK (242ms)
 [OK]    Rendered page 457 to oct1-notes.png
 ```
 
