@@ -199,6 +199,9 @@ timestamps, with native page IDs remapped. Destination document tags and
 mapped-page tags must be empty or identical to the source values. Different
 nonempty tags cause explicit conflicts; unmapped destination page tags stay
 intact. Identical tag comparisons include payload and order.
+Numbers in tags and viewport settings compare by exact numeric value, so
+`9`, `9.0`, and `9e0` are equal. Writes preserve the source numeric tokens;
+identical transfers preserve the destination content bytes.
 
 The operation copies `zoomMode`, `viewBackgroundFilter`, and the six fields
 `customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`,

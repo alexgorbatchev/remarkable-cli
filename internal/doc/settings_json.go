@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"unicode/utf8"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
@@ -149,7 +148,7 @@ func sameSettingsJSON(a, b json.RawMessage) bool {
 		return false
 	}
 	y, err := decode(b)
-	return err == nil && reflect.DeepEqual(x, y)
+	return err == nil && sameSettingsValue(x, y)
 }
 
 func settingsPageIDs(fields map[string]json.RawMessage) ([]string, error) {

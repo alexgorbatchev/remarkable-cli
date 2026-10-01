@@ -7,7 +7,7 @@ description: >-
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-01 12:33
+  last_modified: 2026-10-01 12:59
   status: current
 ---
 
@@ -421,6 +421,9 @@ are empty or identical. Transfer each mapped page's tags if that destination
 page's tags are empty or identical; retain tags on unmapped destination pages.
 Different nonempty destination document tags or mapped page tags cause explicit
 conflicts. Equality includes tag payloads and order, including timestamps.
+Compare numbers throughout tag payloads and viewport settings by exact numeric
+value: `9`, `9.0`, and `9e0` are equal. Preserve source numeric tokens during
+writes and preserve destination content bytes for identical transfers.
 
 Transfer these exact viewport fields: `zoomMode`, `viewBackgroundFilter`,
 `customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`,

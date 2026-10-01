@@ -64,7 +64,7 @@ func settingsContent(schema, prefix string, source bool) []byte {
 	return []byte(fmt.Sprintf(`{"fileType":"pdf","formatVersion":2,"pageCount":2,%s,%s,"unknown":{"large":9007199254740993,"text":"keep"}}`, pages, settings))
 }
 
-func settingsFixture(t *testing.T, sourceSchema, destinationSchema, failure string) *settingsCloud {
+func settingsFixture(t *testing.T, sourceSchema, destinationSchema, failure string, mutate ...func([]byte, []byte) ([]byte, []byte)) *settingsCloud {
 	t.Helper()
 	f := &settingsCloud{blobs: make(map[string][]byte)}
 	sourceContent := settingsContent(sourceSchema, "s", true)
@@ -104,6 +104,9 @@ func settingsFixture(t *testing.T, sourceSchema, destinationSchema, failure stri
 		destinationContent = bytes.Replace(destinationContent, []byte(`,"viewBackgroundFilter":"off"`), nil, 1)
 	case "no-page-tags":
 		sourceContent = bytes.Replace(sourceContent, []byte(`"pageTags":[{"name":"meeting","pageId":"s0","timestamp":1790713023807,"extra":{"value":9007199254740993}}]`), []byte(`"pageTags":[]`), 1)
+	}
+	for _, change := range mutate {
+		sourceContent, destinationContent = change(sourceContent, destinationContent)
 	}
 	f.originalSource = map[string][]byte{settingsSourceID + ".content": sourceContent, settingsSourceID + ".metadata": []byte(`{"type":"DocumentType","visibleName":"Source"}`), settingsSourceID + ".pdf": {0, 255, 1, 3}, settingsSourceID + "/s0.rm": {0, 255, 9, 7}}
 	f.originalDestination = map[string][]byte{settingsDestinationID + ".content": destinationContent, settingsDestinationID + ".metadata": []byte(`{"type":"DocumentType","visibleName":"Destination","unchanged":true}`), settingsDestinationID + ".pdf": {1, 255, 2, 4}, settingsDestinationID + "/d1.rm": {0, 255, 5, 2}, settingsDestinationID + "/extra.bin": {7, 255, 0}}
