@@ -26,8 +26,8 @@ func ReadUploadEvidence(path string) (*UploadEvidence, error) {
 	}
 	seen := make(map[string]bool)
 	for _, file := range evidence.Files {
-		suffix := strings.TrimPrefix(file.Name, evidence.Result.ID)
-		if seen[suffix] || file.Size < 0 || !uploadHashValid(file.SHA256) || (suffix != ".pdf" && suffix != ".metadata" && suffix != ".content" && suffix != ".pagedata") {
+		suffix, found := strings.CutPrefix(file.Name, evidence.Result.ID)
+		if !found || seen[suffix] || file.Size < 0 || !uploadHashValid(file.SHA256) || (suffix != ".pdf" && suffix != ".metadata" && suffix != ".content" && suffix != ".pagedata") {
 			return nil, fmt.Errorf("invalid upload evidence file %q", file.Name)
 		}
 		seen[suffix] = true

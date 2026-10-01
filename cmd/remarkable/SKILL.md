@@ -7,7 +7,7 @@ description: >-
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-01 11:31
+  last_modified: 2026-10-01 12:10
   status: current
 ---
 
@@ -363,7 +363,9 @@ can occur even though the document exists. Freshly check saved identity.
 ## `remarkable doc upload-check <evidence>`
 
 Read exactly one upload JSON evidence path and accept no command-specific
-flags. Validate its recovery identity before accessing credentials. Use
+flags. Validate its recovery identity before accessing credentials. Each
+attachment name equals the recorded UUID followed by `.pdf`, `.metadata`,
+`.content`, or `.pagedata`, with each suffix present exactly once. Use
 a five-minute timeout and fresh cloud reads to confirm the saved UUID,
 document hash, attachment set, sizes, and SHA-256 bytes against an unchanged
 root snapshot. Success prints the same fields as upload with `state: verified`.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -56,6 +57,51 @@ func TestUploadEvidenceOutput(t *testing.T) {
 			}
 			if err := printUploadEvidence(closed, "upload.json", evidence); !errors.Is(err, os.ErrClosed) {
 				t.Fatalf("lost output error: %v", err)
+			}
+		})
+	}
+}
+
+func TestUploadCheckRejectsMalformedEvidenceBeforeAuthentication(t *testing.T) {
+	const id = "11111111-1111-4111-8111-111111111111"
+	const otherID = "22222222-2222-4222-8222-222222222222"
+	for _, prefix := range []string{"", otherID} {
+		for _, suffix := range []string{".pdf", ".metadata", ".content", ".pagedata"} {
+			t.Run(prefix+suffix, func(t *testing.T) {
+				evidence := doc.UploadEvidence{Version: 1, Pages: 2, Result: cloud.CreateResult{ID: id, DocumentHash: strings.Repeat("a", 64)}}
+				for _, name := range []string{".pdf", ".metadata", ".content", ".pagedata"} {
+					file := doc.UploadFile{Name: id + name, SHA256: strings.Repeat("b", 64), Size: 1}
+					if name == suffix {
+						file.Name = prefix + name
+					}
+					evidence.Files = append(evidence.Files, file)
+				}
+				data, err := json.Marshal(evidence)
+				if err != nil {
+					t.Fatal(err)
+				}
+				dir := t.TempDir()
+				path := filepath.Join(dir, "upload.json")
+				if err := os.WriteFile(path, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				out, err := executeRoot("doc", "upload-check", path, "--config", filepath.Join(dir, "missing-credentials"))
+				if err == nil || !strings.Contains(err.Error(), "invalid upload evidence file") {
+					t.Fatalf("malformed attachment reached authentication or was accepted: %v: %s", err, out)
+				}
+			})
+		}
+	}
+	for _, data := range []string{"not JSON", `{}`} {
+		t.Run(data, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "upload.json")
+			if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			out, err := executeRoot("doc", "upload-check", path, "--config", filepath.Join(dir, "missing-credentials"))
+			if err == nil || strings.Contains(err.Error(), "credentials") {
+				t.Fatalf("malformed evidence reached authentication: %v: %s", err, out)
 			}
 		})
 	}
