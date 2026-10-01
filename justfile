@@ -43,7 +43,7 @@ fmt:
 # Run static analysis and test suite in sequence
 check: lint test
 
-# Run the live import/tablet check manually on a disposable document
+# Create a disposable document from a source PDF page and verify native import
 native-import-check *args: build
     bun install --cwd scripts/native-import-check --frozen-lockfile
     bun scripts/native-import-check/runCheck.ts "$@"

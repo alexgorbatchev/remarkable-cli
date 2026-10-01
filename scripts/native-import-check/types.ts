@@ -7,6 +7,8 @@ export type CheckOptions = {
   config?: string;
 };
 
+export type SourceOptions = Omit<CheckOptions, "mapping"> & { page: string };
+
 export type PageEvidence = {
   pageIndex: number;
   tabletPage: number;

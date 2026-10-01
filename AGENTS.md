@@ -23,15 +23,18 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 - Run human mode: `just run <args>`
 - Run agent mode: `just run-ai <args>`
 
-## Manual Native Import Check
+## Agent-Driven Native Import Check
 
 - Requires Bun 1.4.2+ and cloud credentials configured for `remarkable`.
 - Type-check the script: `just native-import-typecheck`.
-- Run outside CI: `just native-import-check <disposable-destination-uuid> --mapping <mapping.json>`.
-- Mapping uses the same source paths and 0-based page indexes as `doc import`; include at least one page with pen strokes.
-- The recipe builds the CLI and installs locked script dependencies. It imports into the destination, verifies fresh native downloads, source preservation, page IDs, and PDF background bytes, then saves SVG/PNG previews and `report.json` in a unique `.tmp/native-import-check/` directory.
+- Run outside CI: `just native-import-check <source-uuid> --page <0-based-index>`.
+- Establish the user-designated source document and page from available cloud data. When the user names a date, verify its PDF text and choose a matching page with pen strokes. Do not ask the user for a destination UUID: the script creates its own disposable document and local assets. Never substitute test fixtures or an unconfirmed source.
+- The recipe builds the CLI and installs locked script dependencies. It downloads the source's native strokes and PDF background, extracts the selected background into a one-page PDF, and creates a new cloud document with a fresh document UUID and native page UUID using a generation-checked root commit. It then imports the strokes into page index 0, verifies fresh native downloads, source preservation, page IDs, and PDF background bytes, and saves SVG/PNG previews and reports in a unique `.tmp/native-import-check/` directory.
 - Open the printed document title on the tablet and the printed preview paths on the computer. The script prints both 0-based CLI indexes and 1-based tablet page positions.
-- After selection, movement, erasure, background, and sync/reopen checks, the user answers `y` or `n`. Only `y` records a tablet pass; `n` or EOF exits nonzero. This is a human attestation, not automated tablet UI verification.
+- The agent runs the script with stdin disabled. It exits successfully after cloud verification and leaves `tablet: pending` in the report; it never reads user input or prompts in the terminal.
+- Read the exit status, `setup.json`, `creation.json`, import progress, and `report.json` before claiming cloud verification passed. On failure, report the evidence directory and confirmed progress; inspect uncertain commits before retrying document creation or an import. A retry creates another document; retain the printed UUID for recovery and cleanup. Never write bearer tokens to evidence files.
+- After cloud verification passes, give the user the exact destination title/UUID, tablet page positions, and clickable source/destination preview paths. Ask in chat whether imported strokes can be selected, moved, and erased, whether the background remains intact, and whether edits persist after sync and reopening.
+- Keep tablet verification pending until the user explicitly reports the outcome. Record that answer separately from automated cloud verification; neither a zero exit status nor rendered previews prove tablet editability. Issue #2 remains open until the required tablet check passes.
 - Keep this manual check outside the CI loop. Do not write tests for this check script; use type checking and manual execution.
 
 ## Standards & Constraints

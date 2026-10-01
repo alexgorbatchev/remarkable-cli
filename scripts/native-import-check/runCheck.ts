@@ -1,10 +1,11 @@
 import { Command } from "commander";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { createCheckDocument } from "./createCheckDocument";
+import { runCommand } from "./runCommand";
 import { parseMapping } from "./parseMapping";
-import { tabletResult } from "./tabletResult";
 import { verifyBytes } from "./verifyBytes";
-import type { CheckOptions, Mapping, PageEvidence } from "./types";
+import type { CheckOptions, Mapping, PageEvidence, SourceOptions } from "./types";
 
 const projectDir = resolve(import.meta.dir, "../..");
 
@@ -20,24 +21,13 @@ function pageID(output: string, page: number): string {
   return id;
 }
 
-async function command(options: CheckOptions, args: string[], outputPath?: string): Promise<Uint8Array> {
-  const config = options.config ? ["--config", resolve(options.config)] : [];
-  const child = Bun.spawn([resolve(options.binary), "--no-cache", ...config, ...args], {
-    env: { ...Bun.env, AGENT: "1" }, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: 360_000,
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).bytes(), new Response(child.stderr).text(), child.exited,
-  ]);
-  if (outputPath) await Bun.write(outputPath, stdout);
-  if (exitCode !== 0) throw new Error(`${args.slice(0, 2).join(" ")} failed (${exitCode}): ${stderr.trim()}`);
-  return stdout;
-}
-
 async function textCommand(options: CheckOptions, args: string[], outputPath?: string): Promise<string> {
-  return new TextDecoder().decode(await command(options, args, outputPath));
+  return new TextDecoder().decode(await runCommand(options, args, outputPath));
 }
 
-export async function runCheck(destination: string, options: CheckOptions): Promise<number> {
+export async function runCheck(
+  destination: string, options: CheckOptions, verifySource: () => Promise<void>,
+): Promise<number> {
   if (Bun.env.CI && Bun.env.CI !== "false" && Bun.env.CI !== "0") {
     throw new Error("This live-cloud check must be run manually outside CI");
   }
@@ -54,10 +44,9 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
   const snapshotMapping: Mapping[] = [];
   const reportPath = join(outputDir, "report.json");
   let cloudState: string = "pending";
-  let tabletState: ReturnType<typeof tabletResult> = "pending";
   let documentName: string = "";
   const saveReport = async (error?: string) => Bun.write(reportPath, JSON.stringify({
-    destination, documentName, mappingPath, cloud: cloudState, tablet: tabletState,
+    destination, documentName, mappingPath, cloud: cloudState, tablet: "pending",
     pages, error, recordedAt: new Date().toISOString(),
   }, null, 2) + "\n");
 
@@ -90,7 +79,7 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
     const hasPDF = field(before, "Format") === "pdf";
     let background: Uint8Array | undefined;
     if (hasPDF) {
-      background = await command(options, ["doc", "cat", destination, "--format", "pdf"],
+      background = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
         join(outputDir, "background-before.pdf"));
     }
     const snapshotPath = join(outputDir, "mapping.json");
@@ -100,12 +89,12 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
       join(outputDir, "import.txt"));
     if (field(imported, "state") !== "verified") throw new Error("Import did not report verified state");
     if (background) {
-      const after = await command(options, ["doc", "cat", destination, "--format", "pdf"],
+      const after = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
         join(outputDir, "background-after.pdf"));
       if (!verifyBytes(background, after)) throw new Error("Destination background PDF changed during import");
     }
     for (const page of pages) {
-      const bytes = await command(options, ["doc", "cat", destination,
+      const bytes = await runCommand(options, ["doc", "cat", destination,
         "--page", String(page.pageIndex), "--format", "rm"]);
       await Bun.write(page.downloadedNative, bytes);
       const original = await Bun.file(page.originalSource).bytes();
@@ -120,6 +109,7 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
     for (const page of pages) {
       if (page.pageID !== pageID(after, page.pageIndex)) throw new Error(`Page association changed at ${page.pageIndex}`);
     }
+    await verifySource();
     cloudState = "passed";
     await saveReport();
     const isAgent = ["1", "true", "yes"].includes(Bun.env.AGENT ?? "");
@@ -141,14 +131,9 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
     console.log("move it, and erase it. Confirm its background is intact. Sync, close, and reopen the");
     console.log("document, then confirm your edits persist. Metadata-only pages require a visual check.");
     console.log(`Report: ${reportPath}`);
-    let answer: string | null;
-    do {
-      answer = prompt("Did every tablet check above pass? [y/n]");
-      tabletState = tabletResult(answer);
-    } while (answer !== null && tabletState === "pending");
-    await saveReport();
-    console.log(`cloud: ${cloudState}\ntablet: ${tabletState}\nreport: ${reportPath}`);
-    return tabletState === "passed" ? 0 : 1;
+    console.log(`cloud: ${cloudState}\ntablet: pending\nreport: ${reportPath}`);
+    console.log("Agent: ask the user to perform the printed tablet checks and report the outcome in chat.");
+    return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (cloudState !== "passed") cloudState = "failed";
@@ -159,14 +144,19 @@ export async function runCheck(destination: string, options: CheckOptions): Prom
 
 if (import.meta.main) {
   const cli = new Command().name("native-import-check")
-    .description("Import into a disposable cloud document, verify downloads, and record a tablet y/n check")
-    .argument("<destination-uuid>", "Disposable destination document UUID")
-    .requiredOption("--mapping <path>", "JSON source-to-page mapping")
+    .description("Verify a live native import and print the evidence for an agent-led tablet check")
+    .argument("<source-uuid>", "Source PDF document UUID; creates a new disposable destination")
+    .requiredOption("--page <index>", "0-based source page index containing pen strokes")
     .option("--binary <path>", "remarkable executable", join(projectDir, "bin/remarkable"))
     .option("--config <path>", "Credentials file passed to remarkable")
     .option("--output-dir <path>", "Parent for a unique evidence directory", join(projectDir, ".tmp/native-import-check"))
-    .action(async (destination: string, options: CheckOptions) => {
-      process.exitCode = await runCheck(destination, options);
+    .action(async (source: string, options: SourceOptions) => {
+      const prepared = await createCheckDocument(source, options);
+      process.exitCode = await runCheck(prepared.destination, prepared.options, async () => {
+        if (await prepared.cloud.documentHash(source) !== prepared.sourceHash) {
+          throw new Error("Source cloud document changed during verification");
+        }
+      });
     });
   try {
     await cli.parseAsync();
