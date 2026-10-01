@@ -8,6 +8,7 @@
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
+- **Separate PDF uploads**: Creates a cloud document from a local multi-page PDF, preserving its bytes and links and saving recovery identity before committing.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
 - **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
 - **Dual-mode output**: Formats aligned ASCII tables and trees for humans, and compact token-conservative TSV for scripts and AI agents (`AGENT=1`).
@@ -20,6 +21,7 @@
 - Converts vector stroke lines to SVG or composites them over stationery templates into standard PNG images.
 - Imports mapped native stroke files after validating the destination's initialized pages and checking for handwriting conflicts, then downloads uploaded data to verify bytes and page associations.
 - Exports a complete native document snapshot to a ZIP at an explicit output path, preserving existing local files and leaving the source document unchanged.
+- Uploads a valid local PDF under an explicit title in the root or an existing folder, rejecting a duplicate title in that folder and reporting the new document UUID.
 
 # How it Really Works
 
@@ -204,6 +206,47 @@ at the printed or requested output path before retrying.
 The operation exports documents with a native document manifest and
 requires their `.content` and `.metadata` entries. It performs no document
 uploads or edits; credentials may renew through the normal cloud client.
+
+### `remarkable doc upload <pdf>`
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--title <title>` | | none | Required nonblank display title, without control characters |
+| `--folder <UUID>` | | root | Existing live destination folder UUID |
+| `--evidence <path>` | | none | Required new private JSON recovery file; parent directory must exist |
+
+```bash
+remarkable doc upload planner.pdf --title "Planner migration" --evidence upload.json
+remarkable doc upload-check upload.json
+```
+
+Upload creates a separate document with a fresh UUID; it preserves the PDF
+bytes and links and all existing documents. An exact, case-sensitive title
+collision with any live item in the destination folder causes an error.
+Choose a distinct title to create another document. The actual PDF page count
+is stored, while native page IDs stay uninitialized. Output explicitly reports
+`native_pages: pending-tablet-initialization`. Open the document on the tablet,
+let it sync, then use `doc inspect <UUID> --pages` to establish native page IDs
+before importing strokes. Cloud byte verification does not establish tablet
+initialization or editability.
+
+The five-minute operation freshly checks folder/title policy and commits
+against that same root generation. Output exposes `staged`, `commit-unknown`,
+`committed`, and `verified`, with the UUID, intended document/root hashes,
+preflight generation, page count, and confirmed attachments. JSON evidence
+records those fields plus intended attachment names, SHA-256 values, and
+byte lengths. It is created with `0600` permissions before staging and
+durably refreshed before the commit request; existing evidence is preserved.
+Neither output nor evidence includes credentials.
+
+After a timeout, retain evidence and run `doc upload-check <evidence>` before
+retrying. This read-only command freshly confirms the recorded UUID, document
+hash, and attachment bytes against an unchanged root snapshot without creating
+anything or modifying evidence. A changed or missing document, differing bytes,
+or concurrent cloud change returns a nonzero exit status and requires inspection.
+Tablet initialization and later edits can change the document hash.
+Every creation retry chooses another UUID. An evidence or stdout failure after
+commit can occur even though the document exists; use the recovery check.
 
 ### `remarkable stroke export`
 

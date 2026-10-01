@@ -2,12 +2,12 @@
 name: remarkable
 description: >-
   REQUIRED when using the remarkable CLI to pair, browse reMarkable Cloud,
-  inspect documents, search PDF text, extract links, render, sync, archive, or import pages,
+  inspect documents, search PDF text, extract links, render, sync, archive, upload PDFs, check uploads, or import pages,
   or inspect and export local .rm strokes.
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-01 11:02
+  last_modified: 2026-10-01 11:31
   status: current
 ---
 
@@ -309,6 +309,70 @@ Read the process exit status alongside those lines:
 Failures return a nonzero exit status. Use a disposable destination for
 the tablet check: select imported handwriting, move it, and erase it to
 confirm editability separately from cloud byte verification.
+
+## `remarkable doc upload <pdf>`
+
+Create a separate cloud PDF document from exactly one local PDF path. Supply
+an explicit title and a new recovery JSON path whose parent directory exists.
+Use a collection UUID for `--folder`, or leave it empty for the cloud root.
+The title matches exactly and case-sensitively: any live item with that title
+in the chosen folder causes an error. Choose a distinct title to create
+another document. Every upload chooses a fresh document UUID and preserves
+all existing documents and the PDF bytes, including links.
+
+| Flag | Short | Type | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `--title` | — | `string` | `""` | Required nonblank title without control characters. |
+| `--folder` | — | `string` | `""` | Existing, live collection UUID; empty selects root. |
+| `--evidence` | — | `string` | `""` | Required new JSON file; preserve existing paths. |
+
+```sh
+AGENT=1 remarkable doc upload planner.pdf --title "Planner migration" --evidence upload.json
+AGENT=1 remarkable doc upload-check upload.json
+```
+
+Validate the PDF and use its actual page count. Upload `.pdf`, `.metadata`,
+`.content`, and `.pagedata` files. Native page IDs remain uninitialized;
+`native_pages: pending-tablet-initialization` describes this state even
+when cloud verification passes. Open the document on the tablet, let it
+sync, and inspect the printed UUID with `doc inspect <id-or-name> --pages`
+before mapping native strokes with `doc import`.
+
+Use a five-minute timeout. Folder/title preflight reads a fresh root snapshot
+and fresh metadata. Commit against that same root hash and generation;
+concurrent changes cause failure. Emit progress to stdout in both modes:
+`state`, `document_id`, `title`, `folder`, `pages`, `document_hash`,
+`root_hash`, `generation`, `evidence`, `native_pages`, `next_step`, and
+one `uploaded` line per freshly confirmed attachment. Agent keys use
+`key: value` format. States are `staged`, `commit-unknown`, `committed`,
+and `verified`. `generation` is the preflight generation; `root_hash` is
+the intended committed root. Success freshly confirms the UUID association
+and all supplied bytes. Native page initialization remains a tablet step.
+
+Write private `0600` JSON evidence before any cloud staging and durably
+refresh it before the commit request. Record version 1, title, folder, page
+count, native initialization state, library commit result, and each intended
+file's native name, SHA-256, and byte length. Evidence contains no credentials.
+Create temporary evidence files beside the chosen path and atomically rename
+them on progress updates. Staging can leave unreferenced cloud blobs on failure.
+A commit timeout can leave a committed document; retain this JSON and run
+`upload-check` before any retry. Each retry creates another UUID.
+Local evidence or stdout write errors return nonzero; after a commit they
+can occur even though the document exists. Freshly check saved identity.
+
+## `remarkable doc upload-check <evidence>`
+
+Read exactly one upload JSON evidence path and accept no command-specific
+flags. Validate its recovery identity before accessing credentials. Use
+a five-minute timeout and fresh cloud reads to confirm the saved UUID,
+document hash, attachment set, sizes, and SHA-256 bytes against an unchanged
+root snapshot. Success prints the same fields as upload with `state: verified`.
+The recorded generation/root hash remain the original creation evidence.
+Preserve the evidence file and cloud documents. A missing UUID, changed
+document hash, changed root during checking, or differing bytes returns
+nonzero; retain evidence and inspect the document before retrying creation.
+Tablet initialization or later edits may change its document hash and
+therefore require inspection. Read exit status to establish fresh verification.
 
 ## `remarkable stroke`
 

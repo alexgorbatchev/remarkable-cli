@@ -1,0 +1,180 @@
+package doc
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+	"unicode"
+
+	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
+	render "github.com/alexgorbatchev/go-remarkable-render"
+)
+
+const nativePagesPending = "pending-tablet-initialization"
+
+// UploadOptions requires an explicit title and a new recovery evidence path.
+type UploadOptions struct {
+	Title      string
+	Folder     string
+	Evidence   string
+	OnProgress func(*UploadEvidence) error
+}
+
+// ValidateUploadOptions rejects invalid local arguments before authentication.
+func ValidateUploadOptions(opts UploadOptions) error {
+	if strings.TrimSpace(opts.Title) == "" || strings.IndexFunc(opts.Title, unicode.IsControl) >= 0 {
+		return fmt.Errorf("upload title must be nonempty and contain no control characters")
+	}
+	if opts.Folder != "" && !isUUID(opts.Folder) {
+		return fmt.Errorf("upload folder must be a collection UUID")
+	}
+	if opts.Evidence == "" {
+		return fmt.Errorf("upload evidence path is required")
+	}
+	return nil
+}
+
+// UploadPDF creates a separate document, preserving the original PDF bytes.
+// The recorded root snapshot governs both preflight policy and the cloud commit.
+func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts UploadOptions) (*UploadEvidence, error) {
+	if err := ValidateUploadOptions(opts); err != nil {
+		return nil, err
+	}
+	pdf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading upload PDF: %w", err)
+	}
+	document, cleanup, err := render.OpenDocumentFromBytes(pdf)
+	if err != nil {
+		return nil, fmt.Errorf("validating upload PDF: %w", err)
+	}
+	pages := document.NumPage()
+	cleanup()
+	if pages < 1 {
+		return nil, fmt.Errorf("upload PDF has no pages")
+	}
+	root, err := uploadPreflight(ctx, client, opts)
+	if err != nil {
+		return nil, err
+	}
+	id, err := uploadUUID()
+	if err != nil {
+		return nil, err
+	}
+	files, err := uploadFiles(id, pdf, pages, opts)
+	if err != nil {
+		return nil, err
+	}
+	evidence := &UploadEvidence{Version: 1, Title: opts.Title, Folder: opts.Folder, Pages: pages, NativePages: nativePagesPending, Result: cloud.CreateResult{ID: id, State: cloud.UpdateStaged, Generation: root.Generation}}
+	for _, file := range files {
+		evidence.Files = append(evidence.Files, UploadFile{Name: file.Name, SHA256: archiveHash(file.Data), Size: int64(len(file.Data))})
+	}
+	if err := writeUploadEvidence(opts.Evidence, evidence, true); err != nil {
+		return nil, err
+	}
+	result, createErr := client.CreateDocument(ctx, cloud.CreateDocumentOptions{ID: id, ExpectedRoot: *root, Files: files, OnProgress: func(progress cloud.CreateResult) error {
+		evidence.Result = progress
+		if err := writeUploadEvidence(opts.Evidence, evidence, false); err != nil {
+			return err
+		}
+		if opts.OnProgress != nil {
+			return opts.OnProgress(evidence)
+		}
+		return nil
+	}})
+	evidence.Result = *result
+	// Persist definitive rejections too: the precommit callback intentionally
+	// records uncertainty before the request, even when the server rejects it.
+	persistErr := writeUploadEvidence(opts.Evidence, evidence, false)
+	return evidence, errors.Join(createErr, persistErr)
+}
+
+func uploadUUID() (string, error) {
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", fmt.Errorf("generating document UUID: %w", err)
+	}
+	id[6] = (id[6] & 0x0f) | 0x40
+	id[8] = (id[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", id[:4], id[4:6], id[6:8], id[8:10], id[10:]), nil
+}
+
+func freshUploadManifest(ctx context.Context, client *cloud.Client, hash, name string) (*cloud.Manifest, error) {
+	data, err := client.GetBlobFresh(ctx, hash, name)
+	if err != nil {
+		return nil, err
+	}
+	return cloud.ParseManifest(hash, bytes.NewReader(data))
+}
+
+func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptions) (*cloud.RootState, error) {
+	root, err := client.GetRootState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := freshUploadManifest(ctx, client, root.Hash, "root.docSchema")
+	if err != nil {
+		return nil, fmt.Errorf("reading upload root snapshot: %w", err)
+	}
+	folderFound := opts.Folder == ""
+	for _, entry := range manifest.Entries {
+		if entry.ID == "." {
+			continue
+		}
+		files, err := freshUploadManifest(ctx, client, entry.Hash, entry.ID+".docSchema")
+		if err != nil {
+			return nil, fmt.Errorf("reading upload preflight item %s: %w", entry.ID, err)
+		}
+		meta := files.Find(entry.ID + ".metadata")
+		if meta == nil {
+			return nil, fmt.Errorf("upload preflight item %s has no metadata", entry.ID)
+		}
+		data, err := client.GetBlobFresh(ctx, meta.Hash, meta.ID)
+		if err != nil {
+			return nil, err
+		}
+		if archiveHash(data) != meta.Hash {
+			return nil, fmt.Errorf("upload preflight metadata checksum mismatch for %s", entry.ID)
+		}
+		var metadata cloud.ItemMetadata
+		if err := json.Unmarshal(data, &metadata); err != nil {
+			return nil, fmt.Errorf("reading upload metadata: %w", err)
+		}
+		if entry.ID == opts.Folder {
+			folderFound = metadata.Type == cloud.ItemTypeCollection && !metadata.Deleted && metadata.Parent != "trash"
+		}
+		if !metadata.Deleted && metadata.Parent == opts.Folder && metadata.VisibleName == opts.Title {
+			return nil, fmt.Errorf("title %q already exists in destination folder (%s); choose a distinct title", opts.Title, entry.ID)
+		}
+	}
+	if !folderFound {
+		return nil, fmt.Errorf("destination folder %s is missing, deleted, or not a collection", opts.Folder)
+	}
+	return root, nil
+}
+
+func uploadFiles(id string, pdf []byte, pages int, opts UploadOptions) ([]cloud.FileUpdate, error) {
+	now := fmt.Sprint(time.Now().UnixMilli())
+	metadata := map[string]any{"type": cloud.ItemTypeDocument, "visibleName": opts.Title, "parent": opts.Folder, "deleted": false, "pinned": false, "createdTime": now, "lastModified": now, "lastOpened": "0", "lastOpenedPage": 0}
+	// The ordinary PDF content schema represents unopened native pages as null.
+	// Page counts describe the actual PDF; tablet sync owns native initialization.
+	content := map[string]any{"fileType": "pdf", "formatVersion": 1, "pageCount": pages, "originalPageCount": pages, "pages": nil, "sizeInBytes": fmt.Sprint(len(pdf)), "coverPageNumber": -1, "documentMetadata": map[string]any{}, "extraMetadata": map[string]any{}, "fontName": "", "lineHeight": -1, "margins": 125, "orientation": "portrait", "textAlignment": "justify", "textScale": 1, "zoomMode": "bestFit", "tags": []any{}, "pageTags": []any{}}
+	files := []cloud.FileUpdate{{Name: id + ".pdf", Data: pdf}, {Name: id + ".pagedata", Data: []byte(strings.Repeat("\n", pages))}}
+	for _, file := range []struct {
+		name  string
+		value any
+	}{{"metadata", metadata}, {"content", content}} {
+		data, err := json.Marshal(file.value)
+		if err != nil {
+			return nil, fmt.Errorf("encoding upload %s: %w", file.name, err)
+		}
+		files = append(files, cloud.FileUpdate{Name: id + "." + file.name, Data: data})
+	}
+	return files, nil
+}

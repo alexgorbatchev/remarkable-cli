@@ -41,6 +41,13 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSkillCmd())
 
 	catalog := cobrahelptree.TechCatalog{
+		"remarkable doc upload": {
+			Args:      []cobrahelptree.ArgSpec{{Name: "<pdf>", Description: "Local PDF path"}},
+			MutatesDB: true,
+		},
+		"remarkable doc upload-check": {
+			Args: []cobrahelptree.ArgSpec{{Name: "<evidence>", Description: "JSON recovery evidence saved by doc upload"}},
+		},
 		"remarkable doc archive": {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID, exact display name, or folder path"},
