@@ -7,7 +7,7 @@ description: >-
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-01 12:59
+  last_modified: 2026-10-01 21:52
   status: current
 ---
 
@@ -72,6 +72,30 @@ Resolve the cache in this order: `--cache-dir`, `REMARKABLE_CACHE_DIR`,
 `REMARKABLE_HOST` only when directing cloud and authentication requests
 to an alternate endpoint. Set `AGENT=1` for agent output; `true` and `yes`
 are also accepted, with case and surrounding whitespace ignored.
+
+Cloud HTTP requests use the same policy in normal and `--debug` modes:
+each attempt has a 90-second deadline covering headers and the complete
+response body, bounded further by the command's total operation context.
+Content-addressed `GET` and replayable `PUT` requests to
+`/sync/v3/files/<64-hex-hash>` receive at most three attempts. Retries cover
+timeouts, disconnected or truncated responses, and HTTP 408, 429, 500,
+502, 503, or 504. Replay preserves the upload bytes and request headers.
+Backoff is 250 ms then 500 ms; a valid `Retry-After` seconds or HTTP-date
+value selects the wait instead. Cancellation and the command deadline
+interrupt both requests and waits. A successful blob response is fully
+buffered before its bytes are exposed, so a recovered partial read returns
+only the final complete response.
+
+Root requests, authentication, and other routes receive one transport
+attempt. Read-only GET/HEAD requests and replayable blob requests follow Go
+HTTP client redirects with a ten-redirect limit; other writes return
+redirect responses without following them.
+Authentication renewal remains handled by the cloud library after an
+authentication rejection. Root generation checks and command verification
+remain in force. A failed root commit retains the existing uncertain-outcome
+report: recover by inspecting fresh evidence, rather than assuming failure
+or repeating document creation. `--debug` logs each HTTP attempt's headers
+result and timing to stderr; it applies the same deadlines and retries.
 
 ## `remarkable skill`
 

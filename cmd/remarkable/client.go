@@ -56,6 +56,7 @@ func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 		cloud.WithConfigFile(configPath),
 		cloud.WithAutoRenew(true),
 		cloud.WithSaveOnRenew(true),
+		cloud.WithHTTPClient(newCloudHTTPClient(debugFlag)),
 	}
 
 	if host := os.Getenv("REMARKABLE_HOST"); host != "" {
@@ -71,14 +72,6 @@ func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 
 	if !noCacheFlag {
 		opts = append(opts, cloud.WithCacheDir(config.ResolveCacheDir(cacheDirFlag)))
-	}
-
-	if debugFlag {
-		baseTransport := http.DefaultTransport
-		opts = append(opts, cloud.WithHTTPClient(&http.Client{
-			Transport: &debugTransport{base: baseTransport},
-			Timeout:   30 * time.Second,
-		}))
 	}
 
 	client, err := cloud.NewClient(opts...)

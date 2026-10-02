@@ -39,6 +39,10 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 
 ## Standards & Constraints
 
+- Cloud requests use the shared `newCloudHTTPClient` policy in both normal and debug modes. Preserve the 90-second per-attempt deadline, three-attempt immutable blob recovery, command-context cancellation, and exact request bytes/headers. Keep `http.Client.Timeout` unset because it would bound the entire retry loop rather than an attempt.
+- Never automatically replay root commits, authentication writes, or other mutable operations on transport errors or redirects. Keep existing generation checks and uncertain/partial outcomes; use fresh evidence to recover document creation or mutation.
+- Validate HTTP policy changes with real HTTP servers, including delayed/truncated responses, replayed body/header integrity, operation cancellation, and single-attempt lost root commits. Keep the embedded skill's request/redirect/recovery contract synchronized.
+
 - Go 1.26+ required.
 - Subject-first noun-verb CLI structure (`cli <subject> <verb>`).
 - Strict ban on emojis in both human and agent modes.

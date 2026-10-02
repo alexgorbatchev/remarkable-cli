@@ -85,7 +85,7 @@ func newAuthCmd() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
 			defer cancel()
 
-			var opts []cloud.Option
+			opts := []cloud.Option{cloud.WithHTTPClient(newCloudHTTPClient(debugFlag))}
 			if host := os.Getenv("REMARKABLE_HOST"); host != "" {
 				opts = append(opts,
 					cloud.WithEndpoints(&cloud.Endpoints{RawHost: host, WebappHost: host, StorageHost: host}),
