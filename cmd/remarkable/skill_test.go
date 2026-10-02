@@ -16,6 +16,7 @@ import (
 const skillAlert = "ALERT: Agents must read `AGENT=1 remarkable skill` before using this tool.\n"
 
 func TestSkillCommand(t *testing.T) {
+	const maxLines = 499
 	want, err := os.ReadFile("SKILL.md")
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +32,9 @@ func TestSkillCommand(t *testing.T) {
 			}
 			if out != string(want) {
 				t.Fatal("skill output must match SKILL.md byte for byte")
+			}
+			if lines := strings.Count(strings.TrimSpace(out), "\n") + 1; lines > maxLines {
+				t.Fatalf("embedded skill has %d lines; limit is %d with the complete command reference", lines, maxLines)
 			}
 		})
 	}
