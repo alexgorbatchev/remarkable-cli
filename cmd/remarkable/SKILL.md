@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 15:08
+  last_modified: 2026-10-06 15:12
   status: current
 ---
 
@@ -30,10 +30,11 @@ Commands accept only their listed options plus global flags; groups print help.
   mode or `[ERROR] ` in human mode. Invocation errors print the command's usage
   screen before that message: unknown flags, wrong argument counts, missing
   required flags, and values rejected without cloud or file access (`--format`,
-  negative `--page`, empty `--output` or `--mapping`, upload
-  `--title`/`--folder`/`--evidence`, pairing-code length, non-UUID `doc import`
-  or `doc settings transfer` arguments, identical settings UUIDs). Failures after
-  a command starts, such as unreadable files or cloud errors, print no usage.
+  negative `--page`, empty `doc render`/`doc archive` `--output`, empty
+  `--mapping`, upload `--title`/`--folder`/`--evidence`, pairing-code length,
+  non-UUID `doc import` or `doc settings transfer` arguments, identical settings
+  UUIDs). Failures after a command starts, such as unreadable files or cloud
+  errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
 - Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
