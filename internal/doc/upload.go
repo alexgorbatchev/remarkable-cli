@@ -26,9 +26,9 @@ type UploadOptions struct {
 	OnProgress func(*UploadEvidence) error
 }
 
-// ValidateUploadOptions rejects invalid options before UploadPDF reads the PDF or
+// validateUploadOptions rejects invalid options before UploadPDF reads the PDF or
 // contacts the cloud.
-func ValidateUploadOptions(opts UploadOptions) error {
+func validateUploadOptions(opts UploadOptions) error {
 	if err := ValidateUploadTitle(opts.Title); err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func ValidateUploadEvidencePath(path string) error {
 // UploadPDF creates a separate document, preserving the original PDF bytes.
 // The recorded root snapshot governs both preflight policy and the cloud commit.
 func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts UploadOptions) (*UploadEvidence, error) {
-	if err := ValidateUploadOptions(opts); err != nil {
+	if err := validateUploadOptions(opts); err != nil {
 		return nil, err
 	}
 	pdf, err := os.ReadFile(path)

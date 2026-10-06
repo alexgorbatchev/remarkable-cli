@@ -47,6 +47,8 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 - Subject-first noun-verb CLI structure (`cli <subject> <verb>`).
 - Strict ban on emojis in both human and agent modes.
 - Dual-mode formatting via `AGENT=1` required on all output pathways.
+- `main` is the only error printer: the root sets `SilenceErrors`, and `main` prints each returned error once to stderr with `agent.PrintStatus`. Run the CLI through `execute`; `prepareRoot` adds Cobra's help and completion commands, then wraps every `RunE` to set `SilenceUsage`, so runtime failures print no usage screen. Never write a returned error to stderr or set `SilenceUsage` anywhere else.
+- Validate positional arguments and flag values that need no cloud or file access in `Args` validators or `pflag.Value` types (see `cmd/remarkable/validation.go`), never only inside `RunE` or the services it calls (a service may repeat the shared check for its other callers); Cobra prints the usage screen only for errors raised before `RunE` starts. Keep checks that need files or fetched data in the command.
 - Aligned tree-view help screens powered by `github.com/alexgorbatchev/cobra-help-tree/v2`.
 - `--version` prints strictly the raw version string followed by a newline.
 
