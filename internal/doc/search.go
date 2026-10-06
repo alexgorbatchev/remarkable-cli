@@ -23,38 +23,52 @@ type SearchQuery struct {
 
 var errBlankSearchQuery = errors.New("query must not be empty or only whitespace")
 
+// normalizedQuery is a SearchQuery in the form matching compares, prepared
+// once per search and applied to every page.
+type normalizedQuery struct {
+	text      string
+	wholeWord bool
+}
+
+// normalizeQuery normalizes query.Text with normalizeSearchText and rejects a
+// query left with no text, which would match every page.
+func normalizeQuery(query SearchQuery) (normalizedQuery, error) {
+	text := normalizeSearchText(query.Text)
+	if text == "" {
+		return normalizedQuery{}, errBlankSearchQuery
+	}
+	return normalizedQuery{text: text, wholeWord: query.WholeWord}, nil
+}
+
 // ValidateSearchQuery rejects a query that normalizes to no text, which would
 // match every page.
 func ValidateSearchQuery(query string) error {
-	if normalizeSearchText(query) == "" {
-		return errBlankSearchQuery
-	}
-	return nil
+	_, err := normalizeQuery(SearchQuery{Text: query})
+	return err
 }
 
 // normalizeSearchText returns s in the form in which snippets show page text
 // and matching compares page text and queries; see collapseWhitespace.
 func normalizeSearchText(s string) string {
-	collapsed, _ := collapseWhitespace(s)
-	return collapsed
+	return collapseWhitespace(s, nil)
 }
 
 // searchPageText reports whether query occurs in a page's text and returns a
-// snippet around the first occurrence. Matching sees page text and query the
-// way snippets show text: every whitespace run is one space and leading and
+// snippet around the first occurrence. Matching sees the page text the way
+// snippets show it: every whitespace run is one space and leading and
 // trailing whitespace is dropped. Matched runes compare under Unicode simple
 // case folding.
-func searchPageText(text string, query SearchQuery) (snippet string, ok bool) {
-	page, offsets := collapseWhitespace(text)
-	needle := normalizeSearchText(query.Text)
+func searchPageText(text string, query normalizedQuery) (snippet string, ok bool) {
+	var offsets []int
+	page := collapseWhitespace(text, &offsets)
 
 	for from := 0; ; {
-		start, end, ok := indexFold(page[from:], needle)
+		start, end, ok := indexFold(page[from:], query.text)
 		if !ok {
 			return "", false
 		}
 		start, end = from+start, from+end
-		if !query.WholeWord || isWholeWord(page, start, end) {
+		if !query.wholeWord || isWholeWord(page, start, end) {
 			return snippetAround(text, offsets[start], offsets[end]), true
 		}
 		if start == len(page) {
@@ -67,34 +81,43 @@ func searchPageText(text string, query SearchQuery) (snippet string, ok bool) {
 
 // collapseWhitespace returns text with every whitespace run, as
 // strings.Fields splits on, replaced by one space and leading and trailing
-// whitespace dropped; non-space bytes are copied unchanged. offsets maps each
-// byte offset of the result, plus its length, to the corresponding byte
-// offset in text. A collapsed space maps to the end of the content before its
-// run, and the result's length maps to the end of the last non-space rune, so
-// a match that starts and ends on non-space runes maps to exactly the bytes
-// it covers in text.
-func collapseWhitespace(text string) (collapsed string, offsets []int) {
+// whitespace dropped; non-space bytes are copied unchanged. When offsets is
+// not nil, it receives, for each byte offset of the result plus its length,
+// the corresponding byte offset in text. A collapsed space maps to the end of
+// the content before its run, and the result's length maps to the end of the
+// last non-space rune, so a match that starts and ends on non-space runes maps
+// to exactly the bytes it covers in text.
+func collapseWhitespace(text string, offsets *[]int) string {
 	var b strings.Builder
 	b.Grow(len(text))
-	offsets = make([]int, 0, len(text)+1)
+	if offsets != nil {
+		*offsets = make([]int, 0, len(text)+1)
+	}
 
 	contentEnd := 0
 	for i := 0; i < len(text); {
 		r, size := utf8.DecodeRuneInString(text[i:])
 		if !unicode.IsSpace(r) {
 			if contentEnd > 0 && contentEnd < i {
-				offsets = append(offsets, contentEnd)
+				if offsets != nil {
+					*offsets = append(*offsets, contentEnd)
+				}
 				b.WriteByte(' ')
 			}
-			for j := i; j < i+size; j++ {
-				offsets = append(offsets, j)
+			if offsets != nil {
+				for j := i; j < i+size; j++ {
+					*offsets = append(*offsets, j)
+				}
 			}
 			b.WriteString(text[i : i+size])
 			contentEnd = i + size
 		}
 		i += size
 	}
-	return b.String(), append(offsets, contentEnd)
+	if offsets != nil {
+		*offsets = append(*offsets, contentEnd)
+	}
+	return b.String()
 }
 
 // isWholeWord reports whether s[start:end] has no letter, decimal digit, or

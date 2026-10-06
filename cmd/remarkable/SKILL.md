@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 16:02
+  last_modified: 2026-10-06 16:13
   status: current
 ---
 
@@ -151,12 +151,12 @@ Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines.
 Search background PDF text case-insensitively under Unicode simple case
 folding; require extractable text. Matching treats every whitespace run in page
 text and query, including PDF line breaks, as one space and ignores whitespace
-at the query's ends, so snippet text matches; an empty or whitespace-only query
-is an invocation error. Emit headerless `page-index<TAB>snippet` per matching
-page; no matches produce no rows. Each row covers only the first counted match
-on its page: the snippet holds the matched page text plus up to 20 characters
-(Unicode code points) before it and 40 after, with whitespace runs collapsed to
-single spaces and trimmed from both ends.
+at the query's ends, so whole words copied from a snippet match its page; an
+empty or whitespace-only query is an invocation error. Emit headerless
+`page-index<TAB>snippet` per matching page; no matches produce no rows. Each
+row covers its page's first counted match: the snippet holds the matched page
+text plus up to 20 characters (Unicode code points) before it and 40 after, with
+whitespace runs collapsed to single spaces and trimmed from both ends.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

@@ -8,6 +8,16 @@ import (
 	"unicode/utf8"
 )
 
+// mustNormalizeQuery prepares a test query the way SearchDocument does.
+func mustNormalizeQuery(t *testing.T, query SearchQuery) normalizedQuery {
+	t.Helper()
+	normalized, err := normalizeQuery(query)
+	if err != nil {
+		t.Fatalf("normalizeQuery(%+v): %v", query, err)
+	}
+	return normalized
+}
+
 func TestSearchPageText(t *testing.T) {
 	const (
 		kelvin  = "K" // KELVIN SIGN: 3 bytes, lowercases to 1-byte "k"
@@ -86,7 +96,7 @@ func TestSearchPageText(t *testing.T) {
 				}
 			}()
 
-			got, ok := searchPageText(tt.text, SearchQuery{Text: tt.query})
+			got, ok := searchPageText(tt.text, mustNormalizeQuery(t, SearchQuery{Text: tt.query}))
 			if !ok {
 				t.Fatalf("searchPageText(%q, %q) found no match", tt.text, tt.query)
 			}
@@ -248,7 +258,7 @@ func TestSearchPageTextMatching(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := searchPageText(tt.text, tt.query)
+			got, ok := searchPageText(tt.text, mustNormalizeQuery(t, tt.query))
 			if tt.want == noMatch {
 				if ok {
 					t.Fatalf("searchPageText(%q, %+v) matched with snippet %q, want no match", tt.text, tt.query, got)
@@ -271,10 +281,11 @@ func TestSearchPageTextMatching(t *testing.T) {
 func TestSearchPageTextWholeWordDate(t *testing.T) {
 	for _, wholeWord := range []bool{false, true} {
 		query := SearchQuery{Text: "Oct 1", WholeWord: wholeWord}
+		normalized := mustNormalizeQuery(t, query)
 		var matched []int
 		for day := 1; day <= 19; day++ {
 			text := fmt.Sprintf("Oct %d Fri 2 Mon 5\r\nThursday Notes 2026\r\nTop Priority", day)
-			if _, ok := searchPageText(text, query); ok {
+			if _, ok := searchPageText(text, normalized); ok {
 				matched = append(matched, day)
 			}
 		}

@@ -3,6 +3,7 @@ package doc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -236,7 +237,7 @@ func TestDocService_Comprehensive(t *testing.T) {
 	// A blank query would otherwise match every page of the searchable doc-1.
 	for _, blank := range []string{"", " \r\n\t"} {
 		blankMatches, err := SearchDocument(ctx, client, "doc-1", SearchQuery{Text: blank})
-		if err == nil || err.Error() != "query must not be empty or only whitespace" {
+		if !errors.Is(err, errBlankSearchQuery) {
 			t.Errorf("SearchDocument(%q) = %+v, %v; want blank-query error", blank, blankMatches, err)
 		}
 	}

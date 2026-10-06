@@ -164,7 +164,8 @@ type SearchMatch struct {
 
 // SearchDocument searches text within a PDF-based document and returns matching page indices.
 func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, query SearchQuery) ([]SearchMatch, error) {
-	if err := ValidateSearchQuery(query.Text); err != nil {
+	normalized, err := normalizeQuery(query)
+	if err != nil {
 		return nil, err
 	}
 
@@ -205,7 +206,7 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, 
 			continue
 		}
 
-		if snippet, ok := searchPageText(text, query); ok {
+		if snippet, ok := searchPageText(text, normalized); ok {
 			matches = append(matches, SearchMatch{
 				PageIndex: i,
 				Snippet:   snippet,

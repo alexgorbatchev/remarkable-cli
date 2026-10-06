@@ -108,15 +108,15 @@ The query matches each page's PDF text case-insensitively under Unicode
 simple case folding, so `οδος` matches `ΟΔΟΣ`. Before matching, every
 whitespace run in the page text and in the query, including PDF line breaks,
 counts as one space, and whitespace at either end of the query is ignored, so
-text copied from a snippet finds its page. An empty or whitespace-only query is
-rejected before any cloud request. Without `--word`, the query matches
-anywhere, including inside longer words and numbers. With `--word`, a match
-counts only when no letter, decimal digit, or combining accent mark directly
-precedes or follows it: `Oct 1` matches `Oct 1,` and `Oct 1` at the end of a
-page, but not `Oct 12`. Each matching page reports only its first counted
-match, with a snippet holding the matched text plus up to 20 characters
-(Unicode code points) before it and 40 after, whitespace runs collapsed to
-single spaces and trimmed from both ends.
+whole words copied from a snippet match that snippet's page. An empty or
+whitespace-only query is rejected before any cloud request. Without `--word`,
+the query matches anywhere, including inside longer words and numbers. With
+`--word`, a match counts only when no letter, decimal digit, or combining mark
+directly precedes or follows it: `Oct 1` matches `Oct 1,` and `Oct 1` at the
+end of a page, but not `Oct 12`. Each matching page reports only its first
+counted match, with a snippet holding the matched text plus up to 20
+characters (Unicode code points) before it and 40 after, whitespace runs
+collapsed to single spaces and trimmed from both ends.
 
 ### `remarkable doc links`
 
