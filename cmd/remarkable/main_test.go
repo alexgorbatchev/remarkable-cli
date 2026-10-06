@@ -41,6 +41,11 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 	if err != nil {
 		t.Fatalf("reading rm fixture: %v", err)
 	}
+	// One page with an empty /Annots array: a PDF page without links.
+	blankPDFData, err := os.ReadFile("../../internal/doc/testdata/oct1_notes_template.pdf")
+	if err != nil {
+		t.Fatalf("reading unlinked pdf fixture: %v", err)
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == failedPath {
@@ -55,7 +60,15 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\n"))
+			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\n"))
+		case "/sync/v3/files/blank-hash":
+			w.Write([]byte("blank-meta:blank-1.metadata:0:50\nblank-content:blank-1.content:0:50\nblank-pdf:blank-1.pdf:0:1000\n"))
+		case "/sync/v3/files/blank-meta":
+			w.Write([]byte(`{"visibleName":"Unlinked PDF","type":"DocumentType"}`))
+		case "/sync/v3/files/blank-content":
+			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["blank-page-1"]}`))
+		case "/sync/v3/files/blank-pdf":
+			w.Write(blankPDFData)
 		case "/sync/v3/files/notebook-hash":
 			w.Write([]byte("notebook-meta:notebook-1.metadata:0:50\nnotebook-content:notebook-1.content:0:50\n"))
 		case "/sync/v3/files/notebook-meta":
@@ -83,6 +96,9 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 
 	t.Setenv("REMARKABLE_HOST", ts.URL)
 	t.Setenv("REMARKABLE_CONFIG", configPath)
+	// The mock's fixed blob hashes must never reach, or be served from, the
+	// developer's real blob cache.
+	t.Setenv("REMARKABLE_CACHE_DIR", t.TempDir())
 
 	return ts, configPath
 }
@@ -384,6 +400,18 @@ func TestDocCommands(t *testing.T) {
 	if !strings.Contains(outSearchEmpty, "No matches found") {
 		t.Fatalf("expected no matches found, got: %s", outSearchEmpty)
 	}
+
+	// Links on a PDF page without links succeed: a notice in human mode, no rows for agents.
+	outLinksEmpty, err := executeRoot("doc", "links", "blank-1", "--page", "0")
+	if err != nil || !strings.Contains(outLinksEmpty, "No hyperlinks found on page 0") {
+		t.Fatalf("doc links on unlinked page (human) = %v, out: %q; want no-hyperlinks notice", err, outLinksEmpty)
+	}
+	t.Setenv("AGENT", "1")
+	outLinksEmptyAgent, err := executeRoot("doc", "links", "blank-1", "--page", "0")
+	if err != nil || outLinksEmptyAgent != "" {
+		t.Fatalf("doc links on unlinked page (agent) = %v, out: %q; want no output", err, outLinksEmptyAgent)
+	}
+	t.Setenv("AGENT", "0")
 
 	// 5. Doc links human and agent
 	outLinks, err := executeRoot("doc", "links", "doc-1", "--page", "0")
