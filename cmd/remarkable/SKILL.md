@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 15:35
+  last_modified: 2026-10-06 15:38
   status: current
 ---
 
@@ -153,7 +153,7 @@ folding; require extractable text. Emit headerless `page-index<TAB>snippet` per
 matching page; no matches produce no rows. Each row covers only the first match
 on its page: the snippet holds the matched page text plus up to 20 characters
 (Unicode code points) before it and 40 after, with whitespace runs collapsed to
-single spaces.
+single spaces and trimmed from both ends.
 
 ## `remarkable doc links <id-or-name>`
 
