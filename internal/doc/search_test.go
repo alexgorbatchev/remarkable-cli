@@ -46,6 +46,15 @@ func TestSearchPageText(t *testing.T) {
 			want:  "Measured in " + kelvin + "elvin today",
 		},
 		{
+			// Lowercasing maps Σ to σ but leaves final ς unchanged; simple
+			// case folding equates all three.
+			name:  "greek final sigma matched by case folding",
+			text:  "ΟΔΟΣ end",
+			query: "οδος",
+			match: "ΟΔΟΣ",
+			want:  "ΟΔΟΣ end",
+		},
+		{
 			name:  "match shorter in page text than in query",
 			text:  "aaaaa" + aStroke + strings.Repeat("b", 45),
 			query: "ⱥ",

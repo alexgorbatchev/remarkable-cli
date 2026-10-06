@@ -100,6 +100,12 @@ Sample Output:
 | `<id-or-name>` | Document UUID or exact visible title |
 | `<query>` | Text string to search across document pages |
 
+The query matches each page's PDF text case-insensitively under Unicode
+simple case folding, so `οδος` matches `ΟΔΟΣ`. Each matching page reports only
+its first match, with a snippet holding the matched text plus up to 20
+characters (Unicode code points) before it and 40 after, whitespace runs
+collapsed to single spaces.
+
 ### `remarkable doc links`
 
 | Flag | Short | Default | Description |
