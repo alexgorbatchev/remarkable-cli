@@ -5,15 +5,14 @@ import (
 	"unicode/utf8"
 )
 
-// Snippet context around a match, counted in characters (runes) so that a cut
-// never splits a multi-byte character.
+// Maximum snippet context around a match, in runes (Unicode code points).
 const (
 	snippetRunesBefore = 20
 	snippetRunesAfter  = 40
 )
 
-// searchPageText reports whether query occurs case-insensitively in a page's
-// text and returns a snippet around the first occurrence.
+// searchPageText reports whether query occurs in a page's text under Unicode
+// simple case folding and returns a snippet around the first occurrence.
 func searchPageText(text, query string) (snippet string, ok bool) {
 	start, end, ok := indexFold(text, query)
 	if !ok {
@@ -22,8 +21,9 @@ func searchPageText(text, query string) (snippet string, ok bool) {
 	return snippetAround(text, start, end), true
 }
 
-// indexFold returns the byte offsets in s of the first substring that equals
-// substr under Unicode simple case folding, as defined by strings.EqualFold.
+// indexFold returns the byte offsets in s of the first substring, starting at
+// a rune boundary, that equals substr under Unicode simple case folding as
+// defined by strings.EqualFold; ok reports whether such a substring exists.
 // EqualFold compares rune by rune, so a match spans exactly as many runes as
 // substr. Sliding a window of that many runes over s keeps both offsets on
 // rune boundaries of s itself, unlike offsets taken from a case-mapped copy
@@ -52,8 +52,10 @@ func indexFold(s, substr string) (start, end int, ok bool) {
 }
 
 // snippetAround returns text[start:end] widened by up to snippetRunesBefore
-// runes before and snippetRunesAfter runes after, with runs of whitespace
-// collapsed to single spaces. start and end must be rune boundaries of text.
+// runes before and snippetRunesAfter runes after, stepping by whole runes so a
+// cut never splits a multi-byte character, with runs of whitespace collapsed to
+// single spaces and leading/trailing whitespace trimmed. start and end must be
+// rune boundaries of text.
 func snippetAround(text string, start, end int) string {
 	for i := 0; i < snippetRunesBefore && start > 0; i++ {
 		_, size := utf8.DecodeLastRuneInString(text[:start])
