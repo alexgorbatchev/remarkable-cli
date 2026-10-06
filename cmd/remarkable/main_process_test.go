@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"maps"
 	"net/http"
@@ -9,7 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // runMainEnv makes the test binary run main instead of the tests, so a test can
@@ -35,6 +40,8 @@ type mainRun struct {
 	args []string
 	// env overrides the isolated defaults from isolatedMainEnv.
 	env map[string]string
+	// stdout receives the child's standard output; nil captures it.
+	stdout *os.File
 }
 
 type mainResult struct {
@@ -76,6 +83,9 @@ func runMainProcess(t *testing.T, run mainRun) mainResult {
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	if run.stdout != nil {
+		cmd.Stdout = run.stdout
+	}
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	exitCode := 0
@@ -182,6 +192,90 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestEveryRunnableCommandSilencesUsageOnceRunning(t *testing.T) {
+	for key, value := range isolatedMainEnv(t) {
+		t.Setenv(key, value)
+	}
+	root := newRootCmd()
+	root.SetOut(new(bytes.Buffer))
+	root.SetErr(new(bytes.Buffer))
+	prepareRoot(root)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel() // Command bodies stop at their first cloud request.
+
+	// Each command runs with the first argument list its own validator accepts.
+	argLists := [][]string{
+		nil,
+		{"12345678"},
+		{"00000000-0000-4000-8000-000000000001"},
+		{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"},
+	}
+	var ran []string
+	var visit func(*cobra.Command)
+	visit = func(c *cobra.Command) {
+		for _, child := range c.Commands() {
+			visit(child)
+		}
+		if c.RunE == nil {
+			return
+		}
+		i := slices.IndexFunc(argLists, func(args []string) bool { return c.ValidateArgs(args) == nil })
+		if i < 0 {
+			t.Fatalf("%s: no test argument list passes its validator", c.CommandPath())
+		}
+		if c.SilenceUsage {
+			t.Fatalf("%s: usage silenced before RunE ran", c.CommandPath())
+		}
+		c.SetContext(ctx)
+		_ = c.RunE(c, argLists[i]) // Only the usage setting matters here.
+		if !c.SilenceUsage {
+			t.Errorf("%s: RunE did not silence usage", c.CommandPath())
+		}
+		ran = append(ran, c.CommandPath())
+	}
+	visit(root)
+	for _, generated := range []string{"remarkable completion bash", "remarkable completion zsh", "remarkable completion fish", "remarkable completion powershell"} {
+		if !slices.Contains(ran, generated) {
+			t.Errorf("Cobra-generated %q was not checked; checked: %q", generated, ran)
+		}
+	}
+}
+
+func TestMainReportsGeneratedCommandFailureWithoutUsage(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			readOnly, err := os.Open(os.Args[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer readOnly.Close()
+			// Writing the script to a read-only descriptor fails inside the
+			// completion command's RunE.
+			got := runMainProcess(t, mainRun{args: []string{"completion", "bash"}, stdout: readOnly})
+			want := mode.prefix + "write /dev/stdout: bad file descriptor\n"
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want 1", got.exitCode)
+			}
+			if got.stderr != want {
+				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
+			}
+		})
+	}
+}
+
+func TestCompletionWritesToConfiguredOutput(t *testing.T) {
+	// prepareRoot runs after the caller sets output, so the completion command
+	// captures that writer rather than the process's stdout.
+	out, err := executeRoot("completion", "bash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out, "# bash completion V2 for remarkable") {
+		t.Fatalf("completion script missing from configured output: %.80q", out)
 	}
 }
 

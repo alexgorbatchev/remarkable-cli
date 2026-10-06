@@ -51,8 +51,7 @@ func commandTree(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := newRootCmd()
 	cmd.SetOut(new(bytes.Buffer))
-	cmd.InitDefaultHelpCmd()
-	cmd.InitDefaultCompletionCmd()
+	prepareRoot(cmd)
 	return cmd
 }
 
@@ -165,7 +164,7 @@ func TestSkillOutputErrors(t *testing.T) {
 			cmd.SetOut(f)
 			cmd.SetErr(stderr)
 			cmd.SetArgs(args)
-			err = cmd.Execute()
+			err = execute(cmd)
 			if args[0] == "skill" {
 				if !errors.Is(err, os.ErrClosed) {
 					t.Fatalf("expected closed output error, got %v", err)

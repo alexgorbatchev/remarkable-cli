@@ -41,7 +41,6 @@ func newRootCmd() *cobra.Command {
 	// Top-level convenience shortcut
 	cmd.AddCommand(newStatusShortcutCmd())
 	cmd.AddCommand(newSkillCmd())
-	silenceUsageOnRun(cmd)
 
 	catalog := cobrahelptree.TechCatalog{
 		"remarkable doc settings transfer": {
@@ -157,9 +156,24 @@ func silenceUsageOnRun(cmd *cobra.Command) {
 	}
 }
 
+// prepareRoot adds Cobra's generated help and completion commands, which Cobra
+// would otherwise add inside Execute, so that silenceUsageOnRun reaches every
+// runnable command. Cobra's completion commands capture root's output writer
+// when they are created, so callers configure output before preparing.
+func prepareRoot(root *cobra.Command) {
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+	silenceUsageOnRun(root)
+}
+
+// execute prepares root and runs the command its arguments select.
+func execute(root *cobra.Command) error {
+	prepareRoot(root)
+	return root.Execute()
+}
+
 func main() {
-	cmd := newRootCmd()
-	if err := cmd.Execute(); err != nil {
+	if err := execute(newRootCmd()); err != nil {
 		agent.PrintStatus(os.Stderr, "error", err.Error())
 		os.Exit(1)
 	}

@@ -20,7 +20,7 @@ func executeRoot(args ...string) (string, error) {
 	cmd.SetErr(buf)
 	cmd.SetArgs(args)
 
-	err := cmd.Execute()
+	err := execute(cmd)
 	return buf.String(), err
 }
 
