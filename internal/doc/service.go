@@ -193,7 +193,6 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName, query s
 	}
 	defer cleanup()
 
-	queryLower := strings.ToLower(query)
 	var matches []SearchMatch
 
 	for i := 0; i < doc.NumPage(); i++ {
@@ -202,19 +201,7 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName, query s
 			continue
 		}
 
-		if idx := strings.Index(strings.ToLower(text), queryLower); idx != -1 {
-			start := idx - 20
-			if start < 0 {
-				start = 0
-			}
-			end := idx + len(query) + 40
-			if end > len(text) {
-				end = len(text)
-			}
-
-			snippet := strings.ReplaceAll(text[start:end], "\n", " ")
-			snippet = strings.Join(strings.Fields(snippet), " ")
-
+		if snippet, ok := searchPageText(text, query); ok {
 			matches = append(matches, SearchMatch{
 				PageIndex: i,
 				Snippet:   snippet,
