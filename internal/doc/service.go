@@ -62,14 +62,14 @@ func List(ctx context.Context, client *cloud.Client, folderID, docType, query st
 }
 
 // BuildTree constructs a hierarchical tree of cloud folders and documents.
-// Siblings appear by visible name, then ID.
+// Siblings appear by case-folded name, then name bytes, then ID.
 func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, error) {
 	items, err := client.ListItems(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching items for tree: %w", err)
 	}
 	// Siblings share a folder path, so sortItems leaves each parent's children
-	// in name-then-ID order for the grouping below.
+	// in sibling order (case-folded name, name bytes, ID) for the grouping below.
 	sortItems(items)
 
 	byParent := make(map[string][]*cloud.Item)

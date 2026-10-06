@@ -20,7 +20,9 @@ type listingFixtureItem struct {
 }
 
 // orderFixture is a library whose IDs deliberately disagree with its names, so
-// an order that sorts by ID before name, or that ignores folder identity, fails.
+// an order that sorts by ID before name, compares names by bytes or by
+// strings.ToLower instead of full case folding, or ignores folder identity,
+// fails.
 var orderFixture = []listingFixtureItem{
 	{"d-agenda", "Agenda", "DocumentType", ""},
 	{"f-3", "Alpha", "CollectionType", ""},
@@ -30,9 +32,17 @@ var orderFixture = []listingFixtureItem{
 	{"d-twin-8", "Twin", "DocumentType", ""},
 	{"d-zed", "Zed", "DocumentType", ""},
 	{"d-lower", "alpha notes", "DocumentType", ""},
+	{"f-archive", "archive", "CollectionType", ""},
+	// Equal folded names tie-break by bytes ("N" before "n") before IDs.
+	{"d-notes-2", "Notes", "DocumentType", ""},
+	{"d-notes-1", "notes", "DocumentType", ""},
+	// Full case folding turns "ß" into "ss"; strings.ToLower keeps it.
+	{"d-strasse-2", "Strasse 2", "DocumentType", ""},
+	{"d-strasse-1", "Straße", "DocumentType", ""},
 	{"f-inner", "Inner", "CollectionType", "f-3"},
 	{"d-note", "Note", "DocumentType", "f-3"},
 	{"d-deep", "Deep", "DocumentType", "f-inner"},
+	{"d-old", "Old note", "DocumentType", "f-archive"},
 	{"d-zulu", "Zulu", "DocumentType", "f-1"},
 	{"d-same", "Same", "DocumentType", "f-2"},
 	// The cloud library omits trashed items, so d-lost's parent is missing.
@@ -45,12 +55,15 @@ var orderFixture = []listingFixtureItem{
 	{"d-attached", "Attached", "DocumentType", "d-zed"},
 }
 
-// wantListOrder is orderFixture by folder path, then name, then ID, followed by
-// the items whose parent chain never reaches the root, ordered by parent ID.
+// wantListOrder is orderFixture by folder path, then case-folded name, name
+// bytes, and ID, followed by the items whose parent chain never reaches the
+// root, ordered by parent ID.
 var wantListOrder = []string{
-	"d-agenda", "f-3", "f-1", "f-2", "d-twin-8", "d-twin-9", "d-zed", "d-lower",
+	"d-agenda", "f-3", "d-lower", "f-archive", "f-1", "f-2", "d-notes-2", "d-notes-1",
+	"d-strasse-1", "d-strasse-2", "d-twin-8", "d-twin-9", "d-zed",
 	"f-inner", "d-note",
 	"d-deep",
+	"d-old",
 	"d-zulu",
 	"d-same",
 	"d-attached", "f-loop-b", "f-loop-a", "d-lost",
@@ -121,8 +134,8 @@ func TestListOrderIsDeterministic(t *testing.T) {
 		want            []string
 	}{
 		{"all items", "", "", 0, wantListOrder},
-		{"limit takes the first items", "", "", 3, []string{"d-agenda", "f-3", "f-1"}},
-		{"limit applies after filters", "", "DocumentType", 4, []string{"d-agenda", "d-twin-8", "d-twin-9", "d-zed"}},
+		{"limit takes the first items", "", "", 3, []string{"d-agenda", "f-3", "d-lower"}},
+		{"limit applies after filters", "", "DocumentType", 4, []string{"d-agenda", "d-lower", "d-notes-2", "d-notes-1"}},
 		{"folder contents", "f-3", "", 0, []string{"f-inner", "d-note"}},
 	}
 	for _, tt := range tests {
@@ -155,14 +168,20 @@ func TestBuildTreeOrderIsDeterministic(t *testing.T) {
 			"│   ├── Inner/",
 			"│   │   └── Deep",
 			"│   └── Note",
+			"├── alpha notes",
+			"├── archive/",
+			"│   └── Old note",
 			"├── Beta/",
 			"│   └── Zulu",
 			"├── Beta/",
 			"│   └── Same",
+			"├── Notes",
+			"├── notes",
+			"├── Straße",
+			"├── Strasse 2",
 			"├── Twin",
 			"├── Twin",
-			"├── Zed",
-			"└── alpha notes",
+			"└── Zed",
 			"",
 		}, "\n")},
 		{"1", strings.Join([]string{
@@ -172,14 +191,20 @@ func TestBuildTreeOrderIsDeterministic(t *testing.T) {
 			"    * Inner/",
 			"      * Deep",
 			"    * Note",
+			"  * alpha notes",
+			"  * archive/",
+			"    * Old note",
 			"  * Beta/",
 			"    * Zulu",
 			"  * Beta/",
 			"    * Same",
+			"  * Notes",
+			"  * notes",
+			"  * Straße",
+			"  * Strasse 2",
 			"  * Twin",
 			"  * Twin",
 			"  * Zed",
-			"  * alpha notes",
 			"",
 		}, "\n")},
 	}

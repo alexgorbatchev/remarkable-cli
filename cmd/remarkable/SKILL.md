@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 16:29
+  last_modified: 2026-10-06 16:38
   status: current
 ---
 
@@ -126,9 +126,10 @@ Document group; operational subcommands require cloud credentials.
 ## `remarkable doc list`
 
 List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; combine filters as needed. Rows sort by
-parent folder path (root first, then folder by folder by name and ID), name, then
-ID, comparing bytes (uppercase first); type is not a key. Items whose parent chain
-misses the root, such as inside a trashed folder, come last by parent ID.
+parent folder path (root first, then each folder by name and ID), name, then ID.
+Names compare case-folded (Unicode full folding), then by UTF-8 bytes; IDs by
+bytes; type is not a key. Items whose parent chain misses the root, such as
+inside a trashed folder, come last by parent ID.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -434,7 +435,7 @@ and emit `OK:`.
 | `--width` | — | `float64` | `0` | Set canvas width in points only when both width and height are positive. |
 | `--height` | — | `float64` | `0` | Set canvas height in points only when both width and height are positive. |
 
-Omit either dimension to use the renderer's 447.874 by 595.275 point canvas.
+Unless both are positive, the renderer's 447.874 by 595.275 point canvas applies.
 
 ## `remarkable help [command]`
 
