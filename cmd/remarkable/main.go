@@ -160,7 +160,7 @@ func silenceUsageOnRun(cmd *cobra.Command) {
 func main() {
 	cmd := newRootCmd()
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		agent.PrintStatus(os.Stderr, "error", err.Error())
 		os.Exit(1)
 	}
 }

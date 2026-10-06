@@ -21,6 +21,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// errorModes pairs each output mode with the prefix main writes before the error.
+var errorModes = []struct{ agent, prefix string }{
+	{"0", "[ERROR] "},
+	{"1", "ERR: "},
+}
+
 type mainResult struct {
 	stdout   string
 	stderr   string
@@ -70,9 +76,9 @@ func inProcessError(t *testing.T, args ...string) error {
 }
 
 func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
-	for _, mode := range []string{"0", "1"} {
-		t.Run(mode, func(t *testing.T) {
-			t.Setenv("AGENT", mode)
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
 			t.Setenv("COLUMNS", "200")
 			t.Setenv("XDG_CACHE_HOME", t.TempDir())
 			ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/root")
@@ -89,7 +95,7 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					want := inProcessError(t, tc.args...).Error() + "\n"
+					want := mode.prefix + inProcessError(t, tc.args...).Error() + "\n"
 					got := runMainProcess(t, tc.args...)
 					if got.exitCode != 1 {
 						t.Errorf("exit status = %d, want 1", got.exitCode)
@@ -107,9 +113,9 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 }
 
 func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
-	for _, mode := range []string{"0", "1"} {
-		t.Run(mode, func(t *testing.T) {
-			t.Setenv("AGENT", mode)
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
 			t.Setenv("COLUMNS", "200")
 			cases := []struct {
 				name    string
@@ -123,7 +129,7 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					want := usageScreen(t, tc.command...) + "\n" + tc.message + "\n"
+					want := usageScreen(t, tc.command...) + "\n" + mode.prefix + tc.message + "\n"
 					got := runMainProcess(t, append(tc.command, tc.args...)...)
 					if got.exitCode != 1 {
 						t.Errorf("exit status = %d, want 1", got.exitCode)
@@ -141,12 +147,17 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 }
 
 func TestMainReportsUnknownCommandOnce(t *testing.T) {
-	got := runMainProcess(t, "bogus")
-	want := "unknown command \"bogus\" for \"remarkable\"\n"
-	if got.exitCode != 1 {
-		t.Errorf("exit status = %d, want 1", got.exitCode)
-	}
-	if got.stderr != want {
-		t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			got := runMainProcess(t, "bogus")
+			want := mode.prefix + "unknown command \"bogus\" for \"remarkable\"\n"
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want 1", got.exitCode)
+			}
+			if got.stderr != want {
+				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
+			}
+		})
 	}
 }
