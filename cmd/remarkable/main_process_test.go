@@ -161,6 +161,32 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 	}
 }
 
+// TestDocLinksWithoutPDF runs doc links on a handwritten notebook, which has
+// no PDF and therefore no links to read.
+func TestDocLinksWithoutPDF(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			ts, configPath := setupCLITestEnv(t)
+			defer ts.Close()
+			got := runMainProcess(t, mainRun{
+				args: []string{"doc", "links", "notebook-1", "--no-cache"},
+				env:  map[string]string{"REMARKABLE_HOST": ts.URL, "REMARKABLE_CONFIG": configPath},
+			})
+			want := mode.prefix + `document "notebook-1" has no background PDF` + "\n"
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want 1", got.exitCode)
+			}
+			if got.stdout != "" {
+				t.Errorf("stdout = %q, want empty", got.stdout)
+			}
+			if got.stderr != want {
+				t.Errorf("stderr = %q, want %q", got.stderr, want)
+			}
+		})
+	}
+}
+
 func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 	for _, mode := range errorModes {
 		t.Run(mode.agent, func(t *testing.T) {

@@ -249,7 +249,7 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 		pdfFile = manifest.FindSuffix(".pdf")
 	}
 	if pdfFile == nil {
-		return nil, fmt.Errorf("document %q has no PDF link annotations", idOrName)
+		return nil, fmt.Errorf("document %q has no background PDF", idOrName)
 	}
 
 	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")

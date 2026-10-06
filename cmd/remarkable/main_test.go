@@ -55,7 +55,13 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\n"))
+			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\n"))
+		case "/sync/v3/files/notebook-hash":
+			w.Write([]byte("notebook-meta:notebook-1.metadata:0:50\nnotebook-content:notebook-1.content:0:50\n"))
+		case "/sync/v3/files/notebook-meta":
+			w.Write([]byte(`{"visibleName":"Handwritten Notebook","type":"DocumentType"}`))
+		case "/sync/v3/files/notebook-content":
+			w.Write([]byte(`{"fileType":"notebook","pageCount":1,"cPages":{"pages":[{"id":"notebook-page-1"}]}}`))
 		case "/sync/v3/files/doc-hash":
 			w.Write([]byte("meta-hash:doc-1.metadata:0:50\ncontent-hash:doc-1.content:0:100\npdf-hash:doc-1.pdf:0:1000\nstroke-hash:doc-1/page-1.rm:0:200\n"))
 		case "/sync/v3/files/meta-hash":

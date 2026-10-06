@@ -125,6 +125,11 @@ collapsed to single spaces and trimmed from both ends.
 | :--- | :--- | :--- | :--- |
 | `--page <n>` | | `0` | 0-based page index to extract hyperlinks from; negative values are rejected |
 
+A PDF page without links succeeds with no rows: human mode prints a
+`No hyperlinks found on page N` notice, and agent mode prints nothing. A
+document without a background PDF, such as a handwritten notebook, fails with
+an error saying it has no background PDF.
+
 ### `remarkable doc cat`
 
 | Flag | Short | Default | Description |

@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 16:38
+  last_modified: 2026-10-06 16:49
   status: current
 ---
 
@@ -170,8 +170,8 @@ whitespace runs collapsed to single spaces and trimmed from both ends.
 ## `remarkable doc links <id-or-name>`
 
 Extract PDF links as headerless `link-index<TAB>target-page-or--<TAB>URI`.
-Targets are 0-based; `-` means no internal target. An unlinked page emits no rows;
-a document with no PDF link annotations fails.
+Targets are 0-based; `-` means no internal target. A PDF page without links
+emits no rows and succeeds; a document without a background PDF fails.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

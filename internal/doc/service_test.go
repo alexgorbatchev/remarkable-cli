@@ -263,10 +263,10 @@ func TestDocService_Comprehensive(t *testing.T) {
 		t.Errorf("expected positive target page, got %d", links[0].TargetPage)
 	}
 
-	// GetLinks on doc with no PDF
-	_, errNoPDFLinks := GetLinks(ctx, client, "doc-nopdf", 0)
-	if errNoPDFLinks == nil {
-		t.Error("expected error getting links on doc with no PDF")
+	// GetLinks on a notebook with no PDF names the missing PDF.
+	noPDFLinks, errNoPDFLinks := GetLinks(ctx, client, "doc-nopdf", 0)
+	if want := `document "doc-nopdf" has no background PDF`; errNoPDFLinks == nil || errNoPDFLinks.Error() != want {
+		t.Errorf("GetLinks on notebook without PDF = %+v, %v; want error %q", noPDFLinks, errNoPDFLinks, want)
 	}
 
 	// Out of bounds links
