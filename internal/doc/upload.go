@@ -26,7 +26,8 @@ type UploadOptions struct {
 	OnProgress func(*UploadEvidence) error
 }
 
-// ValidateUploadOptions rejects invalid local arguments before authentication.
+// ValidateUploadOptions rejects invalid options before UploadPDF reads the PDF or
+// contacts the cloud.
 func ValidateUploadOptions(opts UploadOptions) error {
 	if err := ValidateUploadTitle(opts.Title); err != nil {
 		return err

@@ -42,7 +42,7 @@ func newDocImportCmd() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&mappingPath, "mapping", "", "Required JSON file mapping native stroke paths to 0-based destination pages")
+	cmd.Flags().Var(checkedString(&mappingPath, "", validString(requireNonEmptyPath)), "mapping", "Required JSON file mapping native stroke paths to 0-based destination pages")
 	if err := cmd.MarkFlagRequired("mapping"); err != nil {
 		panic(err)
 	} // Constructor invariant: the flag was just registered.

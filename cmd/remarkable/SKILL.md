@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 14:58
+  last_modified: 2026-10-06 15:08
   status: current
 ---
 
@@ -30,9 +30,10 @@ Commands accept only their listed options plus global flags; groups print help.
   mode or `[ERROR] ` in human mode. Invocation errors print the command's usage
   screen before that message: unknown flags, wrong argument counts, missing
   required flags, and values rejected without cloud or file access (`--format`,
-  negative `--page`, empty `--output`, upload `--title`/`--folder`/`--evidence`,
-  pairing-code length, non-UUID import/settings arguments). Failures after a
-  command starts, such as unreadable files or cloud errors, print no usage.
+  negative `--page`, empty `--output` or `--mapping`, upload
+  `--title`/`--folder`/`--evidence`, pairing-code length, non-UUID `doc import`
+  or `doc settings transfer` arguments, identical settings UUIDs). Failures after
+  a command starts, such as unreadable files or cloud errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
 - Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
@@ -195,7 +196,7 @@ download errors propagate. Page selection is unavailable.
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--output-dir` | `-o` | `string` | `.` | Parent output directory. |
-| `--format` | — | `string` | `png` | Use exactly `png`, `svg`, or `rm`; PNG includes background and strokes, SVG/RM contain strokes only. |
+| `--format` | — | `string` | `png` | Use exactly `png`, `svg`, or `rm`, or empty for `png`; PNG includes background and strokes, SVG/RM contain strokes only. |
 | `--dpi` | — | `int` | `200` | Set PNG resolution; nonpositive values use 200. |
 | `--force` | `-f` | `bool` | `false` | Overwrite existing page files; otherwise skip any path that exists. |
 
@@ -242,7 +243,7 @@ and `.content`; update metadata `lastModified`. Map future and historical ink al
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--mapping` | — | `string` | `""` | Required JSON array mapping native file paths to 0-based destination page indexes. |
+| `--mapping` | — | `string` | `""` | Required nonempty path to a JSON array mapping native file paths to 0-based destination page indexes. |
 
 Use this mapping format, with paths relative to the mapping file's directory
 or absolute paths:
@@ -337,7 +338,7 @@ files, including PDF/strokes/metadata. Stroke imports remain a separate operatio
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--mapping` | — | `string` | `""` | Required JSON array with exact integer source_page and destination_page keys, both 0-based. |
+| `--mapping` | — | `string` | `""` | Required nonempty path to a JSON array with exact integer source_page and destination_page keys, both 0-based. |
 | `--replace-viewport` | — | `bool` | `false` | Permit differing destination viewport values/presence; report every difference. Tag conflicts remain errors. |
 
 Save this page-map format as `settings-map.json`:

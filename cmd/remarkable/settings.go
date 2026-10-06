@@ -34,7 +34,7 @@ func newDocSettingsCmd() *cobra.Command {
 		}
 		return err
 	}}
-	transfer.Flags().StringVar(&mappingPath, "mapping", "", "Required JSON array mapping 0-based source_page and destination_page indexes")
+	transfer.Flags().Var(checkedString(&mappingPath, "", validString(requireNonEmptyPath)), "mapping", "Required JSON array mapping 0-based source_page and destination_page indexes")
 	transfer.Flags().BoolVar(&replaceViewport, "replace-viewport", false, "Replace differing destination view settings and report every difference")
 	if err := transfer.MarkFlagRequired("mapping"); err != nil {
 		panic(err)

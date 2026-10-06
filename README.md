@@ -32,7 +32,7 @@
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
 - When `AGENT=1` is set in the environment, tree glyphs, borders, and column alignment spaces are omitted in favor of flat key-values and raw tab-separated lines.
 - Diagnostic logs and API request counters write to stderr, while requested page content (SVG, raw text, or binary strokes) streams directly to stdout for clean shell redirection.
-- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `--output`, a pairing code that is not 8 characters, or a non-UUID document argument. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
+- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `--output` or `--mapping`, a pairing code that is not 8 characters, or a non-UUID `doc import` or `doc settings transfer` argument. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
 - Native archives download every attachment directly from the cloud, verify its hash and byte length, and check that the root hash and generation remain unchanged. A concurrent cloud change causes an error, including a change to another document. Complete ZIP bytes are published only after verification; existing output paths are preserved even if created during the export.
 
 # Installation
@@ -134,7 +134,7 @@ Sample Output:
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--mapping <path>` | — | none | Required JSON file mapping native stroke paths to 0-based destination page indexes |
+| `--mapping <path>` | — | none | Required nonempty path to a JSON file mapping native stroke paths to 0-based destination page indexes |
 
 Use local v6 `.rm` files, including metadata-only files. Extract archives
 before importing. Paths are relative to the mapping file's directory or
@@ -174,7 +174,7 @@ imported handwriting can be selected, moved, and erased.
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--mapping <path>` | — | none | Required JSON array with 0-based source_page and destination_page indexes |
+| `--mapping <path>` | — | none | Required nonempty path to a JSON array with 0-based source_page and destination_page indexes |
 | `--replace-viewport` | — | `false` | Permit differing destination view settings and show every difference; tag conflicts remain errors |
 
 Save a separate settings mapping as `settings-map.json`:
