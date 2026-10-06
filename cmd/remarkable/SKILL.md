@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-02 20:49
+  last_modified: 2026-10-06 14:34
   status: current
 ---
 
@@ -26,6 +26,9 @@ Commands accept only their listed options plus global flags; groups print help.
   Search and link results have no headers and emit no rows when empty.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
   bytes. Keep stderr separate from stdout; `--debug` logs go to stderr.
+- A failure writes its error message to stderr once. Flag and argument errors
+  (unknown flags, wrong argument counts, missing required flags) print the
+  command's usage screen first; failures after a command starts print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
 - Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
