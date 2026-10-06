@@ -178,6 +178,8 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				{"pairing code", []string{"auth", "pair"}, []string{"abc"}, "pairing code must be exactly 8 characters (got 3)"},
 				{"settings identities", []string{"doc", "settings", "transfer"}, []string{"source", "destination", "--mapping", "m.json"}, "source and destination must be UUIDs"},
 				{"identical settings UUIDs", []string{"doc", "settings", "transfer"}, []string{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000001", "--mapping", "m.json"}, "source and destination must be separate documents"},
+				{"empty search query", []string{"doc", "search"}, []string{"doc-1", ""}, "query must not be empty or only whitespace"},
+				{"blank search query", []string{"doc", "search"}, []string{"doc-1", " \r\n\t", "--word"}, "query must not be empty or only whitespace"},
 				{"import destination", []string{"doc", "import"}, []string{"destination", "--mapping", "m.json"}, "destination must be a UUID"},
 				{"render output", []string{"doc", "render"}, []string{"doc-1", "-o", ""}, `invalid argument "" for "-o, --output" flag: path must not be empty`},
 				{"import mapping", []string{"doc", "import"}, []string{"00000000-0000-4000-8000-000000000001", "--mapping", ""}, `invalid argument "" for "--mapping" flag: path must not be empty`},

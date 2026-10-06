@@ -32,7 +32,7 @@
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
 - When `AGENT=1` is set in the environment, tree glyphs, borders, and column alignment spaces are omitted in favor of flat key-values and raw tab-separated lines.
 - Diagnostic logs and API request counters write to stderr, while requested page content (SVG, raw text, or binary strokes) streams directly to stdout for clean shell redirection.
-- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `doc render` or `doc archive` `--output`, an empty `--mapping`, a pairing code that is not 8 characters, or a non-UUID `doc import` or `doc settings transfer` argument. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
+- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `doc render` or `doc archive` `--output`, an empty `--mapping`, a pairing code that is not 8 characters, a non-UUID `doc import` or `doc settings transfer` argument, or an empty or whitespace-only `doc search` query. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
 - Native archives download every attachment directly from the cloud, verify its hash and byte length, and check that the root hash and generation remain unchanged. A concurrent cloud change causes an error, including a change to another document. Complete ZIP bytes are published only after verification; existing output paths are preserved even if created during the export.
 
 # Installation
@@ -108,7 +108,8 @@ The query matches each page's PDF text case-insensitively under Unicode
 simple case folding, so `οδος` matches `ΟΔΟΣ`. Before matching, every
 whitespace run in the page text and in the query, including PDF line breaks,
 counts as one space, and whitespace at either end of the query is ignored, so
-text copied from a snippet finds its page. Without `--word`, the query matches
+text copied from a snippet finds its page. An empty or whitespace-only query is
+rejected before any cloud request. Without `--word`, the query matches
 anywhere, including inside longer words and numbers. With `--word`, a match
 counts only when no letter, decimal digit, or combining accent mark directly
 precedes or follows it: `Oct 1` matches `Oct 1,` and `Oct 1` at the end of a

@@ -233,6 +233,14 @@ func TestDocService_Comprehensive(t *testing.T) {
 	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Priority"})
 	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Notes"})
 
+	// A blank query would otherwise match every page of the searchable doc-1.
+	for _, blank := range []string{"", " \r\n\t"} {
+		blankMatches, err := SearchDocument(ctx, client, "doc-1", SearchQuery{Text: blank})
+		if err == nil || err.Error() != "query must not be empty or only whitespace" {
+			t.Errorf("SearchDocument(%q) = %+v, %v; want blank-query error", blank, blankMatches, err)
+		}
+	}
+
 	// Search on document with no PDF
 	_, errNoPDFSearch := SearchDocument(ctx, client, "doc-nopdf", SearchQuery{Text: "query"})
 	if errNoPDFSearch == nil {

@@ -92,3 +92,7 @@ func settingsIdentityArgs(_ *cobra.Command, args []string) error {
 func importDestinationArg(_ *cobra.Command, args []string) error {
 	return doc.ValidateImportDestination(args[0])
 }
+
+func searchQueryArgs(_ *cobra.Command, args []string) error {
+	return doc.ValidateSearchQuery(args[1])
+}

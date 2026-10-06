@@ -103,7 +103,7 @@ func newDocCmd() *cobra.Command {
 	docSearchCmd := &cobra.Command{
 		Use:   "search <id-or-name> <query>",
 		Short: "Search text within document pages and return matching page numbers",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.MatchAll(cobra.ExactArgs(2), searchQueryArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()

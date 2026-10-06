@@ -1,6 +1,7 @@
 package doc
 
 import (
+	"errors"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -20,6 +21,24 @@ type SearchQuery struct {
 	WholeWord bool
 }
 
+var errBlankSearchQuery = errors.New("query must not be empty or only whitespace")
+
+// ValidateSearchQuery rejects a query that normalizes to no text, which would
+// match every page.
+func ValidateSearchQuery(query string) error {
+	if normalizeSearchText(query) == "" {
+		return errBlankSearchQuery
+	}
+	return nil
+}
+
+// normalizeSearchText returns s in the form in which snippets show page text
+// and matching compares page text and queries; see collapseWhitespace.
+func normalizeSearchText(s string) string {
+	collapsed, _ := collapseWhitespace(s)
+	return collapsed
+}
+
 // searchPageText reports whether query occurs in a page's text and returns a
 // snippet around the first occurrence. Matching sees page text and query the
 // way snippets show text: every whitespace run is one space and leading and
@@ -27,7 +46,7 @@ type SearchQuery struct {
 // case folding.
 func searchPageText(text string, query SearchQuery) (snippet string, ok bool) {
 	page, offsets := collapseWhitespace(text)
-	needle := strings.Join(strings.Fields(query.Text), " ")
+	needle := normalizeSearchText(query.Text)
 
 	for from := 0; ; {
 		start, end, ok := indexFold(page[from:], needle)
@@ -144,5 +163,5 @@ func snippetAround(text string, start, end int) string {
 		_, size := utf8.DecodeRuneInString(text[end:])
 		end += size
 	}
-	return strings.Join(strings.Fields(text[start:end]), " ")
+	return normalizeSearchText(text[start:end])
 }
