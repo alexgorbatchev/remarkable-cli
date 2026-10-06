@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 16:13
+  last_modified: 2026-10-06 16:29
   status: current
 ---
 
@@ -125,18 +125,22 @@ Document group; operational subcommands require cloud credentials.
 
 ## `remarkable doc list`
 
-List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; combine filters as needed.
+List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; combine filters as needed. Rows sort by
+parent folder path (root first, then folder by folder by name and ID), name, then
+ID, comparing bytes (uppercase first); type is not a key. Items whose parent chain
+misses the root, such as inside a trashed folder, come last by parent ID.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--folder` | — | `string` | `""` | Filter by parent folder ID; empty means no parent filter. |
 | `--type` | — | `string` | `""` | Filter by exact type: `DocumentType` or `CollectionType`; empty means all. |
 | `--query` | `-q` | `string` | `""` | Match title substring, ignoring case and surrounding query whitespace. |
-| `--limit` | — | `int` | `0` | Stop after this many items when positive; 0 or negative means unlimited. |
+| `--limit` | — | `int` | `0` | Keep the first N filtered rows of that order when positive; 0 or negative means unlimited. |
 
 ## `remarkable doc tree`
 
-Print indented `*` bullets rooted at `/`; folder labels end in `/`. List IDs with `doc list`.
+Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sort as in
+`doc list`. Items whose parent chain misses the root are omitted. List IDs with `doc list`.
 
 ## `remarkable doc inspect <id-or-name>`
 
@@ -174,7 +178,7 @@ a document with no PDF link annotations fails.
 
 ## `remarkable doc cat <id-or-name>`
 
-Stream content directly to stdout.
+Stream content directly to stdout; fail when the required PDF or stroke data is absent.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -185,8 +189,6 @@ Stream content directly to stdout.
 - `text`: extract text from the selected PDF page.
 - `rm`: download raw binary strokes for the selected page.
 - `svg`: convert the selected page's strokes to SVG without the background.
-
-Fail when the required PDF or stroke data is absent.
 
 ## `remarkable doc render <id-or-name>`
 
@@ -432,8 +434,7 @@ and emit `OK:`.
 | `--width` | — | `float64` | `0` | Set canvas width in points only when both width and height are positive. |
 | `--height` | — | `float64` | `0` | Set canvas height in points only when both width and height are positive. |
 
-Omit dimensions to use the renderer's 447.874 by 595.275 point canvas.
-Supplying only one dimension leaves both renderer defaults in effect.
+Omit either dimension to use the renderer's 447.874 by 595.275 point canvas.
 
 ## `remarkable help [command]`
 
@@ -455,8 +456,7 @@ Load with `source <(remarkable completion bash)`; requires `bash-completion`.
 
 ## `remarkable completion zsh`
 
-Enable with `autoload -U compinit; compinit`, then
-`source <(remarkable completion zsh)`.
+Enable with `autoload -U compinit; compinit`, then `source <(remarkable completion zsh)`.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

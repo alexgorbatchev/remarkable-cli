@@ -25,12 +25,14 @@ type ItemSummary struct {
 	Parent   string
 }
 
-// List returns a list of cloud items optionally filtered by folder, type, or name query.
+// List returns cloud items in sortItems order, optionally filtered by folder,
+// type, or name query. A positive limit keeps the first matching items.
 func List(ctx context.Context, client *cloud.Client, folderID, docType, query string, limit int) ([]ItemSummary, error) {
 	items, err := client.ListItems(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing cloud items: %w", err)
 	}
+	sortItems(items)
 
 	summaries := make([]ItemSummary, 0, len(items))
 	query = strings.ToLower(strings.TrimSpace(query))
@@ -60,11 +62,15 @@ func List(ctx context.Context, client *cloud.Client, folderID, docType, query st
 }
 
 // BuildTree constructs a hierarchical tree of cloud folders and documents.
+// Siblings appear by visible name, then ID.
 func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, error) {
 	items, err := client.ListItems(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching items for tree: %w", err)
 	}
+	// Siblings share a folder path, so sortItems leaves each parent's children
+	// in name-then-ID order for the grouping below.
+	sortItems(items)
 
 	byParent := make(map[string][]*cloud.Item)
 	byID := make(map[string]*cloud.Item)
