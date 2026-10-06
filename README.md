@@ -55,8 +55,8 @@ curl -sSL https://github.com/alexgorbatchev/remarkable-cli/releases/latest/downl
 # Check cloud connection and document count
 remarkable auth status
 
-# Search for pages containing specific text
-remarkable doc search "2026 - Daily" "Oct 1"
+# Find the pages for October 1, skipping Oct 10 through Oct 19
+remarkable doc search "2026 - Daily" "Oct 1" --word
 
 # Render a specific page directly to PNG
 remarkable doc render 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --page 457 -o oct1-notes.png
@@ -100,11 +100,22 @@ Sample Output:
 | `<id-or-name>` | Document UUID or exact visible title |
 | `<query>` | Text string to search across document pages |
 
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--word` | | `false` | Match the query only as whole words, so `Oct 1` skips `Oct 10` through `Oct 19` |
+
 The query matches each page's PDF text case-insensitively under Unicode
-simple case folding, so `οδος` matches `ΟΔΟΣ`. Each matching page reports only
-its first match, with a snippet holding the matched text plus up to 20
-characters (Unicode code points) before it and 40 after, whitespace runs
-collapsed to single spaces and trimmed from both ends.
+simple case folding, so `οδος` matches `ΟΔΟΣ`. Before matching, every
+whitespace run in the page text and in the query, including PDF line breaks,
+counts as one space, and whitespace at either end of the query is ignored, so
+text copied from a snippet finds its page. Without `--word`, the query matches
+anywhere, including inside longer words and numbers. With `--word`, a match
+counts only when no letter, decimal digit, or combining accent mark directly
+precedes or follows it: `Oct 1` matches `Oct 1,` and `Oct 1` at the end of a
+page, but not `Oct 12`. Each matching page reports only its first counted
+match, with a snippet holding the matched text plus up to 20 characters
+(Unicode code points) before it and 40 after, whitespace runs collapsed to
+single spaces and trimmed from both ends.
 
 ### `remarkable doc links`
 

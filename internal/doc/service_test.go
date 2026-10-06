@@ -221,7 +221,7 @@ func TestDocService_Comprehensive(t *testing.T) {
 	}
 
 	// 4. SearchDocument
-	matches, err := SearchDocument(ctx, client, "doc-1", "2026")
+	matches, err := SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "2026"})
 	if err != nil || len(matches) == 0 {
 		t.Fatalf("SearchDocument failed: %v, matches: %+v", err, matches)
 	}
@@ -230,17 +230,17 @@ func TestDocService_Comprehensive(t *testing.T) {
 	}
 
 	// Search matching deeper text (exercising start > 0)
-	_, _ = SearchDocument(ctx, client, "doc-1", "Priority")
-	_, _ = SearchDocument(ctx, client, "doc-1", "Notes")
+	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Priority"})
+	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Notes"})
 
 	// Search on document with no PDF
-	_, errNoPDFSearch := SearchDocument(ctx, client, "doc-nopdf", "query")
+	_, errNoPDFSearch := SearchDocument(ctx, client, "doc-nopdf", SearchQuery{Text: "query"})
 	if errNoPDFSearch == nil {
 		t.Error("expected error searching doc with no PDF")
 	}
 
 	// Search on corrupt PDF
-	_, errCorrupt := SearchDocument(ctx, client, "doc-corrupt", "query")
+	_, errCorrupt := SearchDocument(ctx, client, "doc-corrupt", SearchQuery{Text: "query"})
 	if errCorrupt == nil {
 		t.Error("expected error on corrupt PDF")
 	}
@@ -474,7 +474,7 @@ func TestDocService_MissingItems(t *testing.T) {
 	if _, err := Inspect(ctx, client, "nonexistent", false); err == nil {
 		t.Error("expected error for nonexistent inspect")
 	}
-	if _, err := SearchDocument(ctx, client, "nonexistent", "query"); err == nil {
+	if _, err := SearchDocument(ctx, client, "nonexistent", SearchQuery{Text: "query"}); err == nil {
 		t.Error("expected error for nonexistent search")
 	}
 	if _, err := GetLinks(ctx, client, "nonexistent", 0); err == nil {

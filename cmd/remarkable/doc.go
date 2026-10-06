@@ -37,6 +37,8 @@ func newDocCmd() *cobra.Command {
 		syncForceFlag     bool
 
 		inspectPagesFlag bool
+
+		searchWordFlag bool
 	)
 
 	docListCmd := &cobra.Command{
@@ -111,7 +113,7 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
-			matches, err := doc.SearchDocument(ctx, client, args[0], args[1])
+			matches, err := doc.SearchDocument(ctx, client, args[0], doc.SearchQuery{Text: args[1], WholeWord: searchWordFlag})
 			if err != nil {
 				return err
 			}
@@ -140,6 +142,8 @@ func newDocCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	docSearchCmd.Flags().BoolVar(&searchWordFlag, "word", false, "Match the query only as whole words")
 
 	docLinksCmd := &cobra.Command{
 		Use:   "links <id-or-name>",

@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 15:38
+  last_modified: 2026-10-06 15:53
   status: current
 ---
 
@@ -149,11 +149,17 @@ Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines.
 ## `remarkable doc search <id-or-name> <query>`
 
 Search background PDF text case-insensitively under Unicode simple case
-folding; require extractable text. Emit headerless `page-index<TAB>snippet` per
-matching page; no matches produce no rows. Each row covers only the first match
-on its page: the snippet holds the matched page text plus up to 20 characters
-(Unicode code points) before it and 40 after, with whitespace runs collapsed to
-single spaces and trimmed from both ends.
+folding; require extractable text. Matching treats every whitespace run in page
+text and query, including PDF line breaks, as one space and ignores whitespace
+at the query's ends, so snippet text matches. Emit headerless
+`page-index<TAB>snippet` per matching page; no matches produce no rows. Each row
+covers only the first counted match on its page: the snippet holds the matched
+page text plus up to 20 characters (Unicode code points) before it and 40 after,
+with whitespace runs collapsed to single spaces and trimmed from both ends.
+
+| Flag | Short | Type | Default | Behavior |
+| --- | --- | --- | --- | --- |
+| `--word` | — | `bool` | `false` | Count only whole-word matches: no letter, decimal digit, or combining mark directly before or after. `Oct 1` then matches `Oct 1,` but not `Oct 12`. Without it, matches may sit inside longer words and numbers. |
 
 ## `remarkable doc links <id-or-name>`
 
@@ -478,7 +484,7 @@ export AGENT=1
 remarkable auth status
 remarkable doc list --type DocumentType --query "Daily" --limit 10
 remarkable doc inspect "2026 - Daily" --pages
-remarkable doc search "2026 - Daily" "Oct 1"
+remarkable doc search "2026 - Daily" "Oct 1" --word
 remarkable doc links "2026 - Daily" --page 0
 remarkable doc cat "2026 - Daily" --page 0 --format text
 remarkable doc cat "2026 - Daily" --page 0 --format rm > page-000.rm

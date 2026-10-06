@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -279,6 +280,43 @@ func TestAuthCommands(t *testing.T) {
 	t.Setenv("REMARKABLE_CONFIG", configPath)
 	t.Setenv("REMARKABLE_HOST", "http://127.0.0.1:1")
 	_, _ = executeRoot("auth", "status", "--debug")
+}
+
+// TestDocSearchMatching runs doc search against the fixture PDF, whose text
+// layer separates lines with "\r\n". Page 0 is a year calendar holding "1" as a
+// day number, page 1 starts "Jan 1", and pages 3 to 5 hold "1" only inside
+// longer numbers such as "12"; page 1 continues "Thu 8\r\nThursday".
+func TestDocSearchMatching(t *testing.T) {
+	ts, _ := setupCLITestEnv(t)
+	defer ts.Close()
+	t.Setenv("AGENT", "1")
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantPages []string
+	}{
+		{"substring", []string{"1"}, []string{"0", "1", "3", "4", "5"}},
+		{"whole word", []string{"1", "--word"}, []string{"0", "1"}},
+		{"query across line break", []string{"Thu 8 Thursday"}, []string{"1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"doc", "search", "doc-1", "--no-cache"}, tt.args...)
+			out, err := executeRoot(args...)
+			if err != nil {
+				t.Fatalf("doc search %v failed: %v, out: %s", tt.args, err, out)
+			}
+			var pages []string
+			for line := range strings.Lines(out) {
+				page, _, _ := strings.Cut(line, "\t")
+				pages = append(pages, page)
+			}
+			if !slices.Equal(pages, tt.wantPages) {
+				t.Errorf("doc search %v matched pages %v, want %v; out: %s", tt.args, pages, tt.wantPages, out)
+			}
+		})
+	}
 }
 
 func TestDocCommands(t *testing.T) {

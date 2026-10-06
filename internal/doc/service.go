@@ -163,7 +163,7 @@ type SearchMatch struct {
 }
 
 // SearchDocument searches text within a PDF-based document and returns matching page indices.
-func SearchDocument(ctx context.Context, client *cloud.Client, idOrName, query string) ([]SearchMatch, error) {
+func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, query SearchQuery) ([]SearchMatch, error) {
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
 		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)

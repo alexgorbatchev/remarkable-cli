@@ -2,6 +2,7 @@ package doc
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -11,14 +12,92 @@ const (
 	snippetRunesAfter  = 40
 )
 
-// searchPageText reports whether query occurs in a page's text under Unicode
-// simple case folding and returns a snippet around the first occurrence.
-func searchPageText(text, query string) (snippet string, ok bool) {
-	start, end, ok := indexFold(text, query)
-	if !ok {
-		return "", false
+// SearchQuery is the text to find on document pages and how to match it.
+type SearchQuery struct {
+	Text string
+	// WholeWord keeps only matches that no letter, decimal digit, or
+	// combining mark immediately precedes or follows.
+	WholeWord bool
+}
+
+// searchPageText reports whether query occurs in a page's text and returns a
+// snippet around the first occurrence. Matching sees page text and query the
+// way snippets show text: every whitespace run is one space and leading and
+// trailing whitespace is dropped. Matched runes compare under Unicode simple
+// case folding.
+func searchPageText(text string, query SearchQuery) (snippet string, ok bool) {
+	page, offsets := collapseWhitespace(text)
+	needle := strings.Join(strings.Fields(query.Text), " ")
+
+	for from := 0; ; {
+		start, end, ok := indexFold(page[from:], needle)
+		if !ok {
+			return "", false
+		}
+		start, end = from+start, from+end
+		if !query.WholeWord || isWholeWord(page, start, end) {
+			return snippetAround(text, offsets[start], offsets[end]), true
+		}
+		if start == len(page) {
+			return "", false
+		}
+		_, size := utf8.DecodeRuneInString(page[start:])
+		from = start + size
 	}
-	return snippetAround(text, start, end), true
+}
+
+// collapseWhitespace returns text with every whitespace run, as
+// strings.Fields splits on, replaced by one space and leading and trailing
+// whitespace dropped; non-space bytes are copied unchanged. offsets maps each
+// byte offset of the result, plus its length, to the corresponding byte
+// offset in text. A collapsed space maps to the end of the content before its
+// run, and the result's length maps to the end of the last non-space rune, so
+// a match that starts and ends on non-space runes maps to exactly the bytes
+// it covers in text.
+func collapseWhitespace(text string) (collapsed string, offsets []int) {
+	var b strings.Builder
+	b.Grow(len(text))
+	offsets = make([]int, 0, len(text)+1)
+
+	contentEnd := 0
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if !unicode.IsSpace(r) {
+			if contentEnd > 0 && contentEnd < i {
+				offsets = append(offsets, contentEnd)
+				b.WriteByte(' ')
+			}
+			for j := i; j < i+size; j++ {
+				offsets = append(offsets, j)
+			}
+			b.WriteString(text[i : i+size])
+			contentEnd = i + size
+		}
+		i += size
+	}
+	return b.String(), append(offsets, contentEnd)
+}
+
+// isWholeWord reports whether s[start:end] has no letter, decimal digit, or
+// combining mark immediately before or after it, so the match neither extends
+// nor is extended by a longer run of word characters ("Oct 1" in "Oct 10").
+// Combining marks count because they belong to the preceding base character.
+func isWholeWord(s string, start, end int) bool {
+	if start > 0 {
+		if r, _ := utf8.DecodeLastRuneInString(s[:start]); isWordRune(r) {
+			return false
+		}
+	}
+	if end < len(s) {
+		if r, _ := utf8.DecodeRuneInString(s[end:]); isWordRune(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
 }
 
 // indexFold returns the byte offsets in s of the first substring, starting at
