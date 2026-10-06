@@ -15,7 +15,7 @@ func newDocImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import <destination-uuid>",
 		Short: "Import native handwriting into empty pages of an existing document",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MatchAll(cobra.ExactArgs(1), importDestinationArg),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mapping, err := doc.LoadImportMapping(mappingPath)
 			if err != nil {

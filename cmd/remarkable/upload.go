@@ -16,9 +16,6 @@ import (
 func newDocUploadCmd() *cobra.Command {
 	var opts doc.UploadOptions
 	cmd := &cobra.Command{Use: "upload <pdf>", Short: "Upload a local PDF as a separate cloud document", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := doc.ValidateUploadOptions(opts); err != nil {
-			return err
-		}
 		ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 		defer cancel()
 		client, err := newCloudClient(ctx)
@@ -34,9 +31,9 @@ func newDocUploadCmd() *cobra.Command {
 		}
 		return err
 	}}
-	cmd.Flags().StringVar(&opts.Title, "title", "", "Required display title; existing titles in the destination folder are rejected")
-	cmd.Flags().StringVar(&opts.Folder, "folder", "", "Destination folder UUID (default: root)")
-	cmd.Flags().StringVar(&opts.Evidence, "evidence", "", "Required new JSON recovery path; its parent directory must exist")
+	cmd.Flags().Var(checkedString(&opts.Title, "", validString(doc.ValidateUploadTitle)), "title", "Required display title; existing titles in the destination folder are rejected")
+	cmd.Flags().Var(checkedString(&opts.Folder, "", validString(doc.ValidateUploadFolder)), "folder", "Destination folder UUID (default: root)")
+	cmd.Flags().Var(checkedString(&opts.Evidence, "", validString(doc.ValidateUploadEvidencePath)), "evidence", "Required new JSON recovery path; its parent directory must exist")
 	for _, name := range []string{"title", "evidence"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			panic(err)

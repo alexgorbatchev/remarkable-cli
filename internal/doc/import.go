@@ -75,11 +75,19 @@ func LoadImportMapping(path string) ([]PageImport, error) {
 	return mapping, nil
 }
 
+// ValidateImportDestination requires the destination document UUID.
+func ValidateImportDestination(id string) error {
+	if !isUUID(id) {
+		return fmt.Errorf("destination must be a UUID")
+	}
+	return nil
+}
+
 // ImportStrokes preserves native bytes and existing PDF/content files. All page
 // mappings and destination handwriting are checked before any cloud upload.
 func ImportStrokes(ctx context.Context, client *cloud.Client, id string, mapping []PageImport) (*ImportResult, error) {
-	if !isUUID(id) {
-		return nil, fmt.Errorf("destination must be a UUID")
+	if err := ValidateImportDestination(id); err != nil {
+		return nil, err
 	}
 	if len(mapping) == 0 {
 		return nil, fmt.Errorf("at least one page mapping is required")

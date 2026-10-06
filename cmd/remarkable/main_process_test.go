@@ -175,6 +175,19 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				{"unknown flag", []string{"stroke", "inspect"}, []string{"--bogus", "x.rm"}, "unknown flag: --bogus"},
 				{"argument count", []string{"stroke", "inspect"}, nil, "accepts 1 arg(s), received 0"},
 				{"required flag", []string{"doc", "render"}, []string{"doc-1"}, `required flag(s) "output" not set`},
+				{"pairing code", []string{"auth", "pair"}, []string{"abc"}, "pairing code must be exactly 8 characters (got 3)"},
+				{"settings identities", []string{"doc", "settings", "transfer"}, []string{"source", "destination", "--mapping", "m.json"}, "source and destination must be UUIDs"},
+				{"import destination", []string{"doc", "import"}, []string{"destination", "--mapping", "m.json"}, "destination must be a UUID"},
+				{"render output", []string{"doc", "render"}, []string{"doc-1", "-o", ""}, `invalid argument "" for "-o, --output" flag: path must not be empty`},
+				{"archive output", []string{"doc", "archive"}, []string{"doc-1", "-o", ""}, `invalid argument "" for "-o, --output" flag: path must not be empty`},
+				{"upload title", []string{"doc", "upload"}, []string{"in.pdf", "--title", " ", "--evidence", "e.json"}, `invalid argument " " for "--title" flag: upload title must be nonempty and contain no control characters`},
+				{"upload folder", []string{"doc", "upload"}, []string{"in.pdf", "--title", "T", "--evidence", "e.json", "--folder", "inbox"}, `invalid argument "inbox" for "--folder" flag: upload folder must be a collection UUID`},
+				{"upload evidence", []string{"doc", "upload"}, []string{"in.pdf", "--title", "T", "--evidence", ""}, `invalid argument "" for "--evidence" flag: upload evidence path is required`},
+				{"cat format", []string{"doc", "cat"}, []string{"doc-1", "--format", "png"}, `invalid argument "png" for "--format" flag: unsupported format "png" (choose from: pdf, text, rm, svg)`},
+				{"sync format", []string{"doc", "sync"}, []string{"doc-1", "--format", "pdf"}, `invalid argument "pdf" for "--format" flag: unsupported format "pdf" (choose from: png, svg, rm)`},
+				{"cat page", []string{"doc", "cat"}, []string{"doc-1", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
+				{"links page", []string{"doc", "links"}, []string{"doc-1", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
+				{"render page", []string{"doc", "render"}, []string{"doc-1", "-o", "out.png", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

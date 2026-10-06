@@ -17,10 +17,7 @@ func newDocSettingsCmd() *cobra.Command {
 	group := &cobra.Command{Use: "settings", Short: "Manage document tags and view settings", Args: cobra.NoArgs}
 	var mappingPath string
 	var replaceViewport bool
-	transfer := &cobra.Command{Use: "transfer <source-uuid> <destination-uuid>", Short: "Copy mapped tags and view settings to a separate document", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := doc.ValidateSettingsIdentities(args[0], args[1]); err != nil {
-			return err
-		}
+	transfer := &cobra.Command{Use: "transfer <source-uuid> <destination-uuid>", Short: "Copy mapped tags and view settings to a separate document", Args: cobra.MatchAll(cobra.ExactArgs(2), settingsIdentityArgs), RunE: func(cmd *cobra.Command, args []string) error {
 		mapping, err := doc.LoadSettingsMapping(mappingPath)
 		if err != nil {
 			return err

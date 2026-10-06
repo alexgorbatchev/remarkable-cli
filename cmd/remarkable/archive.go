@@ -19,9 +19,6 @@ func newDocArchiveCmd() *cobra.Command {
 		Short: "Save a complete native document backup with verification evidence",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if output == "" {
-				return fmt.Errorf("archive output path required: specify -o or --output")
-			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
 			client, err := newCloudClient(ctx)
@@ -35,7 +32,7 @@ func newDocArchiveCmd() *cobra.Command {
 			return printArchiveEvidence(cmd.OutOrStdout(), output, snapshot)
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Required destination ZIP path; existing paths are preserved")
+	cmd.Flags().VarP(checkedString(&output, "", validString(requireNonEmptyPath)), "output", "o", "Required destination ZIP path; existing paths are preserved")
 	if err := cmd.MarkFlagRequired("output"); err != nil {
 		panic(err)
 	} // Constructor invariant: the flag was just registered.

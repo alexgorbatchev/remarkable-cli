@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 14:39
+  last_modified: 2026-10-06 14:58
   status: current
 ---
 
@@ -27,9 +27,12 @@ Commands accept only their listed options plus global flags; groups print help.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
   bytes. Keep stderr separate from stdout; `--debug` logs go to stderr.
 - A failure writes its error message to stderr once, prefixed `ERR: ` in agent
-  mode or `[ERROR] ` in human mode. Flag and argument errors (unknown flags,
-  wrong argument counts, missing required flags) print the command's usage
-  screen before that message; failures after a command starts print no usage.
+  mode or `[ERROR] ` in human mode. Invocation errors print the command's usage
+  screen before that message: unknown flags, wrong argument counts, missing
+  required flags, and values rejected without cloud or file access (`--format`,
+  negative `--page`, empty `--output`, upload `--title`/`--folder`/`--evidence`,
+  pairing-code length, non-UUID import/settings arguments). Failures after a
+  command starts, such as unreadable files or cloud errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
 - Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
@@ -154,7 +157,7 @@ a document with no PDF link annotations fails.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--page` | — | `int` | `0` | Select the 0-based PDF page. |
+| `--page` | — | `int` | `0` | Select the 0-based PDF page; negative values are rejected. |
 
 ## `remarkable doc cat <id-or-name>`
 
@@ -162,7 +165,7 @@ Stream content directly to stdout.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--page` | — | `int` | `0` | Select a 0-based page for `text`, `rm`, or `svg`; ignored for `pdf`. |
+| `--page` | — | `int` | `0` | Select a 0-based page for `text`, `rm`, or `svg`; ignored for `pdf`, but negative values are rejected. |
 | `--format` | — | `string` | `svg` | Choose `pdf`, `text`, `rm`, or `svg`; case and surrounding whitespace are ignored. |
 
 - `pdf`: download the entire background PDF, without composited handwriting.
@@ -178,9 +181,9 @@ Composite background/handwriting into PNG. Emit `OK: Rendered page N to PATH`.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--page` | — | `int` | `0` | Select the 0-based page. |
+| `--page` | — | `int` | `0` | Select the 0-based page; negative values are rejected. |
 | `--dpi` | — | `int` | `200` | Set rendering DPI; nonpositive values use 200. |
-| `--output` | `-o` | `string` | `""` | Required destination PNG path; existing files are overwritten. |
+| `--output` | `-o` | `string` | `""` | Required nonempty destination PNG path; existing files are overwritten. |
 
 ## `remarkable doc sync <id-or-name>`
 
@@ -202,7 +205,7 @@ Save a complete native snapshot as a ZIP at an explicit output path.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
-| `--output` | `-o` | `string` | `""` | Required ZIP destination; preserve every existing path, including a path created during export. |
+| `--output` | `-o` | `string` | `""` | Required nonempty ZIP destination; preserve every existing path, including a path created during export. |
 
 Require an existing parent with hard-link support. Write a `0600` temporary ZIP
 beside the destination; publish only after verification. Export every manifest

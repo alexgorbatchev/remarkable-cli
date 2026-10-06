@@ -75,12 +75,9 @@ func newAuthCmd() *cobra.Command {
 	authPairCmd := &cobra.Command{
 		Use:   "pair <code>",
 		Short: "Pair device using one-time code from my.remarkable.com",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MatchAll(cobra.ExactArgs(1), pairingCodeArg),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			code := strings.TrimSpace(args[0])
-			if len(code) != 8 {
-				return fmt.Errorf("pairing code must be exactly 8 characters (got %d)", len(code))
-			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
 			defer cancel()

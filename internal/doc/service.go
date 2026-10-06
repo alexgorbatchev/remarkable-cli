@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
@@ -280,8 +281,26 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 	return links, nil
 }
 
+// catFormats lists the formats Cat writes, in the order errors present them.
+var catFormats = []string{"pdf", "text", "rm", "svg"}
+
+// ParseCatFormat returns the Cat format named by s, ignoring case and
+// surrounding whitespace.
+func ParseCatFormat(s string) (string, error) {
+	format := strings.ToLower(strings.TrimSpace(s))
+	if !slices.Contains(catFormats, format) {
+		return "", fmt.Errorf("unsupported format %q (choose from: %s)", format, strings.Join(catFormats, ", "))
+	}
+	return format, nil
+}
+
 // Cat streams document page contents (pdf, rm, svg, or text) directly to w.
 func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int, format string, w io.Writer) error {
+	format, err := ParseCatFormat(format)
+	if err != nil {
+		return err
+	}
+
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
 		return fmt.Errorf("resolving document %q: %w", idOrName, err)
@@ -292,7 +311,6 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
 
-	format = strings.ToLower(strings.TrimSpace(format))
 	switch format {
 	case "pdf":
 		pdfFile := manifest.Find(item.ID + ".pdf")
@@ -334,7 +352,7 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		_, err = io.WriteString(w, text)
 		return err
 
-	case "rm", "svg":
+	default: // ParseCatFormat leaves only "rm" and "svg".
 		docContent, err := item.GetContent(ctx)
 		if err != nil {
 			return fmt.Errorf("fetching content schema: %w", err)
@@ -368,9 +386,6 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		}
 		_, err = io.WriteString(w, svgStr)
 		return err
-
-	default:
-		return fmt.Errorf("unsupported format %q (choose from: pdf, text, rm, svg)", format)
 	}
 }
 
@@ -452,19 +467,31 @@ type SyncPageResult struct {
 	State     string // "written", "skipped"
 }
 
+// syncFormats lists the page formats SyncDocument writes; the first is the default.
+var syncFormats = []string{"png", "svg", "rm"}
+
+// ParseSyncFormat returns the SyncDocument page format named by s; empty selects
+// the default PNG.
+func ParseSyncFormat(s string) (string, error) {
+	if s == "" {
+		return syncFormats[0], nil
+	}
+	if !slices.Contains(syncFormats, s) {
+		return "", fmt.Errorf("unsupported format %q (choose from: %s)", s, strings.Join(syncFormats, ", "))
+	}
+	return s, nil
+}
+
 // SyncDocument synchronizes pages of any document to local disk.
 func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, opts SyncDocOptions) ([]SyncPageResult, error) {
 	if opts.OutputDir == "" {
 		opts.OutputDir = "."
 	}
-	if opts.Format == "" {
-		opts.Format = "png"
+	format, err := ParseSyncFormat(opts.Format)
+	if err != nil {
+		return nil, err
 	}
-	switch opts.Format {
-	case "png", "svg", "rm":
-	default:
-		return nil, fmt.Errorf("unsupported format %q (choose from: png, svg, rm)", opts.Format)
-	}
+	opts.Format = format
 	if opts.DPI <= 0 {
 		opts.DPI = render.DefaultDPI
 	}

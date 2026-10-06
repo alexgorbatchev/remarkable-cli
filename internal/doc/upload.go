@@ -28,13 +28,34 @@ type UploadOptions struct {
 
 // ValidateUploadOptions rejects invalid local arguments before authentication.
 func ValidateUploadOptions(opts UploadOptions) error {
-	if strings.TrimSpace(opts.Title) == "" || strings.IndexFunc(opts.Title, unicode.IsControl) >= 0 {
+	if err := ValidateUploadTitle(opts.Title); err != nil {
+		return err
+	}
+	if err := ValidateUploadFolder(opts.Folder); err != nil {
+		return err
+	}
+	return ValidateUploadEvidencePath(opts.Evidence)
+}
+
+// ValidateUploadTitle requires a nonblank title without control characters.
+func ValidateUploadTitle(title string) error {
+	if strings.TrimSpace(title) == "" || strings.IndexFunc(title, unicode.IsControl) >= 0 {
 		return fmt.Errorf("upload title must be nonempty and contain no control characters")
 	}
-	if opts.Folder != "" && !isUUID(opts.Folder) {
+	return nil
+}
+
+// ValidateUploadFolder accepts a collection UUID, or empty for the root.
+func ValidateUploadFolder(folder string) error {
+	if folder != "" && !isUUID(folder) {
 		return fmt.Errorf("upload folder must be a collection UUID")
 	}
-	if opts.Evidence == "" {
+	return nil
+}
+
+// ValidateUploadEvidencePath requires a recovery evidence path.
+func ValidateUploadEvidencePath(path string) error {
+	if path == "" {
 		return fmt.Errorf("upload evidence path is required")
 	}
 	return nil

@@ -490,3 +490,34 @@ func TestDocService_MissingItems(t *testing.T) {
 		t.Error("expected error for nonexistent sync")
 	}
 }
+
+func TestParseFormats(t *testing.T) {
+	tests := []struct {
+		name    string
+		parse   func(string) (string, error)
+		input   string
+		want    string
+		wantErr string
+	}{
+		{"cat ignores case and spaces", ParseCatFormat, " PDF ", "pdf", ""},
+		{"cat text", ParseCatFormat, "text", "text", ""},
+		{"cat rejects png", ParseCatFormat, "PNG", "", `unsupported format "png" (choose from: pdf, text, rm, svg)`},
+		{"sync empty selects png", ParseSyncFormat, "", "png", ""},
+		{"sync rm", ParseSyncFormat, "rm", "rm", ""},
+		{"sync is exact", ParseSyncFormat, "SVG", "", `unsupported format "SVG" (choose from: png, svg, rm)`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.parse(tt.input)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("parse(%q) error = %v, want %q", tt.input, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || got != tt.want {
+				t.Fatalf("parse(%q) = %q, %v; want %q", tt.input, got, err, tt.want)
+			}
+		})
+	}
+}

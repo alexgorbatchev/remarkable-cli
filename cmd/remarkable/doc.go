@@ -192,7 +192,7 @@ func newDocCmd() *cobra.Command {
 			return nil
 		},
 	}
-	docLinksCmd.Flags().IntVar(&linksPageFlag, "page", 0, "Page index to inspect links from (0-based)")
+	docLinksCmd.Flags().Var(pageIndex(&linksPageFlag, 0), "page", "Page index to inspect links from (0-based)")
 
 	docInspectCmd := &cobra.Command{
 		Use:   "inspect <id-or-name>",
@@ -263,18 +263,14 @@ func newDocCmd() *cobra.Command {
 			return doc.Cat(ctx, client, args[0], catPageFlag, catFormatFlag, cmd.OutOrStdout())
 		},
 	}
-	docCatCmd.Flags().IntVar(&catPageFlag, "page", 0, "Page index to extract (0-based)")
-	docCatCmd.Flags().StringVar(&catFormatFlag, "format", "svg", "Output format (pdf, text, rm, svg)")
+	docCatCmd.Flags().Var(pageIndex(&catPageFlag, 0), "page", "Page index to extract (0-based)")
+	docCatCmd.Flags().Var(checkedString(&catFormatFlag, "svg", doc.ParseCatFormat), "format", "Output format (pdf, text, rm, svg)")
 
 	docRenderCmd := &cobra.Command{
 		Use:   "render <id-or-name>",
 		Short: "Render document page with strokes to a high-resolution PNG",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if renderOutputFlag == "" {
-				return fmt.Errorf("output path required: specify with -o or --output")
-			}
-
 			ctx, cancel := context.WithTimeout(cmd.Context(), 45*time.Second)
 			defer cancel()
 
@@ -292,9 +288,9 @@ func newDocCmd() *cobra.Command {
 			return nil
 		},
 	}
-	docRenderCmd.Flags().IntVar(&renderPageFlag, "page", 0, "Page index to render (0-based)")
+	docRenderCmd.Flags().Var(pageIndex(&renderPageFlag, 0), "page", "Page index to render (0-based)")
 	docRenderCmd.Flags().IntVar(&renderDPIFlag, "dpi", 200, "Rendering resolution DPI")
-	docRenderCmd.Flags().StringVarP(&renderOutputFlag, "output", "o", "", "Destination path for PNG image")
+	docRenderCmd.Flags().VarP(checkedString(&renderOutputFlag, "", validString(requireNonEmptyPath)), "output", "o", "Destination path for PNG image")
 	_ = docRenderCmd.MarkFlagRequired("output")
 
 	docSyncCmd := &cobra.Command{
@@ -347,7 +343,7 @@ func newDocCmd() *cobra.Command {
 		},
 	}
 	docSyncCmd.Flags().StringVarP(&syncOutputDirFlag, "output-dir", "o", ".", "Output directory for exported pages")
-	docSyncCmd.Flags().StringVar(&syncFormatFlag, "format", "png", "Page format (png, svg, rm)")
+	docSyncCmd.Flags().Var(checkedString(&syncFormatFlag, "png", doc.ParseSyncFormat), "format", "Page format (png, svg, rm)")
 	docSyncCmd.Flags().IntVar(&syncDPIFlag, "dpi", 200, "Rendering resolution DPI for PNGs")
 	docSyncCmd.Flags().BoolVarP(&syncForceFlag, "force", "f", false, "Force re-export even if page already exists")
 
