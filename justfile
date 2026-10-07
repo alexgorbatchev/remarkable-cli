@@ -43,10 +43,15 @@ fmt:
 # Run static analysis and test suite in sequence
 check: lint test
 
-# Create a disposable document from a source PDF page and verify native import
+# Upload a source PDF with initialized pages, then verify native import and settings transfer
 native-import-check *args: build
     bun install --cwd scripts/native-import-check --frozen-lockfile
     bun scripts/native-import-check/runCheck.ts "$@"
+
+# After the tablet check, compare the destination's native page IDs with its upload evidence
+native-import-recheck *args: build
+    bun install --cwd scripts/native-import-check --frozen-lockfile
+    bun scripts/native-import-check/recheckPageIdentity.ts "$@"
 
 # Type-check the manual script without live cloud writes
 native-import-typecheck:

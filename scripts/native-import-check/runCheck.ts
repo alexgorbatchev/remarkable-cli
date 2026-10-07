@@ -1,39 +1,26 @@
 import { Command } from "commander";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { field, inspectedPageIDs, lastField, samePageIDs } from "./cliOutput";
 import { createCheckDocument } from "./createCheckDocument";
 import { runCommand } from "./runCommand";
 import { parseMapping } from "./parseMapping";
 import { verifyBytes } from "./verifyBytes";
-import type { CheckOptions, Mapping, PageEvidence, SourceOptions } from "./types";
+import type { CheckOptions, Mapping, PageEvidence, PreparedCheck, SourceOptions } from "./types";
 
 const projectDir = resolve(import.meta.dir, "../..");
-
-function field(output: string, name: string): string {
-  const line = output.split("\n").find((line) => line.startsWith(`${name}:`));
-  if (!line) throw new Error(`CLI output is missing ${name}`);
-  return line.slice(name.length + 1).trim();
-}
-
-function pageID(output: string, page: number): string {
-  const id = output.split("\n").find((line) => line.startsWith(`${page}\t`))?.split("\t")[1];
-  if (!id) throw new Error(`Destination has no initialized native page at index ${page}`);
-  return id;
-}
 
 async function textCommand(options: CheckOptions, args: string[], outputPath?: string): Promise<string> {
   return new TextDecoder().decode(await runCommand(options, args, outputPath));
 }
 
-export async function runCheck(
-  destination: string, options: CheckOptions, verifySource: () => Promise<void>,
-): Promise<number> {
+// runCheck imports the mapped strokes into the freshly created destination, with
+// no tablet step in between, then transfers the source's tags and view settings.
+export async function runCheck(prepared: PreparedCheck): Promise<number> {
   if (Bun.env.CI && Bun.env.CI !== "false" && Bun.env.CI !== "0") {
     throw new Error("This live-cloud check must be run manually outside CI");
   }
-  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(destination)) {
-    throw new Error("Supply the UUID of a disposable destination document");
-  }
+  const { destination, options } = prepared;
   const mappingPath = resolve(options.mapping);
   const mapping = parseMapping(await Bun.file(mappingPath).json());
   const outputDir = join(resolve(options.outputDir), Bun.randomUUIDv7());
@@ -45,9 +32,11 @@ export async function runCheck(
   const reportPath = join(outputDir, "report.json");
   let cloudState: string = "pending";
   let documentName: string = "";
+  let settingsState: string = "pending";
   const saveReport = async (error?: string) => Bun.write(reportPath, JSON.stringify({
-    destination, documentName, mappingPath, cloud: cloudState, tablet: "pending",
-    pages, error, recordedAt: new Date().toISOString(),
+    source: prepared.source, destination, documentName, creationEvidence: prepared.creationEvidence, mappingPath,
+    settingsMapping: prepared.settingsMapping, nativePages: prepared.pageIDs.length, settings: settingsState,
+    cloud: cloudState, tablet: "pending", pages, error, recordedAt: new Date().toISOString(),
   }, null, 2) + "\n");
 
   try {
@@ -75,24 +64,26 @@ export async function runCheck(
     const before = await textCommand(options, ["doc", "inspect", destination, "--pages"]);
     documentName = field(before, "Name");
     await Bun.write(join(outputDir, "document-before.txt"), before);
-    for (const page of pages) page.pageID = pageID(before, page.pageIndex);
-    const hasPDF = field(before, "Format") === "pdf";
-    let background: Uint8Array | undefined;
-    if (hasPDF) {
-      background = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
-        join(outputDir, "background-before.pdf"));
+    const beforeIDs = inspectedPageIDs(before);
+    if (!samePageIDs(prepared.pageIDs, beforeIDs)) {
+      throw new Error("Fresh doc inspect --pages differs from the page IDs recorded by doc upload");
     }
+    for (const page of pages) page.pageID = beforeIDs[page.pageIndex];
+    const background = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
+      join(outputDir, "background-before.pdf"));
     const snapshotPath = join(outputDir, "mapping.json");
     await Bun.write(snapshotPath, JSON.stringify(snapshotMapping, null, 2));
     await saveReport();
     const imported = await textCommand(options, ["doc", "import", destination, "--mapping", snapshotPath],
       join(outputDir, "import.txt"));
     if (field(imported, "state") !== "verified") throw new Error("Import did not report verified state");
-    if (background) {
-      const after = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
-        join(outputDir, "background-after.pdf"));
-      if (!verifyBytes(background, after)) throw new Error("Destination background PDF changed during import");
-    }
+    const settings = await textCommand(options, ["doc", "settings", "transfer", prepared.source, destination,
+      "--mapping", prepared.settingsMapping, "--replace-viewport"], join(outputDir, "settings.txt"));
+    settingsState = lastField(settings, "state");
+    if (settingsState !== "verified") throw new Error("Settings transfer did not report verified state");
+    const after = await runCommand(options, ["doc", "cat", destination, "--format", "pdf"],
+      join(outputDir, "background-after.pdf"));
+    if (!verifyBytes(background, after)) throw new Error("Destination background PDF changed during import or settings transfer");
     for (const page of pages) {
       const bytes = await runCommand(options, ["doc", "cat", destination,
         "--page", String(page.pageIndex), "--format", "rm"]);
@@ -104,12 +95,14 @@ export async function runCheck(
       await textCommand(options, ["doc", "render", destination,
         "--page", String(page.pageIndex), "--output", page.destinationPreview]);
     }
-    const after = await textCommand(options, ["doc", "inspect", destination, "--pages"]);
-    await Bun.write(join(outputDir, "document-after.txt"), after);
-    for (const page of pages) {
-      if (page.pageID !== pageID(after, page.pageIndex)) throw new Error(`Page association changed at ${page.pageIndex}`);
+    const afterInspect = await textCommand(options, ["doc", "inspect", destination, "--pages"]);
+    await Bun.write(join(outputDir, "document-after.txt"), afterInspect);
+    if (!samePageIDs(prepared.pageIDs, inspectedPageIDs(afterInspect))) {
+      throw new Error("Destination page IDs changed during import or settings transfer");
     }
-    await verifySource();
+    if (await prepared.cloud.documentHash(prepared.source) !== prepared.sourceHash) {
+      throw new Error("Source cloud document changed during verification");
+    }
     cloudState = "passed";
     await saveReport();
     const isAgent = ["1", "true", "yes"].includes(Bun.env.AGENT ?? "");
@@ -127,9 +120,12 @@ export async function runCheck(
       console.log(`  Open imported-page preview: ${page.destinationPreview}`);
       console.log(`  Downloaded native file: ${page.downloadedNative}`);
     }
-    console.log("Sync the tablet. On every mapped page containing pen strokes, select imported handwriting,");
-    console.log("move it, and erase it. Confirm its background is intact. Sync, close, and reopen the");
-    console.log("document, then confirm your edits persist. Metadata-only pages require a visual check.");
+    console.log("Sync the tablet and open the document; confirm it opens without a crash and that PDF");
+    console.log("navigation, including links, reaches the expected pages. On every mapped page containing");
+    console.log("pen strokes, select imported handwriting, move it, and erase it. Confirm its background");
+    console.log("is intact. Sync, close, and reopen the document, then confirm your edits persist.");
+    console.log("Metadata-only pages require a visual check. After the final tablet sync, record page");
+    console.log(`identity with: just native-import-recheck ${outputDir}`);
     console.log(`Report: ${reportPath}`);
     console.log(`cloud: ${cloudState}\ntablet: pending\nreport: ${reportPath}`);
     console.log("Agent: ask the user to perform the printed tablet checks and report the outcome in chat.");
@@ -144,19 +140,14 @@ export async function runCheck(
 
 if (import.meta.main) {
   const cli = new Command().name("native-import-check")
-    .description("Verify a live native import and print the evidence for an agent-led tablet check")
-    .argument("<source-uuid>", "Source PDF document UUID; creates a new disposable destination")
-    .requiredOption("--page <index>", "0-based source page index containing pen strokes")
+    .description("Verify a live native import into an initialized upload and print the evidence for an agent-led tablet check")
+    .argument("<source-uuid>", "Source PDF document UUID; its PDF is uploaded as a new disposable destination")
+    .requiredOption("--page <index...>", "0-based source page indexes to import; at least one contains pen strokes")
     .option("--binary <path>", "remarkable executable", join(projectDir, "bin/remarkable"))
     .option("--config <path>", "Credentials file passed to remarkable")
     .option("--output-dir <path>", "Parent for a unique evidence directory", join(projectDir, ".tmp/native-import-check"))
     .action(async (source: string, options: SourceOptions) => {
-      const prepared = await createCheckDocument(source, options);
-      process.exitCode = await runCheck(prepared.destination, prepared.options, async () => {
-        if (await prepared.cloud.documentHash(source) !== prepared.sourceHash) {
-          throw new Error("Source cloud document changed during verification");
-        }
-      });
+      process.exitCode = await runCheck(await createCheckDocument(source, options));
     });
   try {
     await cli.parseAsync();

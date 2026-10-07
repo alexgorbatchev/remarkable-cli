@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import type { CheckOptions } from "./types";
 
-export async function runCommand(options: CheckOptions, args: string[], outputPath?: string): Promise<Uint8Array> {
+export async function runCommand(options: Pick<CheckOptions, "binary" | "config">, args: string[], outputPath?: string): Promise<Uint8Array> {
   const config = options.config ? ["--config", resolve(options.config)] : [];
   const child = Bun.spawn([resolve(options.binary), "--no-cache", ...config, ...args], {
     env: { ...Bun.env, AGENT: "1" }, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: 360_000,
