@@ -232,6 +232,68 @@ func viaHTTPSProxy(t *testing.T, trusted bool) error {
 	return err
 }
 
+// requestThroughProxy sends a request for target through the proxy at
+// proxyURL using transport and returns the error the request reports.
+func requestThroughProxy(t *testing.T, transport *http.Transport, proxyURL, target string) error {
+	t.Helper()
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport.Proxy = http.ProxyURL(parsed)
+	_, err = (&http.Client{Transport: transport}).Get(target)
+	if err == nil {
+		t.Fatalf("expected the request through %s to fail", proxyURL)
+	}
+	return err
+}
+
+// viaPlainProxyAsHTTPS returns the error a request reports when an https://
+// proxy URL names a proxy that does not speak TLS.
+func viaPlainProxyAsHTTPS(t *testing.T) error {
+	t.Helper()
+	proxy := httptest.NewServer(http.NotFoundHandler())
+	defer proxy.Close()
+	return requestThroughProxy(t, &http.Transport{}, strings.Replace(proxy.URL, "http://", "https://", 1), "http://cloud.invalid/sync/v3/root")
+}
+
+// viaClosedProxy returns the error a request reports when the proxy refuses
+// the connection.
+func viaClosedProxy(t *testing.T) error {
+	t.Helper()
+	proxy := httptest.NewServer(http.NotFoundHandler())
+	proxy.Close()
+	return requestThroughProxy(t, &http.Transport{}, proxy.URL, "http://cloud.invalid/sync/v3/root")
+}
+
+// connectAnswered returns the error a cloud client request for an HTTPS cloud
+// reports when its HTTP proxy answers the CONNECT request with status.
+func connectAnswered(t *testing.T, status int) error {
+	t.Helper()
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			t.Errorf("proxy got %s, want CONNECT", r.Method)
+		}
+		http.Error(w, http.StatusText(status), status)
+	}))
+	defer proxy.Close()
+	client := newCloudHTTPClient(false)
+	base, ok := client.Transport.(*blobTransport).base.(*http.Transport)
+	if !ok || base == http.DefaultTransport {
+		t.Fatalf("cloud client transport = %T shared with http.DefaultTransport = %t, want its own *http.Transport", client.Transport.(*blobTransport).base, base == http.DefaultTransport)
+	}
+	parsed, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.Proxy = http.ProxyURL(parsed)
+	_, err = client.Get("https://cloud.invalid/sync/v3/root")
+	if err == nil {
+		t.Fatal("expected the CONNECT request to fail")
+	}
+	return err
+}
+
 // dialError wraps a failed lookup of the cloud host the way net/http reports it.
 func dialError(dns *net.DNSError) error {
 	return urlError(&net.OpError{Op: "dial", Net: "tcp", Err: dns})
@@ -300,6 +362,10 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 		{"untrusted server certificate", tlsUnknownAuthority(t), 1},
 		{"TLS alert from an HTTPS proxy", viaHTTPSProxy(t, true), 1},
 		{"untrusted HTTPS proxy certificate", viaHTTPSProxy(t, false), 1},
+		{"HTTPS proxy that does not speak TLS", viaPlainProxyAsHTTPS(t), 1},
+		{"proxy refusing the connection", viaClosedProxy(t), 5},
+		{"proxy CONNECT unavailable", connectAnswered(t, http.StatusServiceUnavailable), 5},
+		{"proxy CONNECT needs authentication", connectAnswered(t, http.StatusProxyAuthRequired), 1},
 		{"TLS alert while reading the body", fmt.Errorf("decode root state: %w", &bodyReadError{err: &net.OpError{Op: "local error", Err: errors.New("tls: bad record MAC")}}), 5},
 		// macOS reports a lookup without a network as a missing host.
 		{"host not found", dialError(&net.DNSError{Err: "no such host", Name: "cloud.example", IsNotFound: true}), 5},

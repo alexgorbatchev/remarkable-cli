@@ -357,7 +357,7 @@ Set both width and height to positive values to override the renderer's canvas d
 | `1` | An invocation error such as an unknown flag, a name that matches several documents or folders (pass the UUID instead), or any failure no other status covers |
 | `3` | A document or folder named by an argument, the document recorded in `doc upload-check` evidence, or a local file or directory does not exist, or `--page` is beyond the document |
 | `4` | Credentials are missing, hold no token, or were rejected by the cloud (HTTP 401 or 403); pair again with `remarkable auth pair <code>` |
-| `5` | The cloud could not be reached, timed out, dropped a response partway, or failed with a server error (HTTP 5xx, 408, or 429); retry later. A refused TLS handshake or certificate, including one with an HTTPS proxy, is a configuration problem and exits 1 |
+| `5` | The cloud, or a proxy on the way to it, could not be reached, timed out, dropped a response partway, or failed with a server error (HTTP 5xx, 408, or 429); retry later. A refused TLS handshake or certificate, including one with an HTTPS proxy, is a configuration problem and exits 1 |
 | `6` | `doc import`, `doc upload`, or `doc settings transfer` failed after sending its root commit (`commit-unknown` or `committed`), so the cloud may already hold the change; inspect the documents, or run `doc upload-check`, before retrying |
 
 The CLI never exits with status 2, which the Go runtime reserves for a crash (an unrecovered panic). When one failure has several causes, status 6 takes precedence, then 4, 5, and 3. A write that fails before its root commit, reported as `staged`, exits with the status of its cause.

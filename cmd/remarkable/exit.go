@@ -64,20 +64,31 @@ const (
 	tlsLocalAlertOp  = "local error"
 )
 
+// proxyConnectOp is the operation net/http names in the *net.OpError that wraps
+// a failure to connect to a proxy, including its TLS handshake with an HTTPS
+// proxy.
+const proxyConnectOp = "proxyconnect"
+
+// cloudFailureStatus reports a status that means the cloud, or a proxy on the
+// way to it, is failing: any server error, or one of the transient 408 and 429
+// statuses the HTTP policy retries.
+func cloudFailureStatus(code int) bool {
+	return code >= http.StatusInternalServerError || code == http.StatusRequestTimeout || code == http.StatusTooManyRequests
+}
+
 // cloudUnavailable reports whether err shows that a cloud request could not
-// reach the server or complete: a server error status or one of the transient
-// 408 and 429 statuses the HTTP policy retries, a response body that failed
-// partway, an operation or attempt deadline or other network timeout, a failed
-// network operation such as a refused connection or failed DNS lookup, or a
-// connection that closed before its response began. Every DNS failure counts:
-// macOS reports a lookup without a network as a missing host. An invalid cloud
-// address or a TLS handshake refused by either side, directly or through an
-// HTTPS proxy, is a configuration problem rather than an outage, so it stays a
-// general failure.
+// reach the server or complete: a failing status from the cloud or from a proxy
+// answering CONNECT, a response body that failed partway, an operation or
+// attempt deadline or other network timeout, a failed network operation such as
+// a refused connection or failed DNS lookup, or a connection that closed before
+// its response began. Every DNS failure counts: macOS reports a lookup without
+// a network as a missing host. An invalid cloud address or a TLS handshake
+// refused by either side, directly or through an HTTPS proxy, is a
+// configuration problem rather than an outage, so it stays a general failure.
 func cloudUnavailable(err error) bool {
 	var status *cloud.StatusError
-	if errors.As(err, &status) && (status.StatusCode >= http.StatusInternalServerError ||
-		status.StatusCode == http.StatusRequestTimeout || status.StatusCode == http.StatusTooManyRequests) {
+	var proxy *proxyConnectError
+	if errors.As(err, &status) && cloudFailureStatus(status.StatusCode) || errors.As(err, &proxy) {
 		return true
 	}
 	// A body fails only after its handshake and headers succeeded, so even a
@@ -95,6 +106,11 @@ func cloudUnavailable(err error) bool {
 	}
 	var operation *net.OpError
 	if errors.As(err, &operation) {
+		// A proxy failure is classified as the same failure would be directly,
+		// such as a proxy that does not speak TLS behind an https:// proxy URL.
+		if operation.Op == proxyConnectOp {
+			return cloudUnavailable(operation.Err)
+		}
 		return true
 	}
 	var request *url.Error

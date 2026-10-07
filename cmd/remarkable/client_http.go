@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"syscall"
@@ -26,7 +27,11 @@ const (
 // deadline, including reading its body. Client.Timeout would instead bound all
 // attempts together and reintroduce premature migration failures.
 func newCloudHTTPClient(debug bool) *http.Client {
-	var base http.RoundTripper = http.DefaultTransport
+	// A clone keeps the default transport's settings without changing the
+	// process-wide http.DefaultTransport.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.OnProxyConnectResponse = checkProxyConnect
+	var base http.RoundTripper = transport
 	if debug {
 		base = &debugTransport{base: base}
 	}
@@ -201,6 +206,25 @@ func (b *cancelBody) Read(p []byte) (int, error) {
 		err = &bodyReadError{err: err}
 	}
 	return n, err
+}
+
+// checkProxyConnect runs when an HTTP proxy answers the CONNECT request that
+// opens a tunnel to an HTTPS cloud. net/http reports any status but 200 as an
+// untyped error, so a proxy that cannot reach the cloud is reported here as a
+// proxyConnectError instead. Other refusals keep net/http's error.
+func checkProxyConnect(_ context.Context, _ *url.URL, _ *http.Request, resp *http.Response) error {
+	if cloudFailureStatus(resp.StatusCode) {
+		return &proxyConnectError{status: resp.Status}
+	}
+	return nil
+}
+
+// proxyConnectError reports a proxy that answered CONNECT with a server error
+// or with 408 or 429.
+type proxyConnectError struct{ status string }
+
+func (e *proxyConnectError) Error() string {
+	return "proxy answered CONNECT with " + e.status
 }
 
 // bodyReadError reports a response body that failed after the server sent its
