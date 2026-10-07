@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -46,10 +47,14 @@ func (t *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// errCredentialsNotFound is matched by the error a cloud command reports when
+// no credentials file exists at the resolved path.
+var errCredentialsNotFound = errors.New("credentials file not found")
+
 func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 	configPath := config.ResolveConfigPath(cfgFlag)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("credentials file not found at %s: run 'remarkable auth pair <code>' first", configPath)
+		return nil, fmt.Errorf("%w at %s: run 'remarkable auth pair <code>' first", errCredentialsNotFound, configPath)
 	}
 
 	opts := []cloud.Option{

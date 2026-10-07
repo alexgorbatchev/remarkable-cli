@@ -195,6 +195,6 @@ func errorReport(err error) string {
 func main() {
 	if err := execute(newRootCmd()); err != nil {
 		agent.PrintStatus(os.Stderr, "error", errorReport(err))
-		os.Exit(1)
+		os.Exit(exitStatus(err))
 	}
 }

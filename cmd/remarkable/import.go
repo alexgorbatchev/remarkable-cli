@@ -28,18 +28,19 @@ func newDocImportCmd() *cobra.Command {
 				return err
 			}
 			result, err := doc.ImportStrokes(ctx, client, args[0], mapping)
-			if result != nil {
-				agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "state", Value: string(result.State)}})
-				for _, name := range result.Uploaded {
-					agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "uploaded", Value: name}})
-				}
-				rows := make([][]string, 0, len(result.Pages))
-				for _, page := range result.Pages {
-					rows = append(rows, []string{fmt.Sprint(page.Page), page.PageID, page.Source, string(result.State)})
-				}
-				agent.PrintTable(cmd.OutOrStdout(), []string{"PAGE", "PAGE ID", "SOURCE", "STATE"}, rows)
+			if result == nil {
+				return err
 			}
-			return err
+			agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "state", Value: string(result.State)}})
+			for _, name := range result.Uploaded {
+				agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "uploaded", Value: name}})
+			}
+			rows := make([][]string, 0, len(result.Pages))
+			for _, page := range result.Pages {
+				rows = append(rows, []string{fmt.Sprint(page.Page), page.PageID, page.Source, string(result.State)})
+			}
+			agent.PrintTable(cmd.OutOrStdout(), []string{"PAGE", "PAGE ID", "SOURCE", "STATE"}, rows)
+			return afterCommit(result.State, err)
 		},
 	}
 	cmd.Flags().Var(checkedString(&mappingPath, "", validString(requireNonEmptyPath)), "mapping", "Required JSON file mapping native stroke paths to 0-based destination pages")

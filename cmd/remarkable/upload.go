@@ -27,7 +27,7 @@ func newDocUploadCmd() *cobra.Command {
 		}
 		evidence, err := doc.UploadPDF(ctx, client, args[0], opts)
 		if err != nil && evidence != nil {
-			return errors.Join(err, printUploadEvidence(cmd.OutOrStdout(), opts.Evidence, evidence))
+			return afterCommit(evidence.Result.State, errors.Join(err, printUploadEvidence(cmd.OutOrStdout(), opts.Evidence, evidence)))
 		}
 		return err
 	}}

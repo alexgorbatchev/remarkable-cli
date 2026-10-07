@@ -4,24 +4,22 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 17:42
+  last_modified: 2026-10-06 19:31
   status: current
 ---
 
 ## Execution rules
 
-Set `AGENT=1` on every invocation or export it. Use the reference below to select
-commands and options.
+Set `AGENT=1` on every invocation or export it; select commands and options below.
 Headings specify exact positional arguments: `<required>` and `[optional]`.
 Commands accept only their listed options plus global flags; groups print help.
 
-- Resolve documents with `doc list`, then prefer their IDs over titles. Quote
-  names and queries containing spaces. `<id-or-name>` accepts an ID, an exact
-  case-sensitive display name, or a slash-separated folder/document path;
-  duplicate display names resolve to the first match.
+- Resolve documents with `doc list` and prefer IDs; quote names and queries with
+  spaces. `<id-or-name>` accepts an ID, an exact case-sensitive display name, or a
+  slash-separated folder/document path; a name matching several items fails.
 - Use 0-based page indexes for search, `--page`, mappings, and link targets;
   subtract one from tablet/PDF page numbers.
-- Read exit status as well as stdout. Agent tables are TSV with headers;
+- Read the exit status (below) and stdout. Agent tables are TSV with headers;
   key-value output uses `key: value`; trees use indented `*` bullets.
   Search and link results have no headers and emit no rows when empty.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
@@ -44,33 +42,41 @@ Commands accept only their listed options plus global flags; groups print help.
   operate on PDF text layers.
 - `doc sync` skips solely by path existence. Use `--force` after cloud or DPI
   changes; `skipped` establishes existence, not freshness.
-- If a listed command or option is rejected by an installed binary, read
-  `AGENT=1 remarkable skill` from that binary again and check its `--version`.
-  Select options from that binary's updated skill.
+- If an installed binary rejects a listed command or option, check its
+  `--version` and select options from its own `AGENT=1 remarkable skill`.
+
+## Exit status
+
+| Status | Meaning |
+| --- | --- |
+| `0` | Success. |
+| `1` | Invocation error, a name matching several items (pass an ID), or any other failure. |
+| `2` | A document or item named by an argument or by `upload-check` evidence, or a local file or directory, does not exist, or `--page` exceeds the document. |
+| `3` | Credentials are missing, hold no token, or were rejected (HTTP 401/403): pair again. |
+| `4` | The cloud is unreachable, timed out, or failed (HTTP 5xx/408/429): retry later. |
+| `5` | A write sent its root commit (`commit-unknown`, `committed`): inspect fresh evidence before recovery or further creation. |
+
+With several causes: 5, then 3, 4, 2. `staged` and other write failures exit by cause.
 
 ## `remarkable`
 
-Invoke without a subcommand to print root help. Append global flags to any
-command. All commands accept `--help` / `-h`; only the root accepts
-`--version` / `-v`. Boolean flags enable their behavior when supplied;
-use `--flag=false` to disable them explicitly. Optional positional arguments
-use brackets; required positional arguments use angle brackets.
+Invoke without a subcommand for root help. Global flags apply to any command.
+All commands accept `--help` / `-h`; only the root accepts `--version` / `-v`.
+Supplying a boolean flag enables it; `--flag=false` disables it.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--config` | `-c` | `string` | `""` | Override credentials file path. |
 | `--cache-dir` | — | `string` | `""` | Override the content-addressed download cache: downloaded manifests and files (metadata, PDFs, strokes) named by hash in `blobs/`. It holds no credentials and is never pruned; deleting it only forces fresh downloads. |
-| `--debug` | — | `bool` | `false` | Log API requests and timing to stderr for cloud commands. |
+| `--debug` | — | `bool` | `false` | Log each cloud API request attempt, its headers result, and timing to stderr. |
 | `--no-cache` | — | `bool` | `false` | Bypass the download cache: cloud commands neither read nor write it. |
 | `--help` | `-h` | `bool` | `false` | Print help; agent help starts with the instruction to read this skill. |
 | `--version` | `-v` | `bool` | `false` | Print only the raw version and a newline. |
 
-Resolve credentials in this order: `--config`, `REMARKABLE_CONFIG`, an
-existing `$XDG_CONFIG_HOME/remarkable-cli/config.json` (default XDG base:
-`~/.config`), then `~/.rmapi`. When the XDG file does not exist, pairing
-writes to `~/.rmapi` unless an explicit override is supplied. The `.json`
-filename does not change the credential format: pairing writes
-`devicetoken: ...` text.
+Resolve credentials in this order: `--config`, `REMARKABLE_CONFIG`, an existing
+`$XDG_CONFIG_HOME/remarkable-cli/config.json` (default XDG base: `~/.config`),
+then `~/.rmapi`; without that XDG file or an override, pairing writes `~/.rmapi`.
+A `.json` filename keeps the credential format: pairing writes `devicetoken: ...` text.
 
 Resolve the cache in this order: `--cache-dir`, `REMARKABLE_CACHE_DIR`,
 `$XDG_CACHE_HOME/remarkable-cli` (default XDG base: `~/.cache`). Set
@@ -88,9 +94,7 @@ seconds/HTTP-date. Cancellation interrupts requests, body reads, and waits.
 Root/authentication/other routes get one transport attempt. Read-only GET/HEAD
 and replayable blobs follow redirects with Go's ten-redirect limit; other writes
 return redirects directly. The cloud library still renews rejected authentication.
-Generation checks and verification remain mandatory. Inspect fresh evidence after
-an uncertain root commit before recovery or further creation. Debug logs each
-attempt's headers result and timing to stderr.
+Generation checks and verification remain mandatory.
 
 ## `remarkable skill`
 
@@ -261,8 +265,7 @@ and `.content`; update metadata `lastModified`. Map future and historical ink al
 | --- | --- | --- | --- | --- |
 | `--mapping` | — | `string` | `""` | Required nonempty path to a JSON array mapping native file paths to 0-based destination page indexes. |
 
-Use this mapping format, with paths relative to the mapping file's directory
-or absolute paths:
+Mapping format; paths are absolute or relative to the mapping file's directory:
 
 ```json
 [
@@ -282,14 +285,14 @@ commit, broadcast, then freshly verify every uploaded byte and document/page
 association. Five-minute total timeout.
 
 Emit `state: STATE`, `uploaded: NAME` per verified file (including metadata), and
-TSV `PAGE`, `PAGE ID`, `SOURCE`, `STATE` after transfer starts. Read exit status:
+TSV `PAGE`, `PAGE ID`, `SOURCE`, `STATE` after transfer starts. Read the state:
 
 - `verified`: root commit, native byte comparison, and associations passed.
 - `staged`: uncommitted changes; unreferenced blobs may exist; includes conflicts.
 - `commit-unknown`: attempted root commit, result unconfirmed.
 - `committed`: root succeeded, verification failed.
 
-Failures return nonzero; inspect the destination before recovery. Separately test
+Failures exit nonzero; inspect the destination before recovery. Separately test
 select/move/erase on a disposable tablet document to establish native editability.
 
 ## `remarkable doc upload <pdf>`
@@ -312,8 +315,7 @@ AGENT=1 remarkable doc upload-check upload.json
 
 Validate the PDF/page count; upload `.pdf`, `.metadata`, `.content`, `.pagedata`.
 `native_pages: pending-tablet-initialization` persists even after cloud success.
-Open on the tablet, sync, and inspect with `doc inspect <id-or-name> --pages` before
-mapping strokes with `doc import`.
+Open on the tablet, sync, and run `doc inspect <id-or-name> --pages` before `doc import`.
 
 Five-minute timeout. Preflight uses fresh root/metadata; commit checks that same
 hash/generation and fails on concurrent change. Emit stdout progress in both modes:
@@ -406,10 +408,10 @@ Agent columns: `FIELD`, `DESTINATION PRESENT`, `DESTINATION VALUE`, `SOURCE PRES
 `SOURCE VALUE`; missing values use `absent` with presence `false`.
 
 States match `doc import`; `staged` also includes preflight conflicts. Success
-requires all transfer/preservation checks. Failures return nonzero; inspect both
-documents after `commit-unknown`/`committed` before retrying manually. Stdout failure
-can follow an update. Five-minute timeout; evidence exposes revision IDs/filenames,
-not credentials.
+requires all transfer/preservation checks. Failures exit nonzero; after
+`commit-unknown`/`committed`, inspect both documents before retrying manually.
+Stdout can fail after an update. Five-minute timeout; evidence exposes revision
+IDs/filenames, not credentials.
 
 ```sh
 AGENT=1 remarkable doc settings transfer 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444 --mapping settings-map.json
@@ -433,10 +435,8 @@ and emit `OK:`.
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--output` | `-o` | `string` | `""` | Write SVG to this path instead of stdout; overwrite an existing file. |
-| `--width` | — | `float64` | `0` | Set canvas width in points only when both width and height are positive. |
-| `--height` | — | `float64` | `0` | Set canvas height in points only when both width and height are positive. |
-
-Unless both are positive, the renderer's 447.874 by 595.275 point canvas applies.
+| `--width` | — | `float64` | `0` | Set canvas width in points only when both width and height are positive; otherwise the renderer's 447.874-point width applies. |
+| `--height` | — | `float64` | `0` | Set canvas height in points only when both width and height are positive; otherwise the renderer's 595.275-point height applies. |
 
 ## `remarkable help [command]`
 

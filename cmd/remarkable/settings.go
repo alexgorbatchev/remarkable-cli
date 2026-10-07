@@ -30,7 +30,7 @@ func newDocSettingsCmd() *cobra.Command {
 		}
 		result, err := doc.TransferSettings(ctx, client, args[0], args[1], doc.SettingsOptions{Mapping: mapping, ReplaceViewport: replaceViewport})
 		if result != nil {
-			return errors.Join(err, printSettingsResult(cmd.OutOrStdout(), result))
+			return afterCommit(result.State, errors.Join(err, printSettingsResult(cmd.OutOrStdout(), result)))
 		}
 		return err
 	}}
