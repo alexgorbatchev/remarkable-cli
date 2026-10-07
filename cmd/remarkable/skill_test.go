@@ -173,7 +173,8 @@ func indexCommand(usage string) string {
 
 // TestSkillIndexNamesEveryReference checks the SKILL.md index against the
 // embedded references: one row per topic, with its exact printing command,
-// listing exactly the commands that the topic's section headings document.
+// listing exactly the commands that the topic's section headings document. No
+// skill file may name a reference command for a topic that is not embedded.
 func TestSkillIndexNamesEveryReference(t *testing.T) {
 	want := map[string][]string{}
 	for _, doc := range referenceDocuments(t) {
@@ -220,6 +221,16 @@ func TestSkillIndexNamesEveryReference(t *testing.T) {
 	for topic := range want {
 		if !indexed[topic] {
 			t.Errorf("skill index must name reference %s with %s%s`", topic, indexRowPrefix[2:], topic)
+		}
+	}
+	// A topic starts with a lowercase letter, so the <topic> placeholder in
+	// usage lines does not match.
+	mention := regexp.MustCompile(`remarkable skill reference cat ([a-z][a-z-]*)`)
+	for name, content := range printedSkillDocuments(t) {
+		for _, m := range mention.FindAllStringSubmatch(content, -1) {
+			if _, ok := want[m[1]]; !ok {
+				t.Errorf("%s names reference topic %q, which is not embedded", name, m[1])
+			}
 		}
 	}
 }

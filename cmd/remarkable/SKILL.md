@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-07 07:18
+  last_modified: 2026-10-07 07:27
   status: current
 ---
 
@@ -68,8 +68,8 @@ Status 2 is never used: the Go runtime exits 2 on a crash (unrecovered panic).
 values:
 
 - `verified`: root commit, native byte comparison, and associations passed.
-- `staged`: uncommitted changes; unreferenced blobs may exist; includes commit-time
-  generation conflicts.
+- `staged`: uncommitted changes; unreferenced blobs may exist; includes generation
+  conflicts and destination changes found after preflight.
 - `commit-unknown`: attempted root commit, result unconfirmed.
 - `committed`: root succeeded, verification failed.
 
