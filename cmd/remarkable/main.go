@@ -185,31 +185,13 @@ func execute(root *cobra.Command) error {
 // cloud request's error ends with the server's reason exactly as sent, which
 // can end in a newline, so trailing whitespace is dropped before the line is
 // terminated. When credentials are missing or rejected, it appends how to pair
-// again. When a name is ambiguous, the candidate list that ends the message is
-// replaced by a count, because reportError prints the candidates as a table.
+// again.
 func errorReport(err error) string {
 	message := strings.TrimRightFunc(err.Error(), unicode.IsSpace)
 	if errors.Is(err, cloud.ErrUnauthorized) {
 		message += ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
 	}
-	var ambiguous *cloud.AmbiguousNameError
-	if errors.As(err, &ambiguous) {
-		// Every wrapper on the resolution paths adds its context before the
-		// ambiguity, so its text ends the message.
-		if prefix, ok := strings.CutSuffix(message, ambiguous.Error()); ok {
-			message = prefix + ambiguitySummary(ambiguous)
-		}
-	}
 	return message
-}
-
-// ambiguitySummary names the ambiguous name, or the path segment and its path,
-// and how many items it matches.
-func ambiguitySummary(e *cloud.AmbiguousNameError) string {
-	if e.Query == e.Name {
-		return fmt.Sprintf("name %q matches %d items", e.Name, len(e.Candidates))
-	}
-	return fmt.Sprintf("path segment %q of %q matches %d items", e.Name, e.Query, len(e.Candidates))
 }
 
 // candidateHeaders label the table of items an ambiguous name matches.

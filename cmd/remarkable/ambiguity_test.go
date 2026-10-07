@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -114,15 +113,15 @@ func TestMainListsEveryCandidateForAmbiguousName(t *testing.T) {
 		message string
 		rows    [][]string
 	}{
-		{"inspect", []string{"doc", "inspect", "Plan"}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"search", []string{"doc", "search", "Plan", "query"}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"links", []string{"doc", "links", "Plan"}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"cat", []string{"doc", "cat", "Plan"}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"render", []string{"doc", "render", "Plan", "-o", filepath.Join(out, "page.png")}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"sync", []string{"doc", "sync", "Plan", "-o", out}, `resolving document "Plan": name "Plan" matches 5 items`, planRows},
-		{"archive", []string{"doc", "archive", "Plan", "-o", filepath.Join(out, "plan.zip")}, `resolving archive source: name "Plan" matches 5 items`, planRows},
-		{"intermediate path segment", []string{"doc", "inspect", "Work/Notes"}, `resolving document "Work/Notes": path segment "Work" of "Work/Notes" matches 2 items`, workRows},
-		{"final path segment", []string{"doc", "inspect", "Dup/Draft"}, `resolving document "Dup/Draft": path segment "Draft" of "Dup/Draft" matches 2 items`, [][]string{
+		{"inspect", []string{"doc", "inspect", "Plan"}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"search", []string{"doc", "search", "Plan", "query"}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"links", []string{"doc", "links", "Plan"}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"cat", []string{"doc", "cat", "Plan"}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"render", []string{"doc", "render", "Plan", "-o", filepath.Join(out, "page.png")}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"sync", []string{"doc", "sync", "Plan", "-o", out}, `resolving document "Plan": ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"archive", []string{"doc", "archive", "Plan", "-o", filepath.Join(out, "plan.zip")}, `resolving archive source: ambiguous item name: "Plan" matches 5 items`, planRows},
+		{"intermediate path segment", []string{"doc", "inspect", "Work/Notes"}, `resolving document "Work/Notes": ambiguous item name: "Work" in "Work/Notes" matches 2 items`, workRows},
+		{"final path segment", []string{"doc", "inspect", "Dup/Draft"}, `resolving document "Dup/Draft": ambiguous item name: "Draft" in "Dup/Draft" matches 2 items`, [][]string{
 			{"draft-1", "/Dup", "yes"},
 			{"draft-2", "/Dup", "yes"},
 		}},
@@ -153,31 +152,6 @@ func TestMainListsEveryCandidateForAmbiguousName(t *testing.T) {
 						t.Errorf("stdout = %q, want empty", got.stdout)
 					}
 				})
-			}
-		})
-	}
-}
-
-func TestErrorReportReplacesOnlyATrailingCandidateList(t *testing.T) {
-	ambiguous := &cloud.AmbiguousNameError{Query: "Plan", Name: "Plan", Candidates: []cloud.AmbiguousCandidate{
-		{Item: &cloud.Item{ID: "plan-a"}},
-		{Item: &cloud.Item{ID: "plan-b"}, FolderPath: "Work"},
-	}}
-	// A joined failure that follows the ambiguity keeps the library's text,
-	// because its candidate list no longer ends the message.
-	joined := errors.Join(fmt.Errorf("resolving document %q: %w", "Plan", ambiguous), errors.New("later failure"))
-	for _, tc := range []struct {
-		name string
-		err  error
-		want string
-	}{
-		{"wrapped", fmt.Errorf("resolving document %q: %w", "Plan", ambiguous), `resolving document "Plan": name "Plan" matches 2 items`},
-		{"bare", ambiguous, `name "Plan" matches 2 items`},
-		{"followed by another failure", joined, joined.Error()},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := errorReport(tc.err); got != tc.want {
-				t.Errorf("errorReport = %q, want %q", got, tc.want)
 			}
 		})
 	}
