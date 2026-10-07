@@ -162,14 +162,14 @@ most right and bottom at most top, and neither the page's media box or crop box
 origin nor its rotation is applied. On a page whose media box starts at `[0 0]`,
 `0,0` is the bottom-left corner of the unrotated page. Each number is the
 shortest decimal that reads back as the same single-precision value, such as
-`98.6`, and never uses exponent notation; a coordinate written with a fractional
-part beyond the single-precision range (about 3.4e38) prints as `+Inf` or
-`-Inf`. A link without a `/Rect`, or with one that is not an array of four
-elements, prints `0,0,0,0`, the same as a rectangle written as zeros. Inside a
-four-element `/Rect`, an element that is not a number reads as 0, and so does an
-integer above 4294967295 or, when written with a `+` or `-` sign, outside
--2147483648 to 2147483647; the corners are ordered after that, so
-`[1 2 3 /Foo]` prints `1,0,3,2`.
+`98.6`, and never uses exponent notation; a coordinate written with a decimal
+point (a PDF real) beyond the single-precision range (about 3.4e38) prints as
+`+Inf` or `-Inf`. A link without a `/Rect`, or with one that is not an array of
+four elements, prints `0,0,0,0`, the same as a rectangle written as zeros.
+Inside a four-element `/Rect`, an element that is not a number reads as 0, and
+so does an integer, written without a decimal point, above 4294967295 or, when
+written with a `+` or `-` sign, outside -2147483648 to 2147483647; the corners
+are ordered after that, so `[1 2 3 /Foo]` prints `1,0,3,2`.
 
 A PDF stores a URI as raw bytes, which can hold tabs, line breaks, terminal
 escape sequences, or bytes that are not valid UTF-8. To keep each link on one

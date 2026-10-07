@@ -26,7 +26,7 @@ const labelledLinksContent = "BT /F1 12 Tf 20 150 Td (Notes) Tj ET\n" +
 	"BT /F1 12 Tf 20 100 Td (Ctrl\\033[31m) Tj ET\n" +
 	"BT /F1 12 Tf 100 100 Td (a\\\\b) Tj ET"
 
-// overflowingReal is a PDF real number, a number with a fractional part,
+// overflowingReal is a PDF real, a number written with a decimal point,
 // beyond the float32 range (about 3.4e38). PDFium reads it as +Inf.
 const overflowingReal = "999999999999999999999999999999999999999999999999.5"
 
