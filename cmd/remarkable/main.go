@@ -218,9 +218,9 @@ var candidateHeaders = []string{"ID", "FOLDER", "REACHABLE"}
 // candidateRows lists the items an ambiguous name matches in the library's
 // order: reachable items first, then by folder path, then by ID. FOLDER is the
 // absolute folder path of a reachable item, "/" at the root. An unreachable
-// item, one inside a trashed, deleted, or missing folder, has no path from the
-// root, so FOLDER holds only the live folders below that break, or "-" when
-// there are none.
+// item has no path from the root, because an ancestor is trashed, deleted,
+// missing from the listing, a document, or part of a parent loop, so FOLDER
+// holds only the live folders below that ancestor, or "-" when there are none.
 func candidateRows(e *cloud.AmbiguousNameError) [][]string {
 	rows := make([][]string, 0, len(e.Candidates))
 	for _, c := range e.Candidates {

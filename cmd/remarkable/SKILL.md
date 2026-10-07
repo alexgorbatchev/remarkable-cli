@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 20:55
+  last_modified: 2026-10-06 21:06
   status: current
 ---
 
@@ -17,10 +17,10 @@ Commands accept only their listed options plus global flags; groups print help.
 - Resolve documents with `doc list` and prefer IDs; quote names and queries with
   spaces. `<id-or-name>` accepts an ID, an exact case-sensitive display name, or a
   slash-separated folder/document path. A name or path segment matching several
-  live items fails, and stderr then tables them: `ID`, `FOLDER` (path from `/`),
-  `REACHABLE`. `no` means under a trashed, deleted, or missing folder; `FOLDER`
-  then holds only the live folders below it, or `-`. Pass the chosen document's
-  ID; for folder candidates, find it with `doc list --folder <ID>`.
+  live items fails; stderr then tables `ID`, `FOLDER` (path from `/`), `REACHABLE`.
+  `no` means no path reaches it (an ancestor is trashed, deleted, missing, a
+  document, or looped); `FOLDER` then lists only live folders below that, or `-`.
+  Pass the chosen document's ID; find one in a folder with `doc list --folder <ID>`.
 - Use 0-based page indexes for search, `--page`, mappings, and link targets;
   subtract one from tablet/PDF page numbers.
 - Read the exit status (below) and stdout. Agent tables are TSV with headers;
@@ -196,7 +196,8 @@ Stream content directly to stdout; fail when the required PDF or stroke data is 
 | `--format` | — | `string` | `svg` | Choose `pdf`, `text`, `rm`, or `svg`; case and surrounding whitespace are ignored. |
 
 `pdf` is the entire background PDF without composited handwriting; `text` is the
-selected PDF page's text; `rm` its raw binary strokes; `svg` its strokes without background.
+selected PDF page's text; `rm` is the selected page's raw binary strokes; `svg` is
+that page's strokes as SVG without the background.
 
 ## `remarkable doc render <id-or-name>`
 
