@@ -223,13 +223,18 @@ func TestSkillIndexNamesEveryReference(t *testing.T) {
 			t.Errorf("skill index must name reference %s with %s%s`", topic, indexRowPrefix[2:], topic)
 		}
 	}
-	// A topic starts with a lowercase letter, so the <topic> placeholder in
-	// usage lines does not match.
-	mention := regexp.MustCompile(`remarkable skill reference cat ([a-z][a-z-]*)`)
+	// A mention's topic is the word after "cat", up to whitespace or a closing
+	// backtick, without trailing sentence punctuation; usage lines name the
+	// <topic> placeholder instead of a topic.
+	mention := regexp.MustCompile("skill\\s+reference\\s+cat\\s+([^\\s`]+)")
 	for name, content := range printedSkillDocuments(t) {
 		for _, m := range mention.FindAllStringSubmatch(content, -1) {
-			if _, ok := want[m[1]]; !ok {
-				t.Errorf("%s names reference topic %q, which is not embedded", name, m[1])
+			topic := strings.TrimRight(m[1], ".,;:)")
+			if topic == "<topic>" {
+				continue
+			}
+			if _, ok := want[topic]; !ok {
+				t.Errorf("%s names reference topic %q, which is not embedded", name, topic)
 			}
 		}
 	}
