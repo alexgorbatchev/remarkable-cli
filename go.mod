@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/alexgorbatchev/cobra-help-tree/v2 v2.1.1
-	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261001183510-3c913a1b784b
+	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261006215446-2eac94caec2e
 	github.com/alexgorbatchev/go-remarkable-render v0.0.0-20260930042103-7cb6d9c7b983
 	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929164147-03ef03e1e1ac
 	github.com/olekukonko/tablewriter v1.1.5
