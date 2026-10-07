@@ -176,7 +176,7 @@ func newDocCmd() *cobra.Command {
 				return nil
 			}
 
-			headers := []string{"LINK #", "TARGET PAGE", "URI"}
+			headers := []string{"LINK #", "TARGET PAGE", "URI", "TEXT", "RECT"}
 			rows := make([][]string, 0, len(links))
 			for _, l := range links {
 				rows = append(rows, linkFields(l))

@@ -234,11 +234,15 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, 
 	return matches, nil
 }
 
-// PageLink represents an internal or external hyperlink on a page.
+// PageLink represents an internal or external hyperlink on a page, with the
+// fields of render.PageLink: Rect is the link's /Rect in PDF user space and
+// Text the page text inside it.
 type PageLink struct {
 	Index      int
 	TargetPage int
 	URI        string
+	Rect       render.Rect
+	Text       string
 }
 
 // GetLinks extracts all hyperlinks from a specific document page.
@@ -283,6 +287,8 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 			Index:      dl.Index,
 			TargetPage: dl.TargetPage,
 			URI:        dl.URI,
+			Rect:       dl.Rect,
+			Text:       dl.Text,
 		})
 	}
 	return links, nil

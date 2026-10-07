@@ -13,7 +13,8 @@ const firstPageObject = 3
 // pdfLink is a link annotation on a page built by buildLinkPDF.
 type pdfLink struct {
 	// rect is the annotation's /Rect as written: [Left Bottom Right Top].
-	rect [4]float64
+	// A nil rect omits /Rect.
+	rect *[4]float64
 
 	// target is the annotation's /Dest or /A entry, such as
 	// "/Dest [" + pdfPageRef(1) + " /Fit]" or "/A << /S /URI /URI (x) >>".
@@ -57,8 +58,11 @@ func buildLinkPDF(pages []pdfPage) []byte {
 	for i, page := range pages {
 		annots := make([]string, len(page.links))
 		for j, l := range page.links {
-			annots[j] = add(fmt.Sprintf("<< /Type /Annot /Subtype /Link /Rect [%g %g %g %g] %s >>",
-				l.rect[0], l.rect[1], l.rect[2], l.rect[3], l.target))
+			rect := ""
+			if l.rect != nil {
+				rect = fmt.Sprintf(" /Rect [%g %g %g %g]", l.rect[0], l.rect[1], l.rect[2], l.rect[3])
+			}
+			annots[j] = add(fmt.Sprintf("<< /Type /Annot /Subtype /Link%s %s >>", rect, l.target))
 		}
 		contents := ""
 		if page.content != "" {

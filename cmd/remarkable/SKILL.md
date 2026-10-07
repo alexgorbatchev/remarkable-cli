@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 22:01
+  last_modified: 2026-10-06 22:58
   status: current
 ---
 
@@ -21,8 +21,7 @@ Commands accept only their listed options plus global flags; groups print help.
   `no` means no path reaches it (an ancestor is trashed, deleted, missing, a
   document, or looped); `FOLDER` then lists only live folders below that, or `-`.
   Pass the chosen document's ID; find one in a folder with `doc list --folder <ID>`.
-- Use 0-based page indexes for search, `--page`, mappings, and link targets;
-  subtract one from tablet/PDF page numbers.
+- Search, `--page`, mappings, and link targets use 0-based indexes (tablet/PDF page - 1).
 - Read the exit status (below) and stdout. Agent tables are TSV with headers;
   key-value output uses `key: value`; trees use indented `*` bullets.
   Search/link results lack headers. A failed read exits nonzero, never as empty output.
@@ -87,17 +86,16 @@ Resolve the cache in this order: `--cache-dir`, `REMARKABLE_CACHE_DIR`,
 only to direct cloud and authentication requests to an alternate endpoint.
 `AGENT` also accepts `true` and `yes`, ignoring case and surrounding whitespace.
 
-HTTP policy is identical in normal/debug modes: 90 seconds per attempt for
-headers and complete body, bounded by the command context. Hashed blob GET and
-replayable PUT to `/sync/v3/files/<64-hex-hash>` get at most three attempts for
-timeouts, disconnected/truncated responses, and HTTP 408/429/500/502/503/504.
-Replay preserves bytes/headers; successful blob bodies are fully buffered before
-exposure. Backoff is 250 ms then 500 ms, overridden by valid `Retry-After`
-seconds/HTTP-date. Cancellation interrupts requests, body reads, and waits.
-Root/authentication/other routes get one transport attempt. Read-only GET/HEAD
-and replayable blobs follow redirects with Go's ten-redirect limit; other writes
-return redirects directly. The cloud library still renews rejected authentication.
-Generation checks and verification remain mandatory.
+HTTP policy is identical in normal/debug modes: 90 seconds per attempt for headers and
+complete body, bounded by the command context. Hashed blob GET and replayable PUT to
+`/sync/v3/files/<64-hex-hash>` get at most three attempts for timeouts,
+disconnected/truncated responses, and HTTP 408/429/500/502/503/504. Replay preserves
+bytes/headers; successful blob bodies are fully buffered before exposure. Backoff is 250 ms
+then 500 ms, overridden by valid `Retry-After` seconds/HTTP-date. Cancellation interrupts
+requests, body reads, and waits. Root/authentication/other routes get one transport
+attempt. Read-only GET/HEAD and replayable blobs follow redirects with Go's ten-redirect
+limit; other writes return redirects directly. The cloud library still renews rejected
+authentication. Generation checks and verification remain mandatory.
 
 ## `remarkable skill`
 
@@ -161,15 +159,14 @@ native pages; folders and uploaded PDFs not yet opened on the tablet report 0.
 
 ## `remarkable doc search <id-or-name> <query>`
 
-Search background PDF text case-insensitively under Unicode simple case
-folding; require extractable text. Matching treats every whitespace run in page
-text and query, including PDF line breaks, as one space and ignores whitespace
-at the query's ends, so whole words copied from a snippet match its page; an
-empty or whitespace-only query is an invocation error. Emit headerless
-`page-index<TAB>snippet` per matching page; no matches produce no rows. Each
-row covers its page's first counted match: the snippet holds the matched page
-text plus up to 20 characters (Unicode code points) before it and 40 after, with
-whitespace runs collapsed to single spaces and trimmed from both ends.
+Search background PDF text case-insensitively under Unicode simple case folding; require
+extractable text. Matching treats every whitespace run in page text and query, including
+PDF line breaks, as one space and ignores whitespace at the query's ends, so whole words
+copied from a snippet match its page; an empty or whitespace-only query is an invocation
+error. Emit headerless `page-index<TAB>snippet` per matching page; no matches produce no
+rows. Each row covers its page's first counted match: the snippet holds the matched page
+text plus up to 20 characters (Unicode code points) before it and 40 after, with whitespace
+runs collapsed to single spaces and trimmed from both ends.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -177,12 +174,18 @@ whitespace runs collapsed to single spaces and trimmed from both ends.
 
 ## `remarkable doc links <id-or-name>`
 
-Extract PDF links as headerless `link-index<TAB>target<TAB>URI`. Internal links have a
-0-based target and URI `#page=<target+1>`; URI actions have `-` and the PDF's URI, with
-any catalog `/URI /Base` prepended as text when the URI lacks `:` or starts with it;
-other links have `-` and an empty URI. URIs percent-encode (`%0A`) only the bytes of
+Extract PDF links as headerless `link-index<TAB>target<TAB>URI<TAB>text<TAB>rect`. Internal
+links have a 0-based target and URI `#page=<target+1>`; URI actions have `-` and the PDF's
+URI, with any catalog `/URI /Base` prepended as text when the URI lacks `:` or starts with
+it; other links have `-` and an empty URI. URIs percent-encode (`%0A`) only the bytes of
 spaces, invalid UTF-8, and characters failing Go's `unicode.IsPrint` (e.g. controls).
-A page without links emits no rows and succeeds; a document without a background PDF fails.
+`text` is the PDF text overlapping the link's rectangle (whole characters, whitespace runs
+collapsed and trimmed; empty over handwriting or images). It escapes `\` as `\\`, invalid
+UTF-8 bytes as `\xNN`, and other `unicode.IsPrint` failures as `strconv.QuoteRune` does
+(ESC is `\x1b`); `strconv.UnquoteChar` decodes each escape. `rect` is the link's `/Rect` as
+`left,bottom,right,top` in PDF points (y up, corners ordered, page box origin and `/Rotate`
+not applied), each the shortest float32 decimal (`98.6`); a missing or malformed `/Rect`
+prints `0,0,0,0`. A linkless page emits no rows and succeeds; a missing background PDF fails.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -277,11 +280,10 @@ Mapping format; paths are absolute or relative to the mapping file's directory:
 ]
 ```
 
-Require `source`/`page` per row; extract archives first. Reject unknown fields,
-empty mappings, duplicate indexes, missing files, malformed blocks, and invalid
-indexes. Require initialized, unique destination IDs. Existing handwriting, text,
-annotations, or unsupported blocks cause page-specific conflicts; metadata-only
-destination files may be replaced.
+Require `source`/`page` per row; extract archives first. Reject unknown fields, empty
+mappings, duplicate or invalid indexes, missing files, and malformed blocks. Require
+initialized, unique destination IDs. Existing handwriting, text, annotations, or unsupported
+blocks cause page-specific conflicts; metadata-only destination files may be replaced.
 
 Preflight errors write no cloud data. Stage files/manifests, generation-check the
 commit, broadcast, then freshly verify every uploaded byte and document/page
@@ -386,16 +388,15 @@ Retain unmapped destination tags. Numeric equality is exact throughout tags/view
 destination content bytes for identical transfers.
 
 Transfer these exact viewport fields: `zoomMode`, `viewBackgroundFilter`,
-`customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`,
-`customZoomPageHeight`, `customZoomPageWidth`, `customZoomScale`. Copy source
-presence/absence as well as values; omitted source fields remove corresponding
-destination fields. Differences include additions and removals and require
-`--replace-viewport`. Preserve unknown destination `customZoom*` fields.
-Supported zoom modes are `bestFit`, `customFit`, `fitToHeight`, `fitToWidth`;
-background filters are `off` and `fullpage`; custom orientation is `portrait`
-or `landscape`; the other custom fields are numeric without a UI-range clamp.
-Omitting the background filter retains firmware's adaptive text-area behavior.
-Document `orientation` remains a destination field.
+`customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`, `customZoomPageHeight`,
+`customZoomPageWidth`, `customZoomScale`. Copy source presence/absence as well as values;
+omitted source fields remove corresponding destination fields. Differences include
+additions and removals and require `--replace-viewport`. Preserve unknown destination
+`customZoom*` fields. Supported zoom modes are `bestFit`, `customFit`, `fitToHeight`,
+`fitToWidth`; background filters are `off` and `fullpage`; custom orientation is `portrait`
+or `landscape`; the other custom fields are numeric without a UI-range clamp. Omitting the
+background filter retains firmware's adaptive text-area behavior. Document `orientation`
+remains a destination field.
 
 Pin both snapshots to one fresh root; verify every file's hash/length before upload.
 Generation-check the content commit; any root change, including another document,
@@ -410,11 +411,10 @@ the result. Both modes show viewport old/new presence/values, including conflict
 Agent columns: `FIELD`, `DESTINATION PRESENT`, `DESTINATION VALUE`, `SOURCE PRESENT`,
 `SOURCE VALUE`; missing values use `absent` with presence `false`.
 
-States match `doc import`; `staged` also includes preflight conflicts. Success
-requires all transfer/preservation checks. Failures exit nonzero; after
-`commit-unknown`/`committed`, inspect both documents before retrying manually.
-Stdout can fail after an update. Five-minute timeout; evidence exposes revision
-IDs/filenames, not credentials.
+States match `doc import`; `staged` also includes preflight conflicts. Success requires all
+transfer/preservation checks. Failures exit nonzero; after `commit-unknown`/`committed`,
+inspect both documents before retrying manually. Stdout can fail after an update.
+Five-minute timeout; evidence exposes revision IDs/filenames, not credentials.
 
 ```sh
 AGENT=1 remarkable doc settings transfer 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444 --mapping settings-map.json

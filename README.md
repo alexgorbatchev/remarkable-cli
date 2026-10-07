@@ -4,7 +4,7 @@
 
 - **Unified cloud gateway**: Interacts directly with reMarkable Cloud Sync v3 over Wi-Fi without USB cables or device modifications.
 - **Document hierarchy navigation**: Lists documents and collections, inspects page-level stroke presence, and renders virtual folder trees.
-- **Full-text search & link inspection**: Searches text inside PDF documents and lists the page targets and URIs of the hyperlinks on any page.
+- **Full-text search & link inspection**: Searches text inside PDF documents and lists the page targets, URIs, anchor text, and positions of the hyperlinks on any page.
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
@@ -136,16 +136,34 @@ matches means every page was read.
 | :--- | :--- | :--- | :--- |
 | `--page <n>` | | `0` | 0-based page index to extract hyperlinks from; negative values are rejected |
 
-Each link prints its 0-based index, its target page, and its URI, in the
-order the page lists its links: a table with `LINK #`, `TARGET PAGE`, and `URI`
-columns in human mode, and headerless `index<TAB>target<TAB>URI` lines with
+Each link prints its 0-based index, its target page, its URI, the page text
+under it, and its rectangle, in the order the page lists its links: a table
+with `LINK #`, `TARGET PAGE`, `URI`, `TEXT`, and `RECT` columns in human mode,
+and headerless `index<TAB>target<TAB>URI<TAB>text<TAB>rect` lines with
 `AGENT=1`. A link to a page of the same document shows its 0-based target page
 and the URI `#page=N`, where `N` is the target plus one. A link that opens a URI
 shows `-` as its target and the URI the PDF stores; when the PDF declares a base
 URI (`/URI /Base`), that base is prepended as plain text to a URI that contains
 no `:` or starts with one. Any other link, such as one that opens another PDF or
 a local file, shows `-` and an empty URI: a blank cell in human mode, an empty
-last field with `AGENT=1`.
+third field with `AGENT=1`.
+
+`TEXT` is the PDF text inside the link's rectangle, in the page's text order,
+with each run of white space, line breaks included, collapsed to one space and
+trimmed from both ends. A character whose box overlaps the rectangle counts in
+full, so a rectangle that cuts through a word yields part of it. A link over
+handwriting, an image, or empty space has empty text: a blank cell in human
+mode, an empty fourth field with `AGENT=1`.
+
+`RECT` is the area that activates the link, as `left,bottom,right,top` in PDF
+points (1/72 inch unless the page sets `/UserUnit`), taken from the link's
+`/Rect` as written: y grows upwards, the corners are ordered so that left is at
+most right and bottom at most top, and neither the page's media box or crop box
+origin nor its rotation is applied. On a page whose media box starts at `[0 0]`,
+`0,0` is the bottom-left corner of the unrotated page. Each number is the
+shortest decimal that reads back as the same single-precision value, such as
+`98.6`, and never uses exponent notation. A link without a valid `/Rect` prints
+`0,0,0,0`, the same as a rectangle written as zeros.
 
 A PDF stores a URI as raw bytes, which can hold tabs, line breaks, terminal
 escape sequences, or bytes that are not valid UTF-8. To keep each link on one
@@ -158,6 +176,16 @@ prints as `%09`, a line feed as `%0A`. Every other character, including `%`
 and non-ASCII letters, prints unchanged, so a URI that needs no encoding
 appears exactly as PDFium returns it: the stored URI, with the `/URI /Base`
 prefix when that rule applies.
+
+Link text can hold the same kinds of characters, such as ESC, apart from the
+white space already collapsed. Both modes print each character of the text
+that is neither the ASCII space nor in the categories above as the Go escape
+sequence Go's `strconv.QuoteRune` writes for it, with lowercase hex digits:
+for example `\x1b` for ESC, `\a` for BEL, `\u202e` for a right-to-left
+override, and `\U000e0001` above U+FFFF. Each byte of invalid UTF-8 prints as
+`\xNN`, and a backslash as `\\`. Every other character, including `%` and
+quotation marks, prints unchanged, so every backslash in the printed text
+starts an escape that Go's `strconv.UnquoteChar` decodes.
 
 A PDF page without links succeeds with no rows: human mode prints a
 `No hyperlinks found on page N` notice, and agent mode prints nothing. A page
