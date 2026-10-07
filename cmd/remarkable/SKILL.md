@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 17:34
+  last_modified: 2026-10-06 17:42
   status: current
 ---
 
@@ -37,8 +37,8 @@ Commands accept only their listed options plus global flags; groups print help.
   after a command starts, such as unreadable files or cloud errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
-  When the cloud rejects credentials or the credentials file holds no token, the
-  error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
+  When the cloud rejects credentials or a pairing code, or the credentials file
+  holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
 - Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
   and `stroke export` contain strokes only. PDF text extraction and search
   operate on PDF text layers.
