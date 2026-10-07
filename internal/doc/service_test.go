@@ -305,8 +305,8 @@ func TestDocService_Comprehensive(t *testing.T) {
 	}
 
 	// Cat errors
-	if err := Cat(ctx, client, "doc-1", 999, "rm", &bufRM); err == nil {
-		t.Error("expected error on out of bounds cat")
+	if err := Cat(ctx, client, "doc-1", 999, "rm", &bufRM); !errors.Is(err, ErrPageOutOfBounds) {
+		t.Errorf("out of bounds cat = %v, want ErrPageOutOfBounds", err)
 	}
 	if err := Cat(ctx, client, "doc-1", -1, "rm", &bufRM); err == nil {
 		t.Error("expected error on negative page cat")
@@ -355,8 +355,8 @@ func TestDocService_Comprehensive(t *testing.T) {
 	}
 
 	// RenderPage OOB and negative
-	if err := RenderPage(ctx, client, "doc-1", 999, 200, outPNG); err == nil {
-		t.Error("expected error on out of bounds render")
+	if err := RenderPage(ctx, client, "doc-1", 999, 200, outPNG); !errors.Is(err, ErrPageOutOfBounds) {
+		t.Errorf("out of bounds render = %v, want ErrPageOutOfBounds", err)
 	}
 	if err := RenderPage(ctx, client, "doc-1", -1, 200, outPNG); err == nil {
 		t.Error("expected error on negative page render")

@@ -2,6 +2,7 @@ package doc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -355,11 +356,10 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 		if err != nil {
 			return fmt.Errorf("fetching content schema: %w", err)
 		}
-		pageIDs := getPageIDs(docContent)
-		if pageIdx < 0 || pageIdx >= len(pageIDs) {
-			return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(pageIDs))
+		pageID, err := nativePageID(getPageIDs(docContent), pageIdx)
+		if err != nil {
+			return err
 		}
-		pageID := pageIDs[pageIdx]
 		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
 		fileEntry := manifest.Find(rmName)
 		if fileEntry == nil {
@@ -415,11 +415,10 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	if err != nil {
 		return fmt.Errorf("fetching content schema: %w", err)
 	}
-	pageIDs := getPageIDs(docContent)
-	if pageIdx < 0 || pageIdx >= len(pageIDs) {
-		return fmt.Errorf("page index %d out of bounds (document has %d pages)", pageIdx, len(pageIDs))
+	pageID, err := nativePageID(getPageIDs(docContent), pageIdx)
+	if err != nil {
+		return err
 	}
-	pageID := pageIDs[pageIdx]
 	rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
 
 	var rmBytes []byte
@@ -616,6 +615,18 @@ func getPageIDs(dc *cloud.DocumentContent) []string {
 		}
 	}
 	return ids
+}
+
+// ErrPageOutOfBounds is matched by the error a page selection reports when the
+// page index is beyond the document's native pages.
+var ErrPageOutOfBounds = errors.New("page index out of bounds")
+
+// nativePageID returns the native ID of the page at index in pageIDs.
+func nativePageID(pageIDs []string, index int) (string, error) {
+	if index < 0 || index >= len(pageIDs) {
+		return "", fmt.Errorf("%w: %d (document has %d pages)", ErrPageOutOfBounds, index, len(pageIDs))
+	}
+	return pageIDs[index], nil
 }
 
 func sanitizeFilename(s string) string {

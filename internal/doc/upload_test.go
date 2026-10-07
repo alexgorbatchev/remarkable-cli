@@ -299,6 +299,17 @@ func TestUploadProgressFailurePreventsCommit(t *testing.T) {
 	}
 }
 
+func TestCheckUploadReportsUncommittedDocumentMissing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "upload.json")
+	_, c := newUploadServer(t, "conflict", path)
+	if _, err := UploadPDF(context.Background(), c, "testdata/linked_pages.pdf", UploadOptions{Title: "Planner", Evidence: path}); !errors.Is(err, cloud.ErrGenerationConflict) {
+		t.Fatalf("upload = %v, want a rejected commit", err)
+	}
+	if _, err := CheckUpload(context.Background(), c, path); !errors.Is(err, cloud.ErrItemNotFound) || !strings.Contains(err.Error(), "absent from the current root snapshot") {
+		t.Fatalf("check of an uncommitted upload = %v, want ErrItemNotFound", err)
+	}
+}
+
 func TestUploadRootFolderAndEvidencePreservation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "upload.json")

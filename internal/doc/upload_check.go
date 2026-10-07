@@ -57,7 +57,7 @@ func CheckUpload(ctx context.Context, client *cloud.Client, path string) (*Uploa
 	}
 	entry := manifest.Find(evidence.Result.ID)
 	if entry == nil {
-		return evidence, fmt.Errorf("upload UUID %s is absent from the current root snapshot; retain evidence and inspect before retrying", evidence.Result.ID)
+		return evidence, fmt.Errorf("%w: upload UUID %s is absent from the current root snapshot; retain evidence and inspect before retrying", cloud.ErrItemNotFound, evidence.Result.ID)
 	}
 	if entry.Hash != evidence.Result.DocumentHash {
 		return evidence, fmt.Errorf("upload UUID %s has a changed document hash; inspect it before retrying", entry.ID)

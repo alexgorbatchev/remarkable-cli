@@ -45,7 +45,7 @@ func settingsRoot(ctx context.Context, client *cloud.Client) (*cloud.RootState, 
 func readSettingsSnapshot(ctx context.Context, client *cloud.Client, root *cloud.Manifest, id string) (*settingsSnapshot, error) {
 	entry := root.Find(id)
 	if entry == nil {
-		return nil, fmt.Errorf("document %s is missing from root", id)
+		return nil, fmt.Errorf("%w: document %s is missing from root", cloud.ErrItemNotFound, id)
 	}
 	data, err := client.GetBlobFresh(ctx, entry.Hash, id+".docSchema")
 	if err != nil {

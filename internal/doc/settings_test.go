@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -93,6 +94,19 @@ func TestTransferSettingsPreflight(t *testing.T) {
 			_, err := TransferSettings(context.Background(), f.client, src, dst, SettingsOptions{Mapping: mapping, ReplaceViewport: true})
 			if err == nil || f.puts != 0 || f.commits != 0 {
 				t.Fatalf("preflight %s: err=%v puts=%d commits=%d", scenario, err, f.puts, f.commits)
+			}
+		})
+	}
+}
+
+func TestTransferSettingsReportsMissingDocument(t *testing.T) {
+	const absent = "55555555-5555-4555-8555-555555555555"
+	for _, ids := range [][2]string{{absent, settingsDestinationID}, {settingsSourceID, absent}} {
+		t.Run(ids[0]+"/"+ids[1], func(t *testing.T) {
+			f := settingsFixture(t, "cPages", "cPages", "")
+			_, err := TransferSettings(context.Background(), f.client, ids[0], ids[1], SettingsOptions{Mapping: []SettingsPageMap{{SourcePage: 0, DestinationPage: 1}}})
+			if !errors.Is(err, cloud.ErrItemNotFound) || !strings.Contains(err.Error(), absent+" is missing from root") || f.puts != 0 {
+				t.Fatalf("transfer with missing document: err=%v puts=%d, want ErrItemNotFound and no uploads", err, f.puts)
 			}
 		})
 	}
