@@ -202,6 +202,36 @@ func tlsUnknownAuthority(t *testing.T) error {
 	return err
 }
 
+// viaHTTPSProxy returns the error a request reports when it goes through an
+// HTTPS proxy whose TLS handshake fails. net/http wraps that failure in a
+// *net.OpError with Op "proxyconnect". With trusted, the client trusts the
+// proxy certificate, and the proxy refuses the handshake with an alert because
+// the client sends no certificate; otherwise the client rejects the proxy's
+// certificate.
+func viaHTTPSProxy(t *testing.T, trusted bool) error {
+	t.Helper()
+	proxy := httptest.NewUnstartedServer(http.NotFoundHandler())
+	// TLS 1.2 sends the alert during the handshake, which net/http wraps.
+	proxy.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert, MaxVersion: tls.VersionTLS12}
+	proxy.StartTLS()
+	defer proxy.Close()
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &http.Transport{}
+	if trusted {
+		transport = proxy.Client().Transport.(*http.Transport).Clone()
+	}
+	transport.Proxy = http.ProxyURL(proxyURL)
+	_, err = (&http.Client{Transport: transport}).Get("http://cloud.invalid/sync/v3/root")
+	var operation *net.OpError
+	if !errors.As(err, &operation) || operation.Op != "proxyconnect" {
+		t.Fatalf("proxy error = %v, want a proxyconnect failure", err)
+	}
+	return err
+}
+
 // dialError wraps a failed lookup of the cloud host the way net/http reports it.
 func dialError(dns *net.DNSError) error {
 	return urlError(&net.OpError{Op: "dial", Net: "tcp", Err: dns})
@@ -268,7 +298,11 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 		{"TLS handshake refused by server alert", tlsCertificateRequired(t), 1},
 		{"TLS alert sent by client", urlError(&net.OpError{Op: "local error", Err: errors.New("tls: bad certificate")}), 1},
 		{"untrusted server certificate", tlsUnknownAuthority(t), 1},
-		{"unknown cloud host", dialError(&net.DNSError{Err: "no such host", Name: "cloud.invalid", IsNotFound: true}), 1},
+		{"TLS alert from an HTTPS proxy", viaHTTPSProxy(t, true), 1},
+		{"untrusted HTTPS proxy certificate", viaHTTPSProxy(t, false), 1},
+		{"TLS alert while reading the body", fmt.Errorf("decode root state: %w", &bodyReadError{err: &net.OpError{Op: "local error", Err: errors.New("tls: bad record MAC")}}), 5},
+		// macOS reports a lookup without a network as a missing host.
+		{"host not found", dialError(&net.DNSError{Err: "no such host", Name: "cloud.example", IsNotFound: true}), 5},
 		{"DNS lookup timeout", dialError(&net.DNSError{Err: "i/o timeout", Name: "cloud.example", IsTimeout: true}), 5},
 		{"DNS server failure", dialError(&net.DNSError{Err: "server misbehaving", Name: "cloud.example", IsTemporary: true}), 5},
 		{"renewal transport failure", fmt.Errorf("auth renewal failed after 401: %w", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}), 5},

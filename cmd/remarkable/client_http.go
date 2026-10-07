@@ -192,10 +192,9 @@ type cancelBody struct {
 	cancel context.CancelFunc
 }
 
-// Read marks every failure to read the rest of a response body, such as a
-// connection that closes before the declared length, so callers can tell a
-// failed transfer from bad content. io.EOF stays unwrapped because readers
-// compare it by identity.
+// Read marks every failure to read a response body, including a connection
+// that closes before the declared length and a body that fails to decode, as a
+// bodyReadError. io.EOF stays unwrapped because readers compare it by identity.
 func (b *cancelBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err != nil && err != io.EOF {
