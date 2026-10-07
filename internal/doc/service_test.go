@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
@@ -17,10 +18,26 @@ import (
 
 func setupMockServer(t *testing.T) (*httptest.Server, *cloud.Client) {
 	t.Helper()
-	return setupMockServerWithFailure(t, "")
+	return setupMockServerFailing(t, mockFailure{})
 }
 
 func setupMockServerWithFailure(t *testing.T, failedPath string) (*httptest.Server, *cloud.Client) {
+	t.Helper()
+	return setupMockServerFailing(t, mockFailure{path: failedPath})
+}
+
+// mockFailure selects a request the mock cloud answers wrongly.
+type mockFailure struct {
+	// path is the request path that fails; empty means no request fails.
+	path string
+	// after is how many requests to path succeed before the failures begin.
+	after int
+	// body, when set, is served with status 200 in place of the real blob;
+	// otherwise the request fails with HTTP 502.
+	body string
+}
+
+func setupMockServerFailing(t *testing.T, failure mockFailure) (*httptest.Server, *cloud.Client) {
 	t.Helper()
 
 	pdfData, err := os.ReadFile("testdata/linked_pages.pdf")
@@ -31,9 +48,18 @@ func setupMockServerWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 	if err != nil {
 		t.Fatalf("reading rm test fixture: %v", err)
 	}
+	unloadablePDF, err := os.ReadFile("testdata/unloadable_page.pdf")
+	if err != nil {
+		t.Fatalf("reading unloadable pdf test fixture: %v", err)
+	}
 
+	var failedPathRequests atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == failedPath {
+		if r.URL.Path == failure.path && int(failedPathRequests.Add(1)) > failure.after {
+			if failure.body != "" {
+				w.Write([]byte(failure.body))
+				return
+			}
 			http.Error(w, "injected cloud failure", http.StatusBadGateway)
 			return
 		}
@@ -43,8 +69,18 @@ func setupMockServerWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":4}`))
 		case "/sync/v3/files/root-hash":
-			// Seven items plus the schema v4 aggregate record.
-			w.Write([]byte("4\n0:.:75:211191896\nfolder-hash:folder-1:0:10\ndoc-hash:doc-1:0:100\nnopdf-hash:doc-nopdf:0:100\nnostroke-hash:doc-nostroke:0:100\nsuffix-hash:doc-suffix:0:100\nnocontent-hash:doc-nocontent:0:100\ncorrupt-hash:doc-corrupt:0:100\n"))
+			// Eight items plus the schema v4 aggregate record.
+			w.Write([]byte("4\n0:.:75:211191896\nfolder-hash:folder-1:0:10\ndoc-hash:doc-1:0:100\nnopdf-hash:doc-nopdf:0:100\nnostroke-hash:doc-nostroke:0:100\nsuffix-hash:doc-suffix:0:100\nnocontent-hash:doc-nocontent:0:100\ncorrupt-hash:doc-corrupt:0:100\nunloadable-hash:doc-unloadable:0:100\n"))
+		case "/sync/v3/files/unloadable-hash":
+			w.Write([]byte("unloadable-meta:doc-unloadable.metadata:0:50\nunloadable-content:doc-unloadable.content:0:50\nunloadable-pdf:doc-unloadable.pdf:0:500\n"))
+		case "/sync/v3/files/unloadable-meta":
+			w.Write([]byte(`{"visibleName":"Unloadable Page Doc","type":"DocumentType"}`))
+		case "/sync/v3/files/unloadable-content":
+			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["unloadable-page-1","unloadable-page-2"]}`))
+		case "/sync/v3/files/unloadable-pdf":
+			// Its page tree counts two pages but holds one, so PDFium cannot
+			// load page 1; page 0 reads "needle here".
+			w.Write(unloadablePDF)
 		case "/sync/v3/files/nocontent-hash":
 			w.Write([]byte("nocontent-meta:doc-nocontent.metadata:0:50\npdf-hash:doc-nocontent.pdf:0:1000\n"))
 		case "/sync/v3/files/nocontent-meta":
@@ -161,6 +197,90 @@ func TestSyncDocumentPDFDownloadFailure(t *testing.T) {
 	}
 }
 
+// TestReadFailuresFailInsteadOfReportingEmpty checks that a document whose
+// content, manifest, or page text cannot be read fails with the cause instead
+// of reporting no pages, unmarked pages, or no matches.
+func TestReadFailuresFailInsteadOfReportingEmpty(t *testing.T) {
+	inspect := func(pages bool) func(context.Context, *cloud.Client) (any, error) {
+		return func(ctx context.Context, client *cloud.Client) (any, error) {
+			return Inspect(ctx, client, "doc-1", pages)
+		}
+	}
+	tests := []struct {
+		name    string
+		failure mockFailure
+		call    func(context.Context, *cloud.Client) (any, error)
+		// wantText is a part of the error message that names the failure.
+		wantText string
+		// wantStatus is the HTTP status the error must carry; 0 means none.
+		wantStatus int
+	}{
+		{
+			name:       "inspect content fetch",
+			failure:    mockFailure{path: "/sync/v3/files/content-hash"},
+			call:       inspect(false),
+			wantText:   "fetching content schema",
+			wantStatus: http.StatusBadGateway,
+		},
+		{
+			name:     "inspect content parse",
+			failure:  mockFailure{path: "/sync/v3/files/content-hash", body: "not json"},
+			call:     inspect(false),
+			wantText: "unmarshal content",
+		},
+		{
+			// Resolving doc-1 reads its manifest once; --pages reads it again.
+			name:       "inspect pages manifest fetch",
+			failure:    mockFailure{path: "/sync/v3/files/doc-hash", after: 1},
+			call:       inspect(true),
+			wantText:   "fetching document manifest",
+			wantStatus: http.StatusBadGateway,
+		},
+		{
+			name: "search page text extraction",
+			call: func(ctx context.Context, client *cloud.Client) (any, error) {
+				return SearchDocument(ctx, client, "doc-unloadable", SearchQuery{Text: "needle"})
+			},
+			wantText: "extracting text from page 1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, client := setupMockServerFailing(t, tt.failure)
+			defer ts.Close()
+			got, err := tt.call(context.Background(), client)
+			if err == nil || !strings.Contains(err.Error(), tt.wantText) {
+				t.Fatalf("got %+v, %v; want an error containing %q", got, err, tt.wantText)
+			}
+			if tt.wantStatus != 0 {
+				var status *cloud.StatusError
+				if !errors.As(err, &status) || status.StatusCode != tt.wantStatus {
+					t.Errorf("error %v does not carry HTTP status %d", err, tt.wantStatus)
+				}
+			}
+		})
+	}
+}
+
+// TestInspectMissingContent checks that a document without a content file
+// fails as missing, while a folder, which has no pages, reports none.
+func TestInspectMissingContent(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
+
+	details, err := Inspect(ctx, client, "doc-nocontent", true)
+	if !errors.Is(err, cloud.ErrItemNotFound) || !strings.Contains(err.Error(), "fetching content schema") {
+		t.Errorf("Inspect(doc-nocontent) = %+v, %v; want a missing content error", details, err)
+	}
+
+	// Contract guard: the folder has no content file, as sync v3 folders may not.
+	folder, err := Inspect(ctx, client, "folder-1", true)
+	if err != nil || folder.Type != "CollectionType" || folder.Pages != 0 || len(folder.PageList) != 0 {
+		t.Errorf("Inspect(folder-1) = %+v, %v; want a folder with no pages", folder, err)
+	}
+}
+
 func TestDocService_Comprehensive(t *testing.T) {
 	ts, client := setupMockServer(t)
 	defer ts.Close()
@@ -169,7 +289,7 @@ func TestDocService_Comprehensive(t *testing.T) {
 
 	// 1. List with various filters
 	items, err := List(ctx, client, "", "", "", 10)
-	if err != nil || len(items) != 7 {
+	if err != nil || len(items) != 8 {
 		t.Fatalf("List all failed: %v (got %d)", err, len(items))
 	}
 

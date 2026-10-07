@@ -97,6 +97,10 @@ Sample Output:
 | :--- | :--- | :--- | :--- |
 | `--pages` | | `false` | Include page-by-page stroke presence and byte sizes |
 
+A document whose page list, or with `--pages` whose list of files, cannot be
+read fails with the cause, so a `Pages` count of 0 and a page marked `empty`
+describe a document that was read. A folder has no pages and reports 0.
+
 ### `remarkable doc search`
 
 | Argument | Description |
@@ -120,7 +124,9 @@ directly precedes or follows it: `Oct 1` matches `Oct 1,` and `Oct 1` at the
 end of a page, but not `Oct 12`. Each matching page reports only its first
 counted match, with a snippet holding the matched text plus up to 20
 characters (Unicode code points) before it and 40 after, whitespace runs
-collapsed to single spaces and trimmed from both ends.
+collapsed to single spaces and trimmed from both ends. A page whose text cannot
+be extracted fails the search instead of dropping out of the results, so no
+matches means every page was read.
 
 ### `remarkable doc links`
 
@@ -129,9 +135,10 @@ collapsed to single spaces and trimmed from both ends.
 | `--page <n>` | | `0` | 0-based page index to extract hyperlinks from; negative values are rejected |
 
 A PDF page without links succeeds with no rows: human mode prints a
-`No hyperlinks found on page N` notice, and agent mode prints nothing. A
-document without a background PDF, such as a handwritten notebook, fails with
-an error saying it has no background PDF.
+`No hyperlinks found on page N` notice, and agent mode prints nothing. A page
+whose links cannot be read fails instead of reporting none. A document without
+a background PDF, such as a handwritten notebook, fails with an error saying it
+has no background PDF.
 
 ### `remarkable doc cat`
 

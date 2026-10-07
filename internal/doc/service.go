@@ -122,7 +122,11 @@ type DocDetails struct {
 	PageList     []PageDetail
 }
 
-// Inspect fetches detailed metadata for a document.
+// Inspect fetches detailed metadata for a document. A folder has no pages, so
+// its content file, which a folder need not have, is not read. A document's
+// content file, and with includePages its manifest, must be read; a failure to
+// read either is returned rather than reported as a document without pages or
+// with pages that hold no strokes.
 func Inspect(ctx context.Context, client *cloud.Client, idOrName string, includePages bool) (*DocDetails, error) {
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
@@ -135,31 +139,36 @@ func Inspect(ctx context.Context, client *cloud.Client, idOrName string, include
 		Type:         string(item.Metadata.Type),
 		LastModified: item.Metadata.LastModified,
 	}
-
-	docContent, err := item.GetContent(ctx)
-	if err == nil && docContent != nil {
-		pageIDs := getPageIDs(docContent)
-		details.Pages = len(pageIDs)
-		details.FileType = docContent.FileType
-
-		if includePages {
-			manifest, _ := item.GetManifest(ctx)
-			for i, pageID := range pageIDs {
-				pd := PageDetail{
-					Index: i,
-					ID:    pageID,
-				}
-				if manifest != nil {
-					if entry := manifest.FindSuffix(pageID + ".rm"); entry != nil {
-						pd.HasStrokes = true
-						pd.StrokeBytes = entry.Size
-					}
-				}
-				details.PageList = append(details.PageList, pd)
-			}
-		}
+	if item.IsCollection() {
+		return details, nil
 	}
 
+	docContent, err := item.GetContent(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching content schema: %w", err)
+	}
+	pageIDs := getPageIDs(docContent)
+	details.Pages = len(pageIDs)
+	details.FileType = docContent.FileType
+	if !includePages {
+		return details, nil
+	}
+
+	manifest, err := item.GetManifest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching document manifest: %w", err)
+	}
+	for i, pageID := range pageIDs {
+		pd := PageDetail{
+			Index: i,
+			ID:    pageID,
+		}
+		if entry := manifest.FindSuffix(pageID + ".rm"); entry != nil {
+			pd.HasStrokes = true
+			pd.StrokeBytes = entry.Size
+		}
+		details.PageList = append(details.PageList, pd)
+	}
 	return details, nil
 }
 
@@ -169,7 +178,9 @@ type SearchMatch struct {
 	Snippet   string
 }
 
-// SearchDocument searches text within a PDF-based document and returns matching page indices.
+// SearchDocument searches text within a PDF-based document and returns matching
+// page indices. A page whose text cannot be extracted fails the search rather
+// than dropping out of the results.
 func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, query SearchQuery) ([]SearchMatch, error) {
 	normalized, err := normalizeQuery(query)
 	if err != nil {
@@ -210,7 +221,7 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, 
 	for i := 0; i < doc.NumPage(); i++ {
 		text, err := doc.Text(i)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("searching PDF text: %w", err)
 		}
 
 		if snippet, ok := searchPageText(text, normalized); ok {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alexgorbatchev/go-rmscene"
@@ -35,6 +36,9 @@ type cliFixtures struct {
 	pdf      []byte // doc-1 background PDF with links
 	strokes  []byte // doc-1 page-1 .rm strokes
 	blankPDF []byte // blank-1 PDF: one page with an empty /Annots array, so no links
+	// unloadablePDF is the unloadable-1 PDF: its page tree counts two pages
+	// but holds one, so PDFium cannot load page 1; page 0 reads "needle here".
+	unloadablePDF []byte
 }
 
 func loadCLIFixtures(t *testing.T) cliFixtures {
@@ -44,6 +48,7 @@ func loadCLIFixtures(t *testing.T) cliFixtures {
 		"linked_pages.pdf":        &f.pdf,
 		"oct1_notes_strokes.rm":   &f.strokes,
 		"oct1_notes_template.pdf": &f.blankPDF,
+		"unloadable_page.pdf":     &f.unloadablePDF,
 	} {
 		data, err := os.ReadFile(filepath.Join("../../internal/doc/testdata", name))
 		if err != nil {
@@ -69,11 +74,19 @@ func writeCredentials(t *testing.T, content string) string {
 
 func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Server, string) {
 	t.Helper()
+	return setupCLITestEnvFailing(t, failedPath, 0)
+}
+
+// setupCLITestEnvFailing starts the mock cloud with every request to
+// failedPath after the first okRequests failing with HTTP 502.
+func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*httptest.Server, string) {
+	t.Helper()
 
 	fixtures := loadCLIFixtures(t)
 
+	var failedPathRequests atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == failedPath {
+		if r.URL.Path == failedPath && int(failedPathRequests.Add(1)) > okRequests {
 			http.Error(w, "injected cloud failure", http.StatusBadGateway)
 			return
 		}
@@ -85,7 +98,15 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\n"))
+			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\n"))
+		case "/sync/v3/files/unloadable-hash":
+			w.Write([]byte("unloadable-meta:unloadable-1.metadata:0:50\nunloadable-content:unloadable-1.content:0:50\nunloadable-pdf:unloadable-1.pdf:0:500\n"))
+		case "/sync/v3/files/unloadable-meta":
+			w.Write([]byte(`{"visibleName":"Unloadable Page PDF","type":"DocumentType"}`))
+		case "/sync/v3/files/unloadable-content":
+			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["unloadable-page-1","unloadable-page-2"]}`))
+		case "/sync/v3/files/unloadable-pdf":
+			w.Write(fixtures.unloadablePDF)
 		case "/sync/v3/files/blank-hash":
 			w.Write([]byte("blank-meta:blank-1.metadata:0:50\nblank-content:blank-1.content:0:50\nblank-pdf:blank-1.pdf:0:1000\n"))
 		case "/sync/v3/files/blank-meta":

@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 21:06
+  last_modified: 2026-10-06 21:33
   status: current
 ---
 
@@ -25,7 +25,7 @@ Commands accept only their listed options plus global flags; groups print help.
   subtract one from tablet/PDF page numbers.
 - Read the exit status (below) and stdout. Agent tables are TSV with headers;
   key-value output uses `key: value`; trees use indented `*` bullets.
-  Search and link results have no headers and emit no rows when empty.
+  Search/link results lack headers. A failed read exits nonzero, never as empty output.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
   bytes. Keep stderr separate from stdout; `--debug` logs go to stderr.
 - A failure writes its error message to stderr once, without trailing whitespace,
@@ -154,7 +154,7 @@ Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sor
 
 ## `remarkable doc inspect <id-or-name>`
 
-Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines.
+Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines; folders have 0 pages.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
