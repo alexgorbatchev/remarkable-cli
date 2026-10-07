@@ -125,6 +125,11 @@ func newRootCmd() *cobra.Command {
 				{Name: "<file.rm>", Description: "Path to reMarkable v6 binary stroke file"},
 			},
 		},
+		"remarkable skill reference cat": {
+			Args: []cobrahelptree.ArgSpec{
+				{Name: "<topic>", Description: "Reference topic listed by remarkable skill reference list"},
+			},
+		},
 	}
 
 	_ = cobrahelptree.SetupWithOptions(cmd, cobrahelptree.HelpOptions{

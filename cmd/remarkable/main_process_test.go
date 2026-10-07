@@ -238,6 +238,7 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				{"cat page", []string{"doc", "cat"}, []string{"doc-1", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
 				{"links page", []string{"doc", "links"}, []string{"doc-1", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
 				{"render page", []string{"doc", "render"}, []string{"doc-1", "-o", "out.png", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
+				{"reference topic", []string{"skill", "reference", "cat"}, []string{"no-such-topic"}, `invalid argument "no-such-topic" for "remarkable skill reference cat"`},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -275,6 +276,7 @@ func TestEveryRunnableCommandSilencesUsageOnceRunning(t *testing.T) {
 		{"12345678"},
 		{"00000000-0000-4000-8000-000000000001"},
 		{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"},
+		{referenceDocuments(t)[0].topic},
 	}
 	var ran []string
 	var visit func(*cobra.Command)
