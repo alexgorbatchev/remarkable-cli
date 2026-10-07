@@ -33,9 +33,9 @@ func linkFields(l doc.PageLink) []string {
 // non-ASCII space or a line separator, other than the bidirectional formatting
 // characters RFC 3987 section 4.1 forbids, encoding its UTF-8 bytes is the
 // IRI-to-URI mapping of RFC 3987 section 3.1, which locates the same resource.
-// The rest, those bidirectional formatting characters and characters ucschar
-// excludes, such as C1 controls and tag characters, cannot appear in a valid
-// IRI; they are encoded only to keep the output printable. Every other
+// The rest, those bidirectional formatting characters and characters outside
+// both ucschar and iprivate, such as C1 controls and tag characters, cannot
+// appear in a valid IRI; they are encoded only to keep the output printable. Every other
 // character, '%' and non-ASCII letters included, is kept, so a URI that needs
 // no encoding is returned unchanged. net/url has no function for this: its
 // escape functions also encode reserved characters such as '/' and '?', and
