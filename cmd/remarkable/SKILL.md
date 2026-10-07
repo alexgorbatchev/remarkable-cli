@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 20:33
+  last_modified: 2026-10-06 20:55
   status: current
 ---
 
@@ -16,7 +16,11 @@ Commands accept only their listed options plus global flags; groups print help.
 
 - Resolve documents with `doc list` and prefer IDs; quote names and queries with
   spaces. `<id-or-name>` accepts an ID, an exact case-sensitive display name, or a
-  slash-separated folder/document path; a name matching several items fails.
+  slash-separated folder/document path. A name or path segment matching several
+  live items fails, and stderr then tables them: `ID`, `FOLDER` (path from `/`),
+  `REACHABLE`. `no` means under a trashed, deleted, or missing folder; `FOLDER`
+  then holds only the live folders below it, or `-`. Pass the chosen document's
+  ID; for folder candidates, find it with `doc list --folder <ID>`.
 - Use 0-based page indexes for search, `--page`, mappings, and link targets;
   subtract one from tablet/PDF page numbers.
 - Read the exit status (below) and stdout. Agent tables are TSV with headers;
@@ -191,10 +195,8 @@ Stream content directly to stdout; fail when the required PDF or stroke data is 
 | `--page` | — | `int` | `0` | Select a 0-based page for `text`, `rm`, or `svg`; ignored for `pdf`, but negative values are rejected. |
 | `--format` | — | `string` | `svg` | Choose `pdf`, `text`, `rm`, or `svg`; case and surrounding whitespace are ignored. |
 
-- `pdf`: download the entire background PDF, without composited handwriting.
-- `text`: extract text from the selected PDF page.
-- `rm`: download raw binary strokes for the selected page.
-- `svg`: convert the selected page's strokes to SVG without the background.
+`pdf` is the entire background PDF without composited handwriting; `text` is the
+selected PDF page's text; `rm` its raw binary strokes; `svg` its strokes without background.
 
 ## `remarkable doc render <id-or-name>`
 
@@ -424,13 +426,11 @@ Local v6 `.rm` operations; cloud credentials are unnecessary.
 
 ## `remarkable stroke inspect <file.rm>`
 
-Print `File`, `File Size`, `Total Blocks`, `Lines`, `Points`, then tool/color counts
-as key-value lines.
+Print key-value lines `File`, `File Size`, `Total Blocks`, `Lines`, `Points`, tool/color counts.
 
 ## `remarkable stroke export <file.rm>`
 
-Convert to layered SVG: print raw stdout without a path; otherwise write the file
-and emit `OK:`.
+Convert to layered SVG on raw stdout, or write `--output` and emit `OK:`.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -441,7 +441,6 @@ and emit `OK:`.
 ## `remarkable help [command]`
 
 Print root help or a space-separated command path, e.g. `remarkable help doc render`.
-Use help to troubleshoot an installed version mismatch.
 
 ## `remarkable completion`
 

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"unicode"
@@ -183,18 +185,68 @@ func execute(root *cobra.Command) error {
 // cloud request's error ends with the server's reason exactly as sent, which
 // can end in a newline, so trailing whitespace is dropped before the line is
 // terminated. When credentials are missing or rejected, it appends how to pair
-// again.
+// again. When a name is ambiguous, the candidate list that ends the message is
+// replaced by a count, because reportError prints the candidates as a table.
 func errorReport(err error) string {
 	message := strings.TrimRightFunc(err.Error(), unicode.IsSpace)
 	if errors.Is(err, cloud.ErrUnauthorized) {
 		message += ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
 	}
+	var ambiguous *cloud.AmbiguousNameError
+	if errors.As(err, &ambiguous) {
+		// Every wrapper on the resolution paths adds its context before the
+		// ambiguity, so its text ends the message.
+		if prefix, ok := strings.CutSuffix(message, ambiguous.Error()); ok {
+			message = prefix + ambiguitySummary(ambiguous)
+		}
+	}
 	return message
+}
+
+// ambiguitySummary names the ambiguous name, or the path segment and its path,
+// and how many items it matches.
+func ambiguitySummary(e *cloud.AmbiguousNameError) string {
+	if e.Query == e.Name {
+		return fmt.Sprintf("name %q matches %d items", e.Name, len(e.Candidates))
+	}
+	return fmt.Sprintf("path segment %q of %q matches %d items", e.Name, e.Query, len(e.Candidates))
+}
+
+// candidateHeaders label the table of items an ambiguous name matches.
+var candidateHeaders = []string{"ID", "FOLDER", "REACHABLE"}
+
+// candidateRows lists the items an ambiguous name matches in the library's
+// order: reachable items first, then by folder path, then by ID. FOLDER is the
+// absolute folder path of a reachable item, "/" at the root. An unreachable
+// item, one inside a trashed, deleted, or missing folder, has no path from the
+// root, so FOLDER holds only the live folders below that break, or "-" when
+// there are none.
+func candidateRows(e *cloud.AmbiguousNameError) [][]string {
+	rows := make([][]string, 0, len(e.Candidates))
+	for _, c := range e.Candidates {
+		folder, reachable := "/"+c.FolderPath, "yes"
+		if c.Unreachable {
+			folder, reachable = cmp.Or(c.FolderPath, "-"), "no"
+		}
+		rows = append(rows, []string{c.Item.ID, folder, reachable})
+	}
+	return rows
+}
+
+// reportError writes main's report of err to w: the error line and, when a
+// name is ambiguous, the table of every item it matches, so the caller can
+// pass one item's ID.
+func reportError(w io.Writer, err error) {
+	agent.PrintStatus(w, "error", errorReport(err))
+	var ambiguous *cloud.AmbiguousNameError
+	if errors.As(err, &ambiguous) {
+		agent.PrintTable(w, candidateHeaders, candidateRows(ambiguous))
+	}
 }
 
 func main() {
 	if err := execute(newRootCmd()); err != nil {
-		agent.PrintStatus(os.Stderr, "error", errorReport(err))
+		reportError(os.Stderr, err)
 		os.Exit(exitStatus(err))
 	}
 }
