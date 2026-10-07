@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 23:14
+  last_modified: 2026-10-06 23:20
   status: current
 ---
 
@@ -36,9 +36,10 @@ Commands accept only their listed options plus global flags; groups print help.
   pairing-code length, non-UUID `doc import` or `doc settings transfer`
   arguments, identical settings UUIDs, blank `doc search` queries). Failures
   after a command starts, such as unreadable files or cloud errors, print no usage.
-- Obtain the user's code before pairing, which overwrites credentials. Keep tokens private;
-  cloud commands can renew and persist credentials. When the cloud rejects credentials or a
-  pairing code, or the credentials file holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
+- Obtain the user's code before pairing, which overwrites credentials.
+  Keep tokens private; cloud commands can renew and persist credentials.
+  When the cloud rejects credentials or a pairing code, or the credentials file
+  holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
 - Use `doc render` for PNG pages with backgrounds and strokes; `doc cat` SVG and
   `stroke export` hold strokes only. Text extraction and search read PDF text layers.
 - `doc sync` skips solely by path existence. Use `--force` after cloud or DPI
@@ -380,12 +381,11 @@ tag IDs, duplicate indexes/JSON keys, unsupported types, null arrays/viewport va
 deleted pages, disagreeing schemas, or uninitialized pages. UUID/local mapping
 validation precedes credentials.
 
-Preserve complete tag payloads, timestamps, unknown properties, and order; change
-only pageTag `pageId` to the mapped destination ID. Transfer document/mapped-page
-tags when destination tags are empty or identical; differing nonempty tags conflict.
-Retain unmapped destination tags. Numeric equality is exact throughout tags/viewport:
-`9`, `9.0`, `9e0` compare equal. Preserve source numeric tokens during writes and
-destination content bytes for identical transfers.
+Preserve complete tag payloads, timestamps, unknown properties, and order; change only
+pageTag `pageId` to the mapped destination ID. Transfer document/mapped-page tags when
+destination tags are empty or identical; differing nonempty tags conflict. Retain unmapped
+destination tags. Tag/viewport numbers compare by exact value: `9` = `9.0` = `9e0`. Writes
+keep source numeric tokens; identical transfers keep destination content bytes.
 
 Transfer these exact viewport fields: `zoomMode`, `viewBackgroundFilter`,
 `customZoomCenterX`, `customZoomCenterY`, `customZoomOrientation`, `customZoomPageHeight`,
