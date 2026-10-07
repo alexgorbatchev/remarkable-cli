@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 16:49
+  last_modified: 2026-10-06 17:12
   status: current
 ---
 
@@ -57,9 +57,9 @@ use brackets; required positional arguments use angle brackets.
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--config` | `-c` | `string` | `""` | Override credentials file path. |
-| `--cache-dir` | — | `string` | `""` | Override disk cache directory. |
+| `--cache-dir` | — | `string` | `""` | Override the content-addressed download cache: downloaded manifests and files (metadata, PDFs, strokes) named by hash in `blobs/`. It holds no credentials and is never pruned; deleting it only forces fresh downloads. |
 | `--debug` | — | `bool` | `false` | Log API requests and timing to stderr for cloud commands. |
-| `--no-cache` | — | `bool` | `false` | Disable blob and manifest disk caching for cloud commands. |
+| `--no-cache` | — | `bool` | `false` | Bypass the download cache: cloud commands neither read nor write it. |
 | `--help` | `-h` | `bool` | `false` | Print help; agent help starts with the instruction to read this skill. |
 | `--version` | `-v` | `bool` | `false` | Print only the raw version and a newline. |
 

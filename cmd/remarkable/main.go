@@ -29,7 +29,7 @@ func newRootCmd() *cobra.Command {
 
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (defaults to ~/.config/remarkable-cli/config.json or ~/.rmapi)")
-	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to template cache directory (defaults to ~/.cache/remarkable-cli)")
+	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to the cache of downloaded manifests, PDFs and strokes, safe to delete (defaults to ~/.cache/remarkable-cli)")
 	cmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print outgoing reMarkable API requests for diagnostics")
 	cmd.PersistentFlags().BoolVar(&noCacheFlag, "no-cache", false, "Disable local disk caching of blobs and manifests")
 

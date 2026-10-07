@@ -38,7 +38,11 @@ func ResolveConfigPath(override string) string {
 	return ".rmapi"
 }
 
-// ResolveCacheDir resolves the directory for caching stationery templates and temporary files.
+// ResolveCacheDir resolves the content-addressed download cache. Cloud commands
+// store the manifests and files they download through it (metadata, content,
+// PDFs and strokes) under blobs/, each named by its hash, and never prune it.
+// It holds no credentials, so deleting it only forces fresh downloads.
+// --no-cache bypasses the cache without resolving this directory.
 // Priority:
 // 1. Explicit override flag
 // 2. $REMARKABLE_CACHE_DIR env var

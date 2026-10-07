@@ -27,7 +27,7 @@
 
 # How it Really Works
 
-- Manifests, background PDFs, and vector stroke files are content-addressed and cached by their SHA-256 hash in `$XDG_CACHE_HOME/remarkable-cli/blobs/`, so repeat renders and unchanged pages hit local disk with zero network requests.
+- Cloud commands keep a content-addressed download cache in the directory chosen by `--cache-dir`, then `REMARKABLE_CACHE_DIR`, then `$XDG_CACHE_HOME/remarkable-cli` (default `~/.cache/remarkable-cli`). The manifests and files they download through it, including document metadata, background PDFs, and `.rm` stroke files, are stored under `blobs/` and named by their SHA-256 hash, so repeat runs read unchanged files from local disk instead of downloading them again. The cache holds no credentials and is never pruned, so it grows with every document the CLI reads; deleting it only forces fresh downloads, and `--no-cache` neither reads nor writes it.
 - Document lookups by UUID scan the root manifest in O(n) time and fetch the matching document's manifest and metadata. Name and path lookups load metadata across the library.
 - `doc list` orders items by parent folder path, then name, then ID. Names compare ignoring case under Unicode full case folding, as `--query` and `doc search` ignore case, so `alpha` precedes `Zed` and `Straße` precedes `Strasse 2`; names that fold alike, such as `Notes` and `notes`, fall back to their UTF-8 bytes, then IDs. A folder's items come before its subfolders' items, and folders sharing a name never interleave. Items whose parent chain never reaches the root, such as those inside a trashed folder, come last, ordered by parent ID. `doc tree` orders siblings the same way and omits those items, so repeated runs print identical output and `--limit` returns the same leading items.
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
@@ -73,7 +73,7 @@ Sample Output:
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--config <path>` | `-c` | `~/.config/remarkable-cli/config.json` | Path to credentials file (fallback: `~/.rmapi`) |
-| `--cache-dir <dir>` | | `~/.cache/remarkable-cli` | Path to content-addressed blob cache directory |
+| `--cache-dir <dir>` | | `~/.cache/remarkable-cli` | Path to the cache of downloaded manifests, PDFs, and strokes; safe to delete |
 | `--no-cache` | | `false` | Disable local disk caching and force network downloads |
 | `--debug` | | `false` | Log outgoing reMarkable API requests and latencies |
 | `--version` | `-v` | `false` | Print raw version string |
