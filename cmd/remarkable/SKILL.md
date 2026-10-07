@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 21:42
+  last_modified: 2026-10-06 22:01
   status: current
 ---
 
@@ -133,11 +133,10 @@ Document group; operational subcommands require cloud credentials.
 
 ## `remarkable doc list`
 
-List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; combine filters as needed. Rows sort by
-parent folder path (root first, then each folder by name and ID), name, then ID.
-Names compare case-folded (Unicode full folding), then by UTF-8 bytes; IDs by
-bytes; type is not a key. Items whose parent chain misses the root, such as
-inside a trashed folder, come last by parent ID.
+List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; filters combine. Rows sort by parent folder
+path (root first, then each folder by name and ID), name, then ID. Names compare
+case-folded (Unicode full folding), then by UTF-8 bytes; IDs by bytes; type is not a
+key. Items whose parent chain misses the root (e.g. in a trashed folder) come last by parent ID.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -178,9 +177,12 @@ whitespace runs collapsed to single spaces and trimmed from both ends.
 
 ## `remarkable doc links <id-or-name>`
 
-Extract PDF links as headerless `link-index<TAB>target-page-or--<TAB>URI`.
-Targets are 0-based; `-` means no internal target. A PDF page without links
-emits no rows and succeeds; a document without a background PDF fails.
+Extract PDF links as headerless `link-index<TAB>target<TAB>URI`. Internal links have a
+0-based target and URI `#page=<target+1>`; URI actions have `-` and the PDF's URI, with
+any catalog `/URI /Base` prepended as text when the URI lacks `:` or starts with it;
+other links have `-` and an empty URI. URIs percent-encode (`%0A`) only the bytes of
+spaces, invalid UTF-8, and characters failing Go's `unicode.IsPrint` (e.g. controls).
+A page without links emits no rows and succeeds; a document without a background PDF fails.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -188,16 +190,14 @@ emits no rows and succeeds; a document without a background PDF fails.
 
 ## `remarkable doc cat <id-or-name>`
 
-Stream content directly to stdout; fail when the required PDF or stroke data is absent.
+Stream to stdout; fail when the required PDF or stroke data is absent. `pdf` is the entire
+background PDF without composited handwriting; `text` is the selected PDF page's text;
+`rm` is that page's raw binary strokes; `svg` is its strokes as SVG without the background.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
 | `--page` | — | `int` | `0` | Select a 0-based page for `text`, `rm`, or `svg`; ignored for `pdf`, but negative values are rejected. |
 | `--format` | — | `string` | `svg` | Choose `pdf`, `text`, `rm`, or `svg`; case and surrounding whitespace are ignored. |
-
-`pdf` is the entire background PDF without composited handwriting; `text` is the
-selected PDF page's text; `rm` is the selected page's raw binary strokes; `svg` is
-that page's strokes as SVG without the background.
 
 ## `remarkable doc render <id-or-name>`
 

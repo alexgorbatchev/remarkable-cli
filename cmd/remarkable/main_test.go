@@ -39,6 +39,10 @@ type cliFixtures struct {
 	// unloadablePDF is the unloadable-1 PDF: its page tree counts two pages
 	// but holds one, so PDFium cannot load page 1; page 0 reads "needle here".
 	unloadablePDF []byte
+	// uriLinksPDF is the urilinks-1 PDF: page 0 links to page 1, to a URI
+	// that needs no escaping, through a launch action, and to a URI holding
+	// control characters, non-ASCII white space, and a byte that is not UTF-8.
+	uriLinksPDF []byte
 }
 
 func loadCLIFixtures(t *testing.T) cliFixtures {
@@ -49,6 +53,7 @@ func loadCLIFixtures(t *testing.T) cliFixtures {
 		"oct1_notes_strokes.rm":   &f.strokes,
 		"oct1_notes_template.pdf": &f.blankPDF,
 		"unloadable_page.pdf":     &f.unloadablePDF,
+		"uri_links.pdf":           &f.uriLinksPDF,
 	} {
 		data, err := os.ReadFile(filepath.Join("../../internal/doc/testdata", name))
 		if err != nil {
@@ -98,7 +103,15 @@ func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*h
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\nnocontent-hash:nocontent-1:0:100\n"))
+			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\nnocontent-hash:nocontent-1:0:100\nurilinks-hash:urilinks-1:0:100\n"))
+		case "/sync/v3/files/urilinks-hash":
+			w.Write([]byte("urilinks-meta:urilinks-1.metadata:0:50\nurilinks-content:urilinks-1.content:0:50\nurilinks-pdf:urilinks-1.pdf:0:1100\n"))
+		case "/sync/v3/files/urilinks-meta":
+			w.Write([]byte(`{"visibleName":"URI Links PDF","type":"DocumentType"}`))
+		case "/sync/v3/files/urilinks-content":
+			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["urilinks-page-1","urilinks-page-2"]}`))
+		case "/sync/v3/files/urilinks-pdf":
+			w.Write(fixtures.uriLinksPDF)
 		case "/sync/v3/files/nocontent-hash":
 			// A document that lists no content file.
 			w.Write([]byte("nocontent-meta:nocontent-1.metadata:0:50\n"))

@@ -1,10 +1,10 @@
-`remarkable` is a high-performance CLI gateway to reMarkable Cloud Sync v3, providing document inspection, full-text page search, internal link analysis, vector stroke extraction, and stationery compositing.
+`remarkable` is a high-performance CLI gateway to reMarkable Cloud Sync v3, providing document inspection, full-text page search, hyperlink inspection, vector stroke extraction, and stationery compositing.
 
 # What It Does
 
 - **Unified cloud gateway**: Interacts directly with reMarkable Cloud Sync v3 over Wi-Fi without USB cables or device modifications.
 - **Document hierarchy navigation**: Lists documents and collections, inspects page-level stroke presence, and renders virtual folder trees.
-- **Full-text search & link inspection**: Searches text inside PDF documents and resolves internal navigation hyperlinks on any page.
+- **Full-text search & link inspection**: Searches text inside PDF documents and lists the page targets and URIs of the hyperlinks on any page.
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
@@ -135,6 +135,27 @@ matches means every page was read.
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--page <n>` | | `0` | 0-based page index to extract hyperlinks from; negative values are rejected |
+
+Each link prints its 0-based index, its target page, and its URI, in the
+order the page lists its links: a table with `LINK #`, `TARGET PAGE`, and `URI`
+columns in human mode, and headerless `index<TAB>target<TAB>URI` lines with
+`AGENT=1`. A link to a page of the same document shows its 0-based target page
+and the URI `#page=N`, where `N` is the target plus one. A link that opens a URI
+shows `-` as its target and the URI the PDF stores; when the PDF declares a base
+URI (`/URI /Base`), that base is prepended as plain text to a URI that contains
+no `:` or starts with one. Any other link, such as one that opens another PDF or
+a local file, shows `-` and an empty URI: a blank cell in human mode, an empty
+last field with `AGENT=1`.
+
+A PDF stores a URI as raw bytes, which can hold tabs, line breaks, terminal
+escape sequences, or bytes that are not valid UTF-8. To keep each link on one
+row and keep such bytes away from the terminal, both modes print each byte of a
+space, of invalid UTF-8, or of a character outside Unicode's letter, mark,
+number, punctuation, and symbol categories (controls, invisible formatting marks
+such as direction overrides, and non-ASCII spaces) as `%XX` with uppercase hex
+digits: a tab prints as `%09`, a line feed as `%0A`. Every other character,
+including `%` and non-ASCII letters, prints unchanged, so a URI that needs no
+encoding appears exactly as the PDF stores it.
 
 A PDF page without links succeeds with no rows: human mode prints a
 `No hyperlinks found on page N` notice, and agent mode prints nothing. A page
