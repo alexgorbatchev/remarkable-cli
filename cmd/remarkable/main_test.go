@@ -30,22 +30,34 @@ func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 	return setupCLITestEnvWithFailure(t, "")
 }
 
+// cliFixtures holds the document files the mock cloud serves.
+type cliFixtures struct {
+	pdf      []byte // doc-1 background PDF with links
+	strokes  []byte // doc-1 page-1 .rm strokes
+	blankPDF []byte // blank-1 PDF: one page with an empty /Annots array, so no links
+}
+
+func loadCLIFixtures(t *testing.T) cliFixtures {
+	t.Helper()
+	var f cliFixtures
+	for name, dst := range map[string]*[]byte{
+		"linked_pages.pdf":        &f.pdf,
+		"oct1_notes_strokes.rm":   &f.strokes,
+		"oct1_notes_template.pdf": &f.blankPDF,
+	} {
+		data, err := os.ReadFile(filepath.Join("../../internal/doc/testdata", name))
+		if err != nil {
+			t.Fatalf("reading fixture %s: %v", name, err)
+		}
+		*dst = data
+	}
+	return f
+}
+
 func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Server, string) {
 	t.Helper()
 
-	pdfData, err := os.ReadFile("../../internal/doc/testdata/linked_pages.pdf")
-	if err != nil {
-		t.Fatalf("reading pdf fixture: %v", err)
-	}
-	rmData, err := os.ReadFile("../../internal/doc/testdata/oct1_notes_strokes.rm")
-	if err != nil {
-		t.Fatalf("reading rm fixture: %v", err)
-	}
-	// One page with an empty /Annots array: a PDF page without links.
-	blankPDFData, err := os.ReadFile("../../internal/doc/testdata/oct1_notes_template.pdf")
-	if err != nil {
-		t.Fatalf("reading unlinked pdf fixture: %v", err)
-	}
+	fixtures := loadCLIFixtures(t)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == failedPath {
@@ -68,7 +80,7 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/files/blank-content":
 			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["blank-page-1"]}`))
 		case "/sync/v3/files/blank-pdf":
-			w.Write(blankPDFData)
+			w.Write(fixtures.blankPDF)
 		case "/sync/v3/files/notebook-hash":
 			w.Write([]byte("notebook-meta:notebook-1.metadata:0:50\nnotebook-content:notebook-1.content:0:50\n"))
 		case "/sync/v3/files/notebook-meta":
@@ -82,9 +94,9 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		case "/sync/v3/files/content-hash":
 			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["page-1"]}`))
 		case "/sync/v3/files/pdf-hash":
-			w.Write(pdfData)
+			w.Write(fixtures.pdf)
 		case "/sync/v3/files/stroke-hash":
-			w.Write(rmData)
+			w.Write(fixtures.strokes)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

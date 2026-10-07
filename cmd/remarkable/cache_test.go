@@ -13,20 +13,13 @@ import (
 
 // TestCacheDirHoldsDownloadedBlobs guards the cache contract that the
 // --cache-dir help, README and skill describe: cloud commands store every
-// downloaded manifest and document file under blobs/<hash> and nothing else,
-// reuse those files on later runs, refill a deleted cache, and --no-cache
-// neither reads nor writes the cache.
+// manifest and file they download through the cache under blobs/<hash> and
+// nothing else, reuse those files on later runs, refill a deleted cache, and
+// --no-cache neither reads nor writes the cache.
 func TestCacheDirHoldsDownloadedBlobs(t *testing.T) {
-	pdfData, err := os.ReadFile("../../internal/doc/testdata/linked_pages.pdf")
-	if err != nil {
-		t.Fatalf("reading pdf fixture: %v", err)
-	}
-	rmData, err := os.ReadFile("../../internal/doc/testdata/oct1_notes_strokes.rm")
-	if err != nil {
-		t.Fatalf("reading rm fixture: %v", err)
-	}
+	fixtures := loadCLIFixtures(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
-	// catPage streams page 0 of doc-1 as the background PDF or the raw strokes.
+	// catPage streams doc-1's whole background PDF or the raw strokes of page 0.
 	catPage := func(format string, flags ...string) error {
 		args := append([]string{"doc", "cat", "doc-1", "--page", "0", "--format", format}, flags...)
 		if out, err := executeRoot(args...); err != nil {
@@ -62,13 +55,13 @@ func TestCacheDirHoldsDownloadedBlobs(t *testing.T) {
 			}
 			names = append(names, entry.Name())
 		}
-		// Every downloaded manifest, metadata, content, PDF and stroke file is
+		// Every manifest, metadata, content, PDF and stroke file doc cat downloaded is
 		// cached under its cloud hash.
 		want := []string{"content-hash", "doc-hash", "meta-hash", "pdf-hash", "root-hash", "stroke-hash"}
 		if !slices.Equal(names, want) {
 			t.Fatalf("blob cache entries = %v, want %v", names, want)
 		}
-		for hash, data := range map[string][]byte{"pdf-hash": pdfData, "stroke-hash": rmData} {
+		for hash, data := range map[string][]byte{"pdf-hash": fixtures.pdf, "stroke-hash": fixtures.strokes} {
 			got, err := os.ReadFile(filepath.Join(cacheDir, "blobs", hash))
 			if err != nil || !bytes.Equal(got, data) {
 				t.Fatalf("cached %s differs from the downloaded bytes (err %v)", hash, err)
