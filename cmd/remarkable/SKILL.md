@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 21:33
+  last_modified: 2026-10-06 21:42
   status: current
 ---
 
@@ -41,9 +41,8 @@ Commands accept only their listed options plus global flags; groups print help.
   Keep tokens private; cloud commands can renew and persist credentials.
   When the cloud rejects credentials or a pairing code, or the credentials file
   holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
-- Use `doc render` for PNG pages with backgrounds and strokes. `doc cat` SVG
-  and `stroke export` contain strokes only. PDF text extraction and search
-  operate on PDF text layers.
+- Use `doc render` for PNG pages with backgrounds and strokes; `doc cat` SVG and
+  `stroke export` hold strokes only. Text extraction and search read PDF text layers.
 - `doc sync` skips solely by path existence. Use `--force` after cloud or DPI
   changes; `skipped` establishes existence, not freshness.
 - If an installed binary rejects a listed command or option, check its
@@ -154,7 +153,8 @@ Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sor
 
 ## `remarkable doc inspect <id-or-name>`
 
-Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines; folders have 0 pages.
+Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines. `Pages` counts
+native pages; folders and uploaded PDFs not yet opened on the tablet report 0.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

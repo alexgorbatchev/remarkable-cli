@@ -99,7 +99,9 @@ Sample Output:
 
 A document whose page list, or with `--pages` whose list of files, cannot be
 read fails with the cause, so a `Pages` count of 0 and a page marked `empty`
-describe a document that was read. A folder has no pages and reports 0.
+describe a document that was read. `Pages` counts the document's native pages:
+folders, and PDFs uploaded with `doc upload` that have not yet been opened on
+the tablet, report 0.
 
 ### `remarkable doc search`
 

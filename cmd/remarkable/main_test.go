@@ -98,7 +98,12 @@ func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*h
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\n"))
+			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\nnocontent-hash:nocontent-1:0:100\n"))
+		case "/sync/v3/files/nocontent-hash":
+			// A document that lists no content file.
+			w.Write([]byte("nocontent-meta:nocontent-1.metadata:0:50\n"))
+		case "/sync/v3/files/nocontent-meta":
+			w.Write([]byte(`{"visibleName":"No Content Document","type":"DocumentType"}`))
 		case "/sync/v3/files/unloadable-hash":
 			w.Write([]byte("unloadable-meta:unloadable-1.metadata:0:50\nunloadable-content:unloadable-1.content:0:50\nunloadable-pdf:unloadable-1.pdf:0:500\n"))
 		case "/sync/v3/files/unloadable-meta":

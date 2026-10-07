@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -241,8 +240,6 @@ type PageLink struct {
 	TargetPage int
 	URI        string
 }
-
-var pageLinkRe = regexp.MustCompile(`#page=(\d+)`)
 
 // GetLinks extracts all hyperlinks from a specific document page.
 func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int) ([]PageLink, error) {
