@@ -149,14 +149,14 @@ last field with `AGENT=1`.
 
 A PDF stores a URI as raw bytes, which can hold tabs, line breaks, terminal
 escape sequences, or bytes that are not valid UTF-8. To keep each link on one
-row and keep such bytes away from the terminal, both modes print each byte of a
-space, of invalid UTF-8, or of a character outside the letter, mark, number,
-punctuation, and symbol categories, as classified by the Unicode version Go
-ships (controls, invisible formatting marks such as direction overrides, and
-non-ASCII spaces) as `%XX` with uppercase hex
-digits: a tab prints as `%09`, a line feed as `%0A`. Every other character,
-including `%` and non-ASCII letters, prints unchanged, so a URI that needs no
-encoding appears exactly as the PDF stores it.
+row and keep such bytes away from the terminal, both modes print as `%XX`, with
+uppercase hex digits, each byte of a space, of invalid UTF-8, or of a character
+outside the letter, mark, number, punctuation, and symbol categories (such as
+controls, invisible formatting marks like direction overrides, and non-ASCII
+spaces), as classified by the Unicode version Go ships: a tab prints as `%09`,
+a line feed as `%0A`. Every other character, including `%` and non-ASCII
+letters, prints unchanged, so a URI that needs no encoding appears exactly as
+the PDF stores it.
 
 A PDF page without links succeeds with no rows: human mode prints a
 `No hyperlinks found on page N` notice, and agent mode prints nothing. A page

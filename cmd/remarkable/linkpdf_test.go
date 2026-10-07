@@ -62,7 +62,7 @@ func buildLinkPDF(pages []pdfPage) []byte {
 		}
 		contents := ""
 		if page.content != "" {
-			contents = " /Contents " + add(fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(page.content), page.content))
+			contents = " /Contents " + add(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(page.content), page.content))
 		}
 		objects[firstPageObject-1+i] = fmt.Sprintf(
 			"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 %d 0 R >> >>%s /Annots [%s] >>",
