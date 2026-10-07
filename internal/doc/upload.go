@@ -98,7 +98,7 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	if err != nil {
 		return nil, err
 	}
-	id, err := uploadUUID()
+	id, err := uploadUUID("document")
 	if err != nil {
 		return nil, err
 	}
@@ -130,10 +130,11 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	return evidence, errors.Join(createErr, persistErr)
 }
 
-func uploadUUID() (string, error) {
+// uploadUUID returns a random version 4 UUID; purpose names it in errors.
+func uploadUUID(purpose string) (string, error) {
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {
-		return "", fmt.Errorf("generating document UUID: %w", err)
+		return "", fmt.Errorf("generating %s UUID: %w", purpose, err)
 	}
 	id[6] = (id[6] & 0x0f) | 0x40
 	id[8] = (id[8] & 0x3f) | 0x80

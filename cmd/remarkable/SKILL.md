@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-07 09:44
+  last_modified: 2026-10-07 09:59
   status: current
 ---
 
@@ -93,7 +93,7 @@ command below. `remarkable skill reference list` lists every topic with its comm
 | `AGENT=1 remarkable skill reference cat pages` | `doc cat`, `doc render`, `doc sync`: PDF, text, `.rm`, SVG, and PNG page output. |
 | `AGENT=1 remarkable skill reference cat settings` | `doc settings`, `doc settings transfer`: page tag and viewport transfer. |
 | `AGENT=1 remarkable skill reference cat strokes` | `stroke`, `stroke inspect`, `stroke export`: local `.rm` files. |
-| `AGENT=1 remarkable skill reference cat upload` | `doc upload`, `doc upload-check`: new PDF documents and their recovery evidence. |
+| `AGENT=1 remarkable skill reference cat upload` | `doc upload`, `doc upload-check`: new PDF documents, optional native page initialization, and their recovery evidence. |
 
 ## `remarkable skill`
 

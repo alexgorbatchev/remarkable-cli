@@ -142,7 +142,7 @@ if (import.meta.main) {
   const cli = new Command().name("native-import-check")
     .description("Verify a live native import into an initialized upload and print the evidence for an agent-led tablet check")
     .argument("<source-uuid>", "Source PDF document UUID; its PDF is uploaded as a new disposable destination")
-    .requiredOption("--page <index...>", "0-based source page indexes to import; at least one contains pen strokes")
+    .requiredOption("--page <index...>", "Two or more 0-based source page indexes to import; at least one contains pen strokes")
     .option("--binary <path>", "remarkable executable", join(projectDir, "bin/remarkable"))
     .option("--config <path>", "Credentials file passed to remarkable")
     .option("--output-dir <path>", "Parent for a unique evidence directory", join(projectDir, ".tmp/native-import-check"))

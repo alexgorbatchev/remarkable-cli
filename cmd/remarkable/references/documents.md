@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-07 09:59
   status: current
 ---
 
@@ -31,7 +31,8 @@ Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sor
 ## `remarkable doc inspect <id-or-name>`
 
 Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines. `Pages` counts
-native pages; folders and uploaded PDFs not yet opened on the tablet report 0.
+native pages; folders, and PDFs uploaded without `--initialize-pages` and not yet
+opened on the tablet, report 0.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

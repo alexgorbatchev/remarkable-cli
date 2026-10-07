@@ -30,8 +30,11 @@ const (
 // initializes a PDF: runs of two-letter values from "ba", each later run behind
 // a longer prefix and introduced by one marker value. PDFs of 523, 589, 731,
 // and 816 pages initialized by the tablet and the Android app all use leading
-// values of this one sequence; values past the longest observed PDF are
-// unknown, so longer PDFs are rejected rather than extrapolated.
+// values of this one sequence (testdata/tablet_page_order.txt). The markers,
+// prefixes, and counts are fitted to that observed data, not derived from a
+// known rule: the third run's count stops at the last observed value, and the
+// tablet's values beyond it are unknown. Extend a run or add one only with new
+// tablet-produced evidence; longer PDFs are rejected rather than extrapolated.
 var tabletPageOrder = []struct {
 	marker string
 	prefix string
@@ -137,13 +140,13 @@ func newNativePageIDs(pages int) (pageIDs []string, author string, err error) {
 	}
 	pageIDs = make([]string, 0, pages)
 	for range pages {
-		id, err := uploadUUID()
+		id, err := uploadUUID("native page")
 		if err != nil {
 			return nil, "", err
 		}
 		pageIDs = append(pageIDs, id)
 	}
-	author, err = uploadUUID()
+	author, err = uploadUUID("native page author")
 	if err != nil {
 		return nil, "", err
 	}

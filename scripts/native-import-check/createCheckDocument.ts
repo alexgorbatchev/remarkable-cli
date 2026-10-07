@@ -14,7 +14,10 @@ function object(value: unknown, name: string): JsonObject {
   return Object.fromEntries(Object.entries(value));
 }
 
+// pageIndexes requires at least two pages so the check covers handwriting
+// imported on several pages of a multi-page destination.
 function pageIndexes(values: string[]): number[] {
+  if (values.length < 2) throw new Error("--page requires at least two 0-based page indexes");
   const indexes = values.map((value) => {
     if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new Error("--page requires 0-based page indexes");
     return Number(value);
