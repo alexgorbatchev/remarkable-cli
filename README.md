@@ -355,12 +355,12 @@ Set both width and height to positive values to override the renderer's canvas d
 | :--- | :--- |
 | `0` | Success |
 | `1` | An invocation error such as an unknown flag, a name that matches several documents or folders (pass the UUID instead), or any failure no other status covers |
-| `2` | A document or folder named by an argument, the document recorded in `doc upload-check` evidence, or a local file or directory does not exist, or `--page` is beyond the document |
-| `3` | Credentials are missing, hold no token, or were rejected by the cloud (HTTP 401 or 403); pair again with `remarkable auth pair <code>` |
-| `4` | The cloud could not be reached, timed out, or failed with a server error (HTTP 5xx, 408, or 429); retry later |
-| `5` | `doc import`, `doc upload`, or `doc settings transfer` failed after sending its root commit (`commit-unknown` or `committed`), so the cloud may already hold the change; inspect the documents, or run `doc upload-check`, before retrying |
+| `3` | A document or folder named by an argument, the document recorded in `doc upload-check` evidence, or a local file or directory does not exist, or `--page` is beyond the document |
+| `4` | Credentials are missing, hold no token, or were rejected by the cloud (HTTP 401 or 403); pair again with `remarkable auth pair <code>` |
+| `5` | The cloud could not be reached, timed out, or failed with a server error (HTTP 5xx, 408, or 429); retry later |
+| `6` | `doc import`, `doc upload`, or `doc settings transfer` failed after sending its root commit (`commit-unknown` or `committed`), so the cloud may already hold the change; inspect the documents, or run `doc upload-check`, before retrying |
 
-When one failure has several causes, status 5 takes precedence, then 3, 4, and 2. A write that fails before its root commit, reported as `staged`, exits with the status of its cause.
+The CLI never exits with status 2, which the Go runtime reserves for a crash (an unrecovered panic). When one failure has several causes, status 6 takes precedence, then 4, 5, and 3. A write that fails before its root commit, reported as `staged`, exits with the status of its cause.
 
 # License
 

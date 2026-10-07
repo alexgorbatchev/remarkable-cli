@@ -15,22 +15,24 @@ import (
 )
 
 // Exit statuses main reports for a failed command. SKILL.md and README.md
-// document this table; keep them in sync.
+// document this table; keep them in sync. Status 2 is never assigned: the Go
+// runtime exits with 2 on an unrecovered panic, so it must not carry a domain
+// meaning.
 const (
 	// exitFailure covers invocation errors and every failure no other status
 	// classifies, including a name that matches several items.
 	exitFailure = 1
 	// exitMissing reports a document or item, page, or local file or directory
 	// that does not exist.
-	exitMissing = 2
+	exitMissing = 3
 	// exitUnauthorized reports missing or rejected credentials.
-	exitUnauthorized = 3
+	exitUnauthorized = 4
 	// exitCloudUnavailable reports a cloud that could not be reached, timed out,
 	// or failed with a server error.
-	exitCloudUnavailable = 4
+	exitCloudUnavailable = 5
 	// exitCommitAttempted reports a cloud write that failed after sending its
 	// root commit, so the cloud may already hold the change.
-	exitCommitAttempted = 5
+	exitCommitAttempted = 6
 )
 
 // exitStatus classifies err, which a command returned. When err has several

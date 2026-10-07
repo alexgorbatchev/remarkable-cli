@@ -144,13 +144,13 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 				trimmed string
 				status  int
 			}{
-				{"local file", []string{"stroke", "inspect", missingStroke}, nil, "", exitMissing},
+				{"local file", []string{"stroke", "inspect", missingStroke}, nil, "", 3},
 				{
 					"cloud reason ending in a newline",
 					[]string{"doc", "render", "doc-1", "--no-cache", "-o", png},
 					cloudEnv,
 					`resolving document "doc-1": get root state: get root state failed with status 502: injected cloud failure`,
-					exitCloudUnavailable,
+					5,
 				},
 			}
 			for _, tc := range cases {
@@ -193,8 +193,8 @@ func TestDocLinksWithoutPDF(t *testing.T) {
 				env:  map[string]string{"REMARKABLE_HOST": ts.URL, "REMARKABLE_CONFIG": configPath},
 			})
 			want := mode.prefix + `document "notebook-1" has no background PDF` + "\n"
-			if got.exitCode != exitFailure {
-				t.Errorf("exit status = %d, want %d", got.exitCode, exitFailure)
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 			}
 			if got.stdout != "" {
 				t.Errorf("stdout = %q, want empty", got.stdout)
@@ -243,8 +243,8 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					want := usageScreen(t, tc.command...) + "\n" + mode.prefix + tc.message + "\n"
 					got := runMainProcess(t, mainRun{args: append(tc.command, tc.args...)})
-					if got.exitCode != exitFailure {
-						t.Errorf("exit status = %d, want %d", got.exitCode, exitFailure)
+					if got.exitCode != 1 {
+						t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 					}
 					if got.stdout != "" {
 						t.Errorf("stdout = %q, want empty", got.stdout)
@@ -320,8 +320,8 @@ func TestMainReportsGeneratedCommandFailureWithoutUsage(t *testing.T) {
 			// completion command's RunE.
 			got := runMainProcess(t, mainRun{args: []string{"completion", "bash"}, stdout: readOnly})
 			want := mode.prefix + "write /dev/stdout: bad file descriptor\n"
-			if got.exitCode != exitFailure {
-				t.Errorf("exit status = %d, want %d", got.exitCode, exitFailure)
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 			}
 			if got.stderr != want {
 				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
@@ -350,8 +350,8 @@ func TestMainProcessIgnoresInheritedCredentials(t *testing.T) {
 	defer ts.Close()
 	got := runMainProcess(t, mainRun{args: []string{"doc", "list"}})
 	want := "ERR: credentials file not found at " + got.env["REMARKABLE_CONFIG"] + ": run 'remarkable auth pair <code>' first\n"
-	if got.exitCode != exitUnauthorized {
-		t.Errorf("exit status = %d, want %d", got.exitCode, exitUnauthorized)
+	if got.exitCode != 4 {
+		t.Errorf("exit status = %d, want %d", got.exitCode, 4)
 	}
 	if got.stdout != "" {
 		t.Errorf("stdout = %q, want empty", got.stdout)
@@ -428,8 +428,8 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 					if tc.stdout != "" {
 						wantStdout = mode.prefix + tc.stdout + "\n"
 					}
-					if got.exitCode != exitUnauthorized {
-						t.Errorf("exit status = %d, want %d", got.exitCode, exitUnauthorized)
+					if got.exitCode != 4 {
+						t.Errorf("exit status = %d, want %d", got.exitCode, 4)
 					}
 					if after := readCredentials(t, config); after != tc.credentials {
 						t.Errorf("credentials file %s = %q, want %q", config, after, tc.credentials)
@@ -469,8 +469,8 @@ func TestMainReportsUnknownCommandOnce(t *testing.T) {
 			t.Setenv("AGENT", mode.agent)
 			got := runMainProcess(t, mainRun{args: []string{"bogus"}})
 			want := mode.prefix + "unknown command \"bogus\" for \"remarkable\"\n"
-			if got.exitCode != exitFailure {
-				t.Errorf("exit status = %d, want %d", got.exitCode, exitFailure)
+			if got.exitCode != 1 {
+				t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 			}
 			if got.stderr != want {
 				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)

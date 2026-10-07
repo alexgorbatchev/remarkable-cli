@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 19:31
+  last_modified: 2026-10-06 19:47
   status: current
 ---
 
@@ -51,12 +51,13 @@ Commands accept only their listed options plus global flags; groups print help.
 | --- | --- |
 | `0` | Success. |
 | `1` | Invocation error, a name matching several items (pass an ID), or any other failure. |
-| `2` | A document or item named by an argument or by `upload-check` evidence, or a local file or directory, does not exist, or `--page` exceeds the document. |
-| `3` | Credentials are missing, hold no token, or were rejected (HTTP 401/403): pair again. |
-| `4` | The cloud is unreachable, timed out, or failed (HTTP 5xx/408/429): retry later. |
-| `5` | A write sent its root commit (`commit-unknown`, `committed`): inspect fresh evidence before recovery or further creation. |
+| `3` | A document or item named by an argument or by `upload-check` evidence, or a local file or directory, does not exist, or `--page` exceeds the document. |
+| `4` | Credentials are missing, hold no token, or were rejected (HTTP 401/403): pair again. |
+| `5` | The cloud is unreachable, timed out, or failed (HTTP 5xx/408/429): retry later. |
+| `6` | A write sent its root commit (`commit-unknown`, `committed`): inspect fresh evidence before recovery or further creation. |
 
-With several causes: 5, then 3, 4, 2. `staged` and other write failures exit by cause.
+With several causes: 6, then 4, 5, 3. `staged` and other write failures exit by cause.
+Status 2 is never used: the Go runtime exits 2 on a crash (unrecovered panic).
 
 ## `remarkable`
 
@@ -79,10 +80,9 @@ then `~/.rmapi`; without that XDG file or an override, pairing writes `~/.rmapi`
 A `.json` filename keeps the credential format: pairing writes `devicetoken: ...` text.
 
 Resolve the cache in this order: `--cache-dir`, `REMARKABLE_CACHE_DIR`,
-`$XDG_CACHE_HOME/remarkable-cli` (default XDG base: `~/.cache`). Set
-`REMARKABLE_HOST` only when directing cloud and authentication requests
-to an alternate endpoint. Set `AGENT=1` for agent output; `true` and `yes`
-are also accepted, with case and surrounding whitespace ignored.
+`$XDG_CACHE_HOME/remarkable-cli` (default XDG base: `~/.cache`). Set `REMARKABLE_HOST`
+only to direct cloud and authentication requests to an alternate endpoint.
+`AGENT` also accepts `true` and `yes`, ignoring case and surrounding whitespace.
 
 HTTP policy is identical in normal/debug modes: 90 seconds per attempt for
 headers and complete body, bounded by the command context. Hashed blob GET and

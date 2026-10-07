@@ -67,19 +67,19 @@ func TestMainExitStatus(t *testing.T) {
 		// state is the progress state a cloud write must report on stdout.
 		state string
 	}{
-		{"invalid flag", []string{"stroke", "inspect", "--bogus", "x.rm"}, nil, exitFailure, ""},
-		{"missing local file", []string{"stroke", "inspect", filepath.Join(t.TempDir(), "missing.rm")}, nil, exitMissing, ""},
-		{"missing document", []string{"doc", "render", "no such doc", "--no-cache", "-o", png}, docEnv, exitMissing, ""},
-		{"page beyond native pages", []string{"doc", "render", "doc-1", "--page", "5", "--no-cache", "-o", png}, docEnv, exitMissing, ""},
-		{"missing credentials", []string{"doc", "list", "--no-cache"}, nil, exitUnauthorized, ""},
-		{"rejected credentials", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": rejecting.URL, "REMARKABLE_CONFIG": paired}, exitUnauthorized, ""},
-		{"server error", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": unavailable.URL, "REMARKABLE_CONFIG": paired}, exitCloudUnavailable, ""},
-		{"closed port", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_CONFIG": paired}, exitCloudUnavailable, ""},
-		{"dropped connection", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": dropping.URL, "REMARKABLE_CONFIG": paired}, exitCloudUnavailable, ""},
-		{"malformed cloud address", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": "http://bad host", "REMARKABLE_CONFIG": paired}, exitFailure, ""},
-		{"staged write exits by cause", importArgs(staged), importEnv(staged), exitCloudUnavailable, "staged"},
-		{"import sent root commit", importArgs(commitUnknown), importEnv(commitUnknown), exitCommitAttempted, "commit-unknown"},
-		{"settings transfer sent root commit", settingsArgs, settingsEnv, exitCommitAttempted, "commit-unknown"},
+		{"invalid flag", []string{"stroke", "inspect", "--bogus", "x.rm"}, nil, 1, ""},
+		{"missing local file", []string{"stroke", "inspect", filepath.Join(t.TempDir(), "missing.rm")}, nil, 3, ""},
+		{"missing document", []string{"doc", "render", "no such doc", "--no-cache", "-o", png}, docEnv, 3, ""},
+		{"page beyond native pages", []string{"doc", "render", "doc-1", "--page", "5", "--no-cache", "-o", png}, docEnv, 3, ""},
+		{"missing credentials", []string{"doc", "list", "--no-cache"}, nil, 4, ""},
+		{"rejected credentials", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": rejecting.URL, "REMARKABLE_CONFIG": paired}, 4, ""},
+		{"server error", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": unavailable.URL, "REMARKABLE_CONFIG": paired}, 5, ""},
+		{"closed port", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_CONFIG": paired}, 5, ""},
+		{"dropped connection", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": dropping.URL, "REMARKABLE_CONFIG": paired}, 5, ""},
+		{"malformed cloud address", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": "http://bad host", "REMARKABLE_CONFIG": paired}, 1, ""},
+		{"staged write exits by cause", importArgs(staged), importEnv(staged), 5, "staged"},
+		{"import sent root commit", importArgs(commitUnknown), importEnv(commitUnknown), 6, "commit-unknown"},
+		{"settings transfer sent root commit", settingsArgs, settingsEnv, 6, "commit-unknown"},
 	}
 	for _, mode := range errorModes {
 		t.Run(mode.agent, func(t *testing.T) {
@@ -114,8 +114,8 @@ func TestPDFCommandExitStatus(t *testing.T) {
 		ts, _ := setupCLITestEnv(t)
 		defer ts.Close()
 		err := inProcessError(t, "doc", "links", "doc-1", "--page", "99", "--no-cache")
-		if got := exitStatus(err); got != exitMissing {
-			t.Errorf("exitStatus(%v) = %d, want %d", err, got, exitMissing)
+		if got := exitStatus(err); got != 3 {
+			t.Errorf("exitStatus(%v) = %d, want %d", err, got, 3)
 		}
 	})
 	t.Run("upload sent root commit", func(t *testing.T) {
@@ -125,8 +125,8 @@ func TestPDFCommandExitStatus(t *testing.T) {
 		t.Setenv("REMARKABLE_CONFIG", fixture.credentials)
 		evidence := filepath.Join(t.TempDir(), "upload.json")
 		out, err := executeRoot("doc", "upload", "../../internal/doc/testdata/linked_pages.pdf", "--title", "Planner", "--evidence", evidence, "--no-cache")
-		if got := exitStatus(err); got != exitCommitAttempted {
-			t.Errorf("exitStatus(%v) = %d, want %d", err, got, exitCommitAttempted)
+		if got := exitStatus(err); got != 6 {
+			t.Errorf("exitStatus(%v) = %d, want %d", err, got, 6)
 		}
 		if !strings.Contains(out, "commit-unknown") {
 			t.Errorf("output = %q, want progress state commit-unknown", out)
@@ -173,29 +173,29 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 		err  error
 		want int
 	}{
-		{"unclassified failure", errors.New("document \"x\" has no background PDF"), exitFailure},
-		{"ambiguous name", fmt.Errorf("resolving document %q: %w", "Plan", &cloud.AmbiguousNameError{Query: "Plan", Name: "Plan"}), exitFailure},
-		{"generation conflict", &cloud.StatusError{Op: "commit root", StatusCode: http.StatusConflict, Err: cloud.ErrGenerationConflict}, exitFailure},
-		{"other rejected request", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusNotFound}, exitFailure},
-		{"invalid cloud address", fmt.Errorf("get root state: %w", parseErr), exitFailure},
-		{"missing item", fmt.Errorf("resolving document %q: %w", "x", fmt.Errorf("%w: name x", cloud.ErrItemNotFound)), exitMissing},
-		{"missing blob", &cloud.StatusError{Op: "get blob", StatusCode: http.StatusNotFound, Err: cloud.ErrItemNotFound}, exitMissing},
-		{"native page beyond document", fmt.Errorf("%w: 9 (document has 2 pages)", doc.ErrPageOutOfBounds), exitMissing},
-		{"PDF page beyond document", fmt.Errorf("%w: page index 9", render.ErrPageOutOfBounds), exitMissing},
-		{"missing local file", missingFile, exitMissing},
-		{"missing credentials file", fmt.Errorf("%w at /x: run 'remarkable auth pair <code>' first", errCredentialsNotFound), exitUnauthorized},
-		{"rejected credentials", fmt.Errorf("get root state: %w", rejected), exitUnauthorized},
-		{"server error", fmt.Errorf("get root state: %w", unavailable), exitCloudUnavailable},
-		{"request timeout status", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusRequestTimeout}, exitCloudUnavailable},
-		{"rate limited", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusTooManyRequests}, exitCloudUnavailable},
-		{"operation deadline", fmt.Errorf("get root state: %w", context.DeadlineExceeded), exitCloudUnavailable},
-		{"TLS handshake timeout", tlsHandshakeTimeout(t), exitCloudUnavailable},
-		{"connection closed early", urlError(io.ErrUnexpectedEOF), exitCloudUnavailable},
-		{"renewal transport failure", fmt.Errorf("auth renewal failed after 401: %w", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}), exitCloudUnavailable},
-		{"credentials outrank cloud failure", errors.Join(rejected, unavailable), exitUnauthorized},
-		{"cloud failure outranks missing input", errors.Join(missingFile, unavailable), exitCloudUnavailable},
-		{"sent root commit outranks its cause", afterCommit(cloud.UpdateCommitUnknown, unavailable), exitCommitAttempted},
-		{"unverified commit outranks its cause", afterCommit(cloud.UpdateCommitted, rejected), exitCommitAttempted},
+		{"unclassified failure", errors.New("document \"x\" has no background PDF"), 1},
+		{"ambiguous name", fmt.Errorf("resolving document %q: %w", "Plan", &cloud.AmbiguousNameError{Query: "Plan", Name: "Plan"}), 1},
+		{"generation conflict", &cloud.StatusError{Op: "commit root", StatusCode: http.StatusConflict, Err: cloud.ErrGenerationConflict}, 1},
+		{"other rejected request", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusNotFound}, 1},
+		{"invalid cloud address", fmt.Errorf("get root state: %w", parseErr), 1},
+		{"missing item", fmt.Errorf("resolving document %q: %w", "x", fmt.Errorf("%w: name x", cloud.ErrItemNotFound)), 3},
+		{"missing blob", &cloud.StatusError{Op: "get blob", StatusCode: http.StatusNotFound, Err: cloud.ErrItemNotFound}, 3},
+		{"native page beyond document", fmt.Errorf("%w: 9 (document has 2 pages)", doc.ErrPageOutOfBounds), 3},
+		{"PDF page beyond document", fmt.Errorf("%w: page index 9", render.ErrPageOutOfBounds), 3},
+		{"missing local file", missingFile, 3},
+		{"missing credentials file", fmt.Errorf("%w at /x: run 'remarkable auth pair <code>' first", errCredentialsNotFound), 4},
+		{"rejected credentials", fmt.Errorf("get root state: %w", rejected), 4},
+		{"server error", fmt.Errorf("get root state: %w", unavailable), 5},
+		{"request timeout status", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusRequestTimeout}, 5},
+		{"rate limited", &cloud.StatusError{Op: "get root state", StatusCode: http.StatusTooManyRequests}, 5},
+		{"operation deadline", fmt.Errorf("get root state: %w", context.DeadlineExceeded), 5},
+		{"TLS handshake timeout", tlsHandshakeTimeout(t), 5},
+		{"connection closed early", urlError(io.ErrUnexpectedEOF), 5},
+		{"renewal transport failure", fmt.Errorf("auth renewal failed after 401: %w", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}), 5},
+		{"credentials outrank cloud failure", errors.Join(rejected, unavailable), 4},
+		{"cloud failure outranks missing input", errors.Join(missingFile, unavailable), 5},
+		{"sent root commit outranks its cause", afterCommit(cloud.UpdateCommitUnknown, unavailable), 6},
+		{"unverified commit outranks its cause", afterCommit(cloud.UpdateCommitted, rejected), 6},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
