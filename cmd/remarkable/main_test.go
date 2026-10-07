@@ -54,6 +54,19 @@ func loadCLIFixtures(t *testing.T) cliFixtures {
 	return f
 }
 
+// pairedCredentials holds a device token and a session token.
+const pairedCredentials = "devicetoken: dev\nusertoken: usr\n"
+
+// writeCredentials writes content to a new credentials file and returns its path.
+func writeCredentials(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("writing credentials: %v", err)
+	}
+	return path
+}
+
 func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Server, string) {
 	t.Helper()
 
@@ -102,9 +115,7 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 		}
 	}))
 
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	_ = os.WriteFile(configPath, []byte("devicetoken: dev\nusertoken: usr\n"), 0600)
+	configPath := writeCredentials(t, pairedCredentials)
 
 	t.Setenv("REMARKABLE_HOST", ts.URL)
 	t.Setenv("REMARKABLE_CONFIG", configPath)

@@ -1,16 +1,23 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"unicode"
 
 	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v2"
+	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/spf13/cobra"
 )
 
 // Injected during build via -ldflags "-X main.version=1.0.0"
 var version = "dev"
+
+// pairingCodePage is the reMarkable page that issues the code auth pair takes.
+const pairingCodePage = "my.remarkable.com/device/desktop/connect"
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -70,7 +77,7 @@ func newRootCmd() *cobra.Command {
 		},
 		"remarkable auth pair": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<code>", Description: "8-character device registration code from my.remarkable.com/device/desktop/connect"},
+				{Name: "<code>", Description: "8-character device registration code from " + pairingCodePage},
 			},
 			MutatesDB: true,
 		},
@@ -172,9 +179,21 @@ func execute(root *cobra.Command) error {
 	return root.Execute()
 }
 
+// errorReport returns the message main prints for err. When credentials are
+// missing or rejected, it appends how to pair again. A rejected request's error
+// ends with the server's reason exactly as sent, and the newline the service
+// ends it with would split the report across lines, so trailing whitespace is
+// dropped before the hint.
+func errorReport(err error) string {
+	if !errors.Is(err, cloud.ErrUnauthorized) {
+		return err.Error()
+	}
+	return strings.TrimRightFunc(err.Error(), unicode.IsSpace) + ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
+}
+
 func main() {
 	if err := execute(newRootCmd()); err != nil {
-		agent.PrintStatus(os.Stderr, "error", err.Error())
+		agent.PrintStatus(os.Stderr, "error", errorReport(err))
 		os.Exit(1)
 	}
 }
