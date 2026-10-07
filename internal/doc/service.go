@@ -234,19 +234,9 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, 
 	return matches, nil
 }
 
-// PageLink represents an internal or external hyperlink on a page, with the
-// fields of render.PageLink: Rect is the link's /Rect in PDF user space and
-// Text the page text inside it.
-type PageLink struct {
-	Index      int
-	TargetPage int
-	URI        string
-	Rect       render.Rect
-	Text       string
-}
-
-// GetLinks extracts all hyperlinks from a specific document page.
-func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int) ([]PageLink, error) {
+// GetLinks returns the hyperlinks of a page of a document's background PDF,
+// as render.Document.Links reports them.
+func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int) ([]render.PageLink, error) {
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
 		return nil, fmt.Errorf("resolving document %q: %w", idOrName, err)
@@ -276,22 +266,7 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 	}
 	defer cleanup()
 
-	docLinks, err := doc.Links(pageIdx)
-	if err != nil {
-		return nil, err
-	}
-
-	links := make([]PageLink, 0, len(docLinks))
-	for _, dl := range docLinks {
-		links = append(links, PageLink{
-			Index:      dl.Index,
-			TargetPage: dl.TargetPage,
-			URI:        dl.URI,
-			Rect:       dl.Rect,
-			Text:       dl.Text,
-		})
-	}
-	return links, nil
+	return doc.Links(pageIdx)
 }
 
 // catFormats lists the formats Cat writes, in the order errors present them.

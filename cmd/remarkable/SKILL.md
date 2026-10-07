@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 22:58
+  last_modified: 2026-10-06 23:14
   status: current
 ---
 
@@ -36,10 +36,9 @@ Commands accept only their listed options plus global flags; groups print help.
   pairing-code length, non-UUID `doc import` or `doc settings transfer`
   arguments, identical settings UUIDs, blank `doc search` queries). Failures
   after a command starts, such as unreadable files or cloud errors, print no usage.
-- Obtain the user's code before pairing, which overwrites credentials.
-  Keep tokens private; cloud commands can renew and persist credentials.
-  When the cloud rejects credentials or a pairing code, or the credentials file
-  holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
+- Obtain the user's code before pairing, which overwrites credentials. Keep tokens private;
+  cloud commands can renew and persist credentials. When the cloud rejects credentials or a
+  pairing code, or the credentials file holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
 - Use `doc render` for PNG pages with backgrounds and strokes; `doc cat` SVG and
   `stroke export` hold strokes only. Text extraction and search read PDF text layers.
 - `doc sync` skips solely by path existence. Use `--force` after cloud or DPI
@@ -178,14 +177,15 @@ Extract PDF links as headerless `link-index<TAB>target<TAB>URI<TAB>text<TAB>rect
 links have a 0-based target and URI `#page=<target+1>`; URI actions have `-` and the PDF's
 URI, with any catalog `/URI /Base` prepended as text when the URI lacks `:` or starts with
 it; other links have `-` and an empty URI. URIs percent-encode (`%0A`) only the bytes of
-spaces, invalid UTF-8, and characters failing Go's `unicode.IsPrint` (e.g. controls).
-`text` is the PDF text overlapping the link's rectangle (whole characters, whitespace runs
-collapsed and trimmed; empty over handwriting or images). It escapes `\` as `\\`, invalid
-UTF-8 bytes as `\xNN`, and other `unicode.IsPrint` failures as `strconv.QuoteRune` does
-(ESC is `\x1b`); `strconv.UnquoteChar` decodes each escape. `rect` is the link's `/Rect` as
-`left,bottom,right,top` in PDF points (y up, corners ordered, page box origin and `/Rotate`
-not applied), each the shortest float32 decimal (`98.6`); a missing or malformed `/Rect`
-prints `0,0,0,0`. A linkless page emits no rows and succeeds; a missing background PDF fails.
+spaces, invalid UTF-8, and characters failing Go's `unicode.IsPrint`. `text` is the PDF
+text overlapping the rectangle (whole characters; whitespace collapsed, trimmed; empty over
+handwriting/images), escaping `\` as `\\`, invalid UTF-8 bytes as `\xNN`, and other
+`unicode.IsPrint` failures as `strconv.QuoteRune` does (ESC: `\x1b`); `strconv.UnquoteChar`
+decodes them. `rect` is the `/Rect` as `left,bottom,right,top` PDF points (y up, corners
+ordered, page box origin and `/Rotate` not applied) in shortest float32 decimals (`98.6`),
+or `+Inf`/`-Inf` for reals beyond float32. A missing or non-four-element `/Rect` prints
+`0,0,0,0`; non-number elements, integers above 4294967295, and signed ones outside int32
+read as 0. A linkless page succeeds with no rows; no background PDF fails the command.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

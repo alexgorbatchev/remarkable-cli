@@ -8,14 +8,12 @@ import (
 	"unicode/utf8"
 
 	render "github.com/alexgorbatchev/go-remarkable-render"
-
-	"github.com/alexgorbatchev/remarkable-cli/internal/doc"
 )
 
 // linkFields returns the link index, target page, URI, text, and rectangle
 // that doc links prints for l in both output modes. The target is "-" when l
 // leads to no page of the document.
-func linkFields(l doc.PageLink) []string {
+func linkFields(l render.PageLink) []string {
 	target := "-"
 	if l.TargetPage >= 0 {
 		target = strconv.Itoa(l.TargetPage)
@@ -27,7 +25,9 @@ func linkFields(l doc.PageLink) []string {
 // library reports. Each coordinate is the shortest decimal that parses back to
 // its float32 value, so a /Rect entry written as 98.6 prints as 98.6 rather
 // than as the shortest decimal of that value widened to float64,
-// 98.5999984741211. 'f' never switches to exponent notation.
+// 98.5999984741211. 'f' never switches to exponent notation. PDFium reads a
+// real number beyond the float32 range as an infinity, which prints as +Inf
+// or -Inf.
 func formatRect(r render.Rect) string {
 	coordinates := []float32{r.Left, r.Bottom, r.Right, r.Top}
 	fields := make([]string, len(coordinates))
@@ -91,14 +91,13 @@ func printableURI(uri string) string {
 // ESC, and format characters remain. A rejected character takes the escape
 // strconv.QuoteRune writes for it (\a, \b, \f, \n, \r, \t, or \v; \xNN for
 // another ASCII control; otherwise \uNNNN, or \UNNNNNNNN above U+FFFF; hex
-// digits in lowercase), a backslash becomes \\,
-// and each byte of an invalid UTF-8 sequence becomes \xNN as in strconv.Quote.
-// Every other character, the space, '%', and quotation marks included, is
-// kept, so text that needs no escaping is returned unchanged, and each
-// backslash in the result starts an escape that strconv.UnquoteChar with
-// quote 0 decodes. Percent-encoding, as printableURI uses, would make a
-// literal '%' in prose ambiguous; strconv.Quote would also escape '"' and add
-// quotation marks around every value.
+// digits in lowercase), a backslash becomes \\, and each byte of an invalid
+// UTF-8 sequence becomes \xNN as in strconv.Quote. Every other character, the
+// space, '%', and quotation marks included, is kept, so text that needs no
+// escaping is returned unchanged, and each backslash in the result starts an
+// escape that strconv.UnquoteChar with quote 0 decodes. Percent-encoding, as
+// printableURI uses, would make a literal '%' in prose ambiguous; strconv.Quote
+// would also escape '"' and add quotation marks around every value.
 func printableText(text string) string {
 	var b strings.Builder
 	for i := 0; i < len(text); {
