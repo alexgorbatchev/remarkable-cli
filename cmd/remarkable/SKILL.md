@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 17:29
+  last_modified: 2026-10-06 17:34
   status: current
 ---
 
@@ -26,15 +26,15 @@ Commands accept only their listed options plus global flags; groups print help.
   Search and link results have no headers and emit no rows when empty.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
   bytes. Keep stderr separate from stdout; `--debug` logs go to stderr.
-- A failure writes its error message to stderr once, prefixed `ERR: ` in agent
-  mode or `[ERROR] ` in human mode. Invocation errors print the command's usage
-  screen before that message: unknown flags, wrong argument counts, missing
-  required flags, and values rejected without cloud or file access (`--format`,
-  negative `--page`, empty `doc render`/`doc archive` `--output`, empty
-  `--mapping`, upload `--title`/`--folder`/`--evidence`, pairing-code length,
-  non-UUID `doc import` or `doc settings transfer` arguments, identical settings
-  UUIDs, blank `doc search` queries). Failures after a command starts, such as
-  unreadable files or cloud errors, print no usage.
+- A failure writes its error message to stderr once, without trailing whitespace,
+  prefixed `ERR: ` in agent mode or `[ERROR] ` in human mode. Invocation errors
+  print the command's usage screen before that message: unknown flags, wrong
+  argument counts, missing required flags, and values rejected without cloud or
+  file access (`--format`, negative `--page`, empty `doc render`/`doc archive`
+  `--output`, empty `--mapping`, upload `--title`/`--folder`/`--evidence`,
+  pairing-code length, non-UUID `doc import` or `doc settings transfer`
+  arguments, identical settings UUIDs, blank `doc search` queries). Failures
+  after a command starts, such as unreadable files or cloud errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
   When the cloud rejects credentials or the credentials file holds no token, the

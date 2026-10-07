@@ -179,16 +179,17 @@ func execute(root *cobra.Command) error {
 	return root.Execute()
 }
 
-// errorReport returns the message main prints for err. When credentials are
-// missing or rejected, it appends how to pair again. A rejected request's error
-// ends with the server's reason exactly as sent, and the newline the service
-// ends it with would split the report across lines, so trailing whitespace is
-// dropped before the hint.
+// errorReport returns the one-line message main prints for err. A rejected
+// cloud request's error ends with the server's reason exactly as sent, which
+// can end in a newline, so trailing whitespace is dropped before the line is
+// terminated. When credentials are missing or rejected, it appends how to pair
+// again.
 func errorReport(err error) string {
-	if !errors.Is(err, cloud.ErrUnauthorized) {
-		return err.Error()
+	message := strings.TrimRightFunc(err.Error(), unicode.IsSpace)
+	if errors.Is(err, cloud.ErrUnauthorized) {
+		message += ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
 	}
-	return strings.TrimRightFunc(err.Error(), unicode.IsSpace) + ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
+	return message
 }
 
 func main() {

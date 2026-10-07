@@ -138,13 +138,29 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 				name string
 				args []string
 				env  map[string]string
+				// trimmed is the reported message for an error whose text ends
+				// in a newline; empty means the error is reported unchanged.
+				trimmed string
 			}{
-				{"local file", []string{"stroke", "inspect", missingStroke}, nil},
-				{"cloud request", []string{"doc", "render", "doc-1", "--no-cache", "-o", png}, cloudEnv},
+				{"local file", []string{"stroke", "inspect", missingStroke}, nil, ""},
+				{
+					"cloud reason ending in a newline",
+					[]string{"doc", "render", "doc-1", "--no-cache", "-o", png},
+					cloudEnv,
+					`resolving document "doc-1": get root state: get root state failed with status 502: injected cloud failure`,
+				},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					want := mode.prefix + inProcessError(t, tc.args...).Error() + "\n"
+					message := inProcessError(t, tc.args...).Error()
+					if tc.trimmed != "" {
+						// The server reason ends the error exactly as sent.
+						if !strings.HasSuffix(message, "\n") {
+							t.Fatalf("returned error %q does not end in a newline", message)
+						}
+						message = tc.trimmed
+					}
+					want := mode.prefix + message + "\n"
 					got := runMainProcess(t, mainRun{args: tc.args, env: tc.env})
 					if got.exitCode != 1 {
 						t.Errorf("exit status = %d, want 1", got.exitCode)
