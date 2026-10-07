@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -53,7 +54,7 @@ var errCredentialsNotFound = errors.New("credentials file not found")
 
 func newCloudClient(ctx context.Context) (*cloud.Client, error) {
 	configPath := config.ResolveConfigPath(cfgFlag)
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w at %s: run 'remarkable auth pair <code>' first", errCredentialsNotFound, configPath)
 	}
 

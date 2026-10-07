@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -42,6 +43,7 @@ func TestMainExitStatus(t *testing.T) {
 		conn.Close() // The client sees the connection end before any response.
 	}))
 	defer dropping.Close()
+	truncating := newTruncatingServer(t)
 	staged := newImportCloud(t, rejectMetadataUpload(http.StatusServiceUnavailable))
 	commitUnknown := newImportCloud(t, rejectRootCommit(http.StatusInternalServerError))
 	settingsUnknown := newSettingsCloud(t, rejectRootCommit(http.StatusInternalServerError))
@@ -76,6 +78,7 @@ func TestMainExitStatus(t *testing.T) {
 		{"server error", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": unavailable.URL, "REMARKABLE_CONFIG": paired}, 5, ""},
 		{"closed port", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_CONFIG": paired}, 5, ""},
 		{"dropped connection", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": dropping.URL, "REMARKABLE_CONFIG": paired}, 5, ""},
+		{"truncated response body", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": truncating.URL, "REMARKABLE_CONFIG": paired}, 5, ""},
 		{"malformed cloud address", []string{"doc", "list", "--no-cache"}, map[string]string{"REMARKABLE_HOST": "http://bad host", "REMARKABLE_CONFIG": paired}, 1, ""},
 		{"staged write exits by cause", importArgs(staged), importEnv(staged), 5, "staged"},
 		{"import sent root commit", importArgs(commitUnknown), importEnv(commitUnknown), 6, "commit-unknown"},
@@ -132,6 +135,76 @@ func TestPDFCommandExitStatus(t *testing.T) {
 			t.Errorf("output = %q, want progress state commit-unknown", out)
 		}
 	})
+}
+
+// newTruncatingServer starts a server whose every response declares a longer
+// body than it sends before closing the connection.
+func newTruncatingServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, buf, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		buf.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"hash\":\"root-")
+		if err := buf.Flush(); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// truncatedBody returns the error reading a response body through the cloud
+// HTTP client reports when the connection closes before the body ends.
+func truncatedBody(t *testing.T) error {
+	t.Helper()
+	resp, err := newCloudHTTPClient(false).Get(newTruncatingServer(t).URL + "/sync/v3/root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	_, err = io.ReadAll(resp.Body)
+	if err == nil {
+		t.Fatal("expected a truncated body")
+	}
+	return fmt.Errorf("decode root state: %w", err)
+}
+
+// tlsCertificateRequired returns the error an HTTPS request reports when the
+// server rejects the handshake with a TLS alert because the client sent no
+// certificate.
+func tlsCertificateRequired(t *testing.T) error {
+	t.Helper()
+	server := httptest.NewUnstartedServer(http.NotFoundHandler())
+	server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	server.StartTLS()
+	defer server.Close()
+	_, err := server.Client().Get(server.URL)
+	if err == nil {
+		t.Fatal("expected the server to refuse the handshake")
+	}
+	return err
+}
+
+// tlsUnknownAuthority returns the error an HTTPS request reports when the
+// server's certificate is not signed by a trusted authority.
+func tlsUnknownAuthority(t *testing.T) error {
+	t.Helper()
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	defer server.Close()
+	_, err := (&http.Client{Transport: &http.Transport{}}).Get(server.URL)
+	if err == nil {
+		t.Fatal("expected certificate verification to fail")
+	}
+	return err
+}
+
+// dialError wraps a failed lookup of the cloud host the way net/http reports it.
+func dialError(dns *net.DNSError) error {
+	return urlError(&net.OpError{Op: "dial", Net: "tcp", Err: dns})
 }
 
 // tlsHandshakeTimeout returns the error an HTTPS request reports when the
@@ -191,6 +264,13 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 		{"operation deadline", fmt.Errorf("get root state: %w", context.DeadlineExceeded), 5},
 		{"TLS handshake timeout", tlsHandshakeTimeout(t), 5},
 		{"connection closed early", urlError(io.ErrUnexpectedEOF), 5},
+		{"truncated response body", truncatedBody(t), 5},
+		{"TLS handshake refused by server alert", tlsCertificateRequired(t), 1},
+		{"TLS alert sent by client", urlError(&net.OpError{Op: "local error", Err: errors.New("tls: bad certificate")}), 1},
+		{"untrusted server certificate", tlsUnknownAuthority(t), 1},
+		{"unknown cloud host", dialError(&net.DNSError{Err: "no such host", Name: "cloud.invalid", IsNotFound: true}), 1},
+		{"DNS lookup timeout", dialError(&net.DNSError{Err: "i/o timeout", Name: "cloud.example", IsTimeout: true}), 5},
+		{"DNS server failure", dialError(&net.DNSError{Err: "server misbehaving", Name: "cloud.example", IsTemporary: true}), 5},
 		{"renewal transport failure", fmt.Errorf("auth renewal failed after 401: %w", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}), 5},
 		{"credentials outrank cloud failure", errors.Join(rejected, unavailable), 4},
 		{"cloud failure outranks missing input", errors.Join(missingFile, unavailable), 5},

@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-06 19:47
+  last_modified: 2026-10-06 20:00
   status: current
 ---
 
@@ -53,7 +53,7 @@ Commands accept only their listed options plus global flags; groups print help.
 | `1` | Invocation error, a name matching several items (pass an ID), or any other failure. |
 | `3` | A document or item named by an argument or by `upload-check` evidence, or a local file or directory, does not exist, or `--page` exceeds the document. |
 | `4` | Credentials are missing, hold no token, or were rejected (HTTP 401/403): pair again. |
-| `5` | The cloud is unreachable, timed out, or failed (HTTP 5xx/408/429): retry later. |
+| `5` | The cloud is unreachable, timed out, dropped a response, or failed (HTTP 5xx/408/429): retry later. An unknown host or a refused TLS handshake or certificate exits 1. |
 | `6` | A write sent its root commit (`commit-unknown`, `committed`): inspect fresh evidence before recovery or further creation. |
 
 With several causes: 6, then 4, 5, 3. `staged` and other write failures exit by cause.

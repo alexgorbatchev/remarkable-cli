@@ -54,29 +54,59 @@ func exitStatus(err error) int {
 	return exitFailure
 }
 
+// Operations crypto/tls names in the *net.OpError it returns for a TLS alert:
+// one the server sent, or one this client sent when it rejected the handshake.
+// The alert itself has an unexported type, so the operation identifies it;
+// tls.AlertError only wraps failures of QUIC connections.
+const (
+	tlsRemoteAlertOp = "remote error"
+	tlsLocalAlertOp  = "local error"
+)
+
 // cloudUnavailable reports whether err shows that a cloud request could not
 // reach the server or complete: a server error status or one of the transient
 // 408 and 429 statuses the HTTP policy retries, an operation or attempt
 // deadline or other network timeout, a failed network operation such as a
-// refused connection or failed DNS lookup, or a connection that closed before
-// its response ended. An invalid cloud address or a refused TLS certificate is
-// not an outage, so it stays a general failure.
+// refused connection or failed DNS lookup, a connection that closed before its
+// response began, or a response body that failed partway. An invalid cloud
+// address, an unknown host, or a refused TLS handshake or certificate is a
+// configuration problem rather than an outage, so it stays a general failure.
 func cloudUnavailable(err error) bool {
 	var status *cloud.StatusError
 	if errors.As(err, &status) && (status.StatusCode >= http.StatusInternalServerError ||
 		status.StatusCode == http.StatusRequestTimeout || status.StatusCode == http.StatusTooManyRequests) {
 		return true
 	}
+	if hostUnknown(err) || tlsAlert(err) {
+		return false
+	}
 	var timeout net.Error
 	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout() {
 		return true
 	}
 	var operation *net.OpError
-	if errors.As(err, &operation) {
+	var body *bodyReadError
+	if errors.As(err, &operation) || errors.As(err, &body) {
 		return true
 	}
 	var request *url.Error
 	return errors.As(err, &request) && (errors.Is(request.Err, io.EOF) || errors.Is(request.Err, io.ErrUnexpectedEOF))
+}
+
+// hostUnknown reports a DNS lookup that found no such host, such as a mistyped
+// REMARKABLE_HOST. Lookup timeouts and failing DNS servers are outages instead.
+func hostUnknown(err error) bool {
+	var lookup *net.DNSError
+	return errors.As(err, &lookup) && lookup.IsNotFound
+}
+
+// tlsAlert reports a TLS handshake that the server or this client refused with
+// an alert, such as a server that requires a client certificate. Certificate
+// verification failures are *tls.CertificateVerificationError values rather
+// than network errors, so no other check classifies them as an outage.
+func tlsAlert(err error) bool {
+	var operation *net.OpError
+	return errors.As(err, &operation) && (operation.Op == tlsRemoteAlertOp || operation.Op == tlsLocalAlertOp)
 }
 
 // commitAttemptedError marks a failed cloud write that had sent its root
