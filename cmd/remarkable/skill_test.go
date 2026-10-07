@@ -40,7 +40,10 @@ type referenceDocument struct {
 }
 
 // referenceDocuments reads the reference files the binary must embed, in topic
-// order. Read them before changing into a directory without repository files.
+// order: every name that the references/*.md embed pattern matches. Other
+// dot-files, such as Finder's .DS_Store, are local metadata the pattern never
+// embeds and are skipped; any other file must be a Markdown reference. Read
+// them before changing into a directory without repository files.
 func referenceDocuments(t *testing.T) []referenceDocument {
 	t.Helper()
 	entries, err := os.ReadDir("references")
@@ -50,6 +53,9 @@ func referenceDocuments(t *testing.T) []referenceDocument {
 	var docs []referenceDocument
 	for _, entry := range entries {
 		topic, ok := strings.CutSuffix(entry.Name(), ".md")
+		if !ok && strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
 		if !ok || entry.IsDir() {
 			t.Fatalf("references/%s is not a Markdown reference", entry.Name())
 		}
@@ -118,14 +124,34 @@ func TestSkillReferenceCommand(t *testing.T) {
 	}
 }
 
-func TestSkillReferenceList(t *testing.T) {
-	docs := referenceDocuments(t)
-	var want strings.Builder
-	want.WriteString("TOPIC\tCOMMAND\n")
-	for _, doc := range docs {
-		for _, usage := range sectionHeadings(doc.content) {
-			fmt.Fprintf(&want, "%s\t%s\n", doc.topic, usage)
+// tableCells returns the trimmed cells of each row of a human-mode box table,
+// header first, skipping its border lines.
+func tableCells(out string) [][]string {
+	var rows [][]string
+	for line := range strings.Lines(out) {
+		inner, ok := strings.CutPrefix(strings.TrimSpace(line), "│")
+		if !ok {
+			continue
 		}
+		cells := strings.Split(strings.TrimSuffix(inner, "│"), "│")
+		for i, cell := range cells {
+			cells[i] = strings.TrimSpace(cell)
+		}
+		rows = append(rows, cells)
+	}
+	return rows
+}
+
+func TestSkillReferenceList(t *testing.T) {
+	want := [][]string{{"TOPIC", "COMMAND"}}
+	for _, doc := range referenceDocuments(t) {
+		for _, usage := range sectionHeadings(doc.content) {
+			want = append(want, []string{doc.topic, usage})
+		}
+	}
+	var wantTSV strings.Builder
+	for _, row := range want {
+		fmt.Fprintln(&wantTSV, strings.Join(row, "\t"))
 	}
 	isolateFromRepository(t)
 
@@ -134,8 +160,8 @@ func TestSkillReferenceList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skill reference list failed: %v", err)
 	}
-	if out != want.String() {
-		t.Fatalf("agent listing:\n%s\nwant one TSV row per documented command:\n%s", out, want.String())
+	if out != wantTSV.String() {
+		t.Fatalf("agent listing:\n%s\nwant one TSV row per documented command:\n%s", out, wantTSV.String())
 	}
 
 	t.Setenv("AGENT", "0")
@@ -143,13 +169,8 @@ func TestSkillReferenceList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skill reference list failed: %v", err)
 	}
-	if strings.Contains(out, "\t") || !strings.Contains(out, "TOPIC") {
-		t.Fatalf("human listing must be a table, got:\n%s", out)
-	}
-	for _, doc := range docs {
-		if !strings.Contains(out, doc.topic) {
-			t.Errorf("human listing is missing topic %s:\n%s", doc.topic, out)
-		}
+	if got := tableCells(out); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Fatalf("human listing rows %q\nwant one table row per documented command %q\noutput:\n%s", got, want, out)
 	}
 }
 
@@ -326,13 +347,27 @@ func TestHelpSkillAlert(t *testing.T) {
 	}
 }
 
+// headingUsage returns the command usage that line names when it is a command
+// section heading, such as "## `remarkable doc list`".
+func headingUsage(line string) (string, bool) {
+	usage, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), commandHeadingPrefix)
+	if !ok {
+		return "", false
+	}
+	usage, ok = strings.CutSuffix(usage, "`")
+	if !ok {
+		return "", false
+	}
+	return usage, true
+}
+
 // sectionHeadings returns the command usages that content's command section
-// headings, such as "## `remarkable doc list`", name, in document order.
+// headings name, in document order.
 func sectionHeadings(content string) []string {
 	var usages []string
 	for line := range strings.Lines(content) {
-		if usage, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), commandHeadingPrefix); ok {
-			usages = append(usages, strings.TrimSuffix(usage, "`"))
+		if usage, ok := headingUsage(line); ok {
+			usages = append(usages, usage)
 		}
 	}
 	return usages
@@ -347,7 +382,8 @@ type commandSection struct {
 
 // commandSections maps each command usage documented in docs, keyed by the
 // document name that prints it, to its section. A section runs from its
-// heading to the next "## " heading. A usage documented twice is an error.
+// heading to the next "## " heading. A usage documented twice, or a command
+// heading without its closing backtick, is an error.
 func commandSections(t *testing.T, docs map[string]string) map[string]commandSection {
 	t.Helper()
 	sections := map[string]commandSection{}
@@ -368,8 +404,10 @@ func commandSections(t *testing.T, docs map[string]string) map[string]commandSec
 		for line := range strings.Lines(docs[name]) {
 			if strings.HasPrefix(line, "## ") {
 				flush()
-				if heading, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), commandHeadingPrefix); ok {
-					usage = strings.TrimSuffix(heading, "`")
+				var ok bool
+				usage, ok = headingUsage(line)
+				if !ok && strings.HasPrefix(line, commandHeadingPrefix) {
+					t.Errorf("%s has a malformed command heading: %s", name, line)
 				}
 				continue
 			}
