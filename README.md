@@ -8,7 +8,7 @@
 - **Vector stroke extraction**: Decodes v6 binary `.rm` stroke files with Paper Pro 24-bit BGRA color decoding and variable shader translucency.
 - **Native handwriting import**: Copies native v6 `.rm` files to explicitly mapped, empty pages of an existing cloud document while preserving their bytes and its PDF background.
 - **Complete native backups**: Archives every document attachment with its original name and bytes, plus source revision and SHA-256 evidence.
-- **Separate PDF uploads**: Creates a cloud document from a local multi-page PDF, preserving its bytes and links and saving recovery identity before committing.
+- **Separate PDF uploads**: Creates a cloud document from a local multi-page PDF, preserving its bytes and links and saving recovery identity before committing. With `--initialize-pages`, it also creates the native page of every PDF page, so handwriting import and settings transfer can follow without opening the document on the tablet.
 - **Migration settings transfer**: Copies document tags, mapped page tags, and view settings to a separate document while preserving its PDF and handwriting.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
 - **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
@@ -22,7 +22,7 @@
 - Converts vector stroke lines to SVG or composites them over stationery templates into standard PNG images.
 - Imports mapped native stroke files after validating the destination's initialized pages and checking for handwriting conflicts, then downloads uploaded data to verify bytes and page associations.
 - Exports a complete native document snapshot to a ZIP at an explicit output path, preserving existing local files and leaving the source document unchanged.
-- Uploads a valid local PDF under an explicit title in the root or an existing folder, rejecting a duplicate title in that folder and reporting the new document UUID.
+- Uploads a valid local PDF under an explicit title in the root or an existing folder, rejecting a duplicate title in that folder and reporting the new document UUID. On request it also creates every page's native page, so strokes can be imported without opening the document on the tablet first.
 - Transfers source tags and view settings through an explicit page map, showing conflicts and freshly verifying both documents' preserved native files.
 
 # How it Really Works
@@ -244,10 +244,11 @@ absolute. For example, save this as `mapping.json` beside the stroke files:
 remarkable doc import 0e40ea7e-2ee9-4f96-80cc-a7e11f28c53a --mapping mapping.json
 ```
 
-The destination must have initialized native page IDs. Import preserves
-source files, layers, coordinates, and native bytes, including annotations
-on future dates. It preserves the destination's PDF background and page
-structure and updates its modification timestamp. Existing handwriting,
+The destination must have initialized native page IDs: upload it with
+`doc upload --initialize-pages`, or open it on the tablet and let it sync.
+Import preserves source files, layers, coordinates, and native bytes,
+including annotations on future dates. It preserves the destination's PDF
+background and page structure and updates its modification timestamp. Existing handwriting,
 text, annotations, and unsupported native destination blocks cause a
 page-specific conflict; metadata-only destination files can be replaced.
 Every mapping is checked before any upload.
@@ -372,9 +373,10 @@ uploads or edits; credentials may renew through the normal cloud client.
 | `--title <title>` | | none | Required nonblank display title, without control characters |
 | `--folder <UUID>` | | root | Existing live destination folder UUID |
 | `--evidence <path>` | | none | Required new private JSON recovery file; parent directory must exist |
+| `--initialize-pages` | | `false` | Create a native page for every PDF page (up to 816 pages) so `doc import` and `doc settings transfer` work immediately |
 
 ```bash
-remarkable doc upload planner.pdf --title "Planner migration" --evidence upload.json
+remarkable doc upload planner.pdf --title "Planner migration" --evidence upload.json --initialize-pages
 remarkable doc upload-check upload.json
 ```
 
@@ -382,29 +384,41 @@ Upload creates a separate document with a fresh UUID; it preserves the PDF
 bytes and links and all existing documents. An exact, case-sensitive title
 collision with any live item in the destination folder causes an error.
 Choose a distinct title to create another document. The actual PDF page count
-is stored, while native page IDs stay uninitialized. Output explicitly reports
-`native_pages: pending-tablet-initialization`. Open the document on the tablet,
-let it sync, then use `doc inspect <UUID> --pages` to establish native page IDs
-before importing strokes. Cloud byte verification does not establish tablet
-initialization or editability.
+is stored. Without `--initialize-pages`, native page IDs stay uninitialized and
+output reports `native_pages: pending-tablet-initialization`: open the document
+on the tablet, let it sync, then use `doc inspect <UUID> --pages` to establish
+native page IDs before importing strokes.
+
+With `--initialize-pages`, output reports `native_pages: initialized`. The
+document is created with one native page per PDF page, each with a fresh UUID,
+the PDF page it shows, the `Blank` template, and the page order the tablet
+assigns a PDF of that length. `doc inspect <UUID> --pages`, `doc import`, and
+`doc settings transfer` accept it right away, and the tablet receives the
+complete document, imported handwriting included, on its next sync. The page
+order is reproduced from tablet-initialized PDFs of up to 816 pages; a longer
+PDF is rejected before anything is uploaded. Cloud byte verification does not
+establish tablet editability.
 
 The five-minute operation freshly checks folder/title policy and commits
 against that same root generation. Output exposes `staged`, `commit-unknown`,
 `committed`, and `verified`, with the UUID, intended document/root hashes,
 preflight generation, page count, and confirmed attachments. JSON evidence
 records those fields plus intended attachment names, SHA-256 values, and
-byte lengths. It is created with `0600` permissions before staging and
-durably refreshed before the commit request; existing evidence is preserved.
+byte lengths, and with `--initialize-pages` the native page IDs in PDF order.
+It is created with `0600` permissions before staging and durably refreshed
+before the commit request; existing evidence is preserved.
 Neither output nor evidence includes credentials.
 
 After a timeout, retain evidence and run `doc upload-check <evidence>` before
 retrying. This read-only command freshly confirms the recorded UUID, document
 hash, and attachment bytes against an unchanged root snapshot without creating
-anything or modifying evidence. A changed or missing document, differing bytes,
-or concurrent cloud change returns a nonzero exit status and requires inspection.
-Tablet initialization and later edits can change the document hash.
-Every creation retry chooses another UUID. An evidence or stdout failure after
-commit can occur even though the document exists; use the recovery check.
+anything or modifying evidence; for initialized pages it also confirms that the
+cloud document lists the recorded page IDs in order. A changed or missing
+document, differing bytes or page IDs, or concurrent cloud change returns a
+nonzero exit status and requires inspection. Tablet initialization, imports,
+and later edits can change the document hash. Every creation retry chooses
+another UUID and new page IDs. An evidence or stdout failure after commit can
+occur even though the document exists; use the recovery check.
 
 ### `remarkable stroke export`
 

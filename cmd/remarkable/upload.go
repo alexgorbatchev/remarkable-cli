@@ -34,6 +34,7 @@ func newDocUploadCmd() *cobra.Command {
 	cmd.Flags().Var(checkedString(&opts.Title, "", validString(doc.ValidateUploadTitle)), "title", "Required display title; existing titles in the destination folder are rejected")
 	cmd.Flags().Var(checkedString(&opts.Folder, "", validString(doc.ValidateUploadFolder)), "folder", "Destination folder UUID (default: root)")
 	cmd.Flags().Var(checkedString(&opts.Evidence, "", validString(doc.ValidateUploadEvidencePath)), "evidence", "Required new JSON recovery path; its parent directory must exist")
+	cmd.Flags().BoolVar(&opts.InitializePages, "initialize-pages", false, "Create native page IDs for every PDF page (at most 816) so doc import and doc settings transfer need no tablet open first")
 	for _, name := range []string{"title", "evidence"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			panic(err)
@@ -61,6 +62,15 @@ func newDocUploadCheckCmd() *cobra.Command {
 	}}
 }
 
+// uploadNextStep names what a caller does next with the document's native pages.
+func uploadNextStep(nativePages string) string {
+	const recovery = "; use doc upload-check with this evidence before any retry"
+	if nativePages == doc.NativePagesInitialized {
+		return "Run doc inspect --pages, then doc import and doc settings transfer without opening the tablet first" + recovery
+	}
+	return "Open on tablet, sync, then inspect --pages before doc import" + recovery
+}
+
 func printUploadEvidence(w io.Writer, path string, evidence *doc.UploadEvidence) error {
 	var buf bytes.Buffer
 	agent.PrintKeyValues(&buf, []agent.KeyValuePair{
@@ -74,7 +84,7 @@ func printUploadEvidence(w io.Writer, path string, evidence *doc.UploadEvidence)
 		{Key: "generation", Value: fmt.Sprint(evidence.Result.Generation)},
 		{Key: "evidence", Value: path},
 		{Key: "native_pages", Value: evidence.NativePages},
-		{Key: "next_step", Value: "Open on tablet, sync, then inspect --pages before doc import; use doc upload-check with this evidence before any retry"},
+		{Key: "next_step", Value: uploadNextStep(evidence.NativePages)},
 	})
 	for _, name := range evidence.Result.Uploaded {
 		fmt.Fprintf(&buf, "uploaded: %s\n", name)

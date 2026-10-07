@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-07 09:44
   status: current
 ---
 
@@ -61,8 +61,10 @@ Mapping format; paths are absolute or relative to the mapping file's directory:
 
 Require `source`/`page` per row; extract archives first. Reject unknown fields, empty
 mappings, duplicate or invalid indexes, missing files, and malformed blocks. Require
-initialized, unique destination IDs. Existing handwriting, text, annotations, or unsupported
-blocks cause page-specific conflicts; metadata-only destination files may be replaced.
+initialized, unique destination IDs: a `doc upload --initialize-pages` document has them
+at once; an ordinary upload gets them when opened on the tablet and synced. Existing
+handwriting, text, annotations, or unsupported blocks cause page-specific conflicts;
+metadata-only destination files may be replaced.
 
 Preflight errors write no cloud data. Stage files/manifests, generation-check the
 commit, broadcast, then freshly verify every uploaded byte and document/page

@@ -18,13 +18,16 @@ type UploadFile struct {
 
 // UploadEvidence contains no credentials and survives an uncertain commit.
 type UploadEvidence struct {
-	Version     int                `json:"version"`
-	Title       string             `json:"title"`
-	Folder      string             `json:"folder"`
-	Pages       int                `json:"pages"`
-	NativePages string             `json:"native_pages"`
-	Result      cloud.CreateResult `json:"result"`
-	Files       []UploadFile       `json:"files"`
+	Version     int    `json:"version"`
+	Title       string `json:"title"`
+	Folder      string `json:"folder"`
+	Pages       int    `json:"pages"`
+	NativePages string `json:"native_pages"`
+	// PageIDs lists the native page UUID of each PDF page, in PDF order, when
+	// NativePages is initialized.
+	PageIDs []string           `json:"page_ids,omitempty"`
+	Result  cloud.CreateResult `json:"result"`
+	Files   []UploadFile       `json:"files"`
 }
 
 func writeUploadEvidence(path string, evidence *UploadEvidence, exclusive bool) error {

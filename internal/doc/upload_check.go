@@ -32,6 +32,9 @@ func ReadUploadEvidence(path string) (*UploadEvidence, error) {
 		}
 		seen[suffix] = true
 	}
+	if err := validateEvidencePageIDs(&evidence); err != nil {
+		return nil, err
+	}
 	return &evidence, nil
 }
 
@@ -80,6 +83,11 @@ func CheckUpload(ctx context.Context, client *cloud.Client, path string) (*Uploa
 		}
 		if archiveHash(data) != file.SHA256 || int64(len(data)) != file.Size {
 			return evidence, fmt.Errorf("fresh upload recovery bytes differ: %s", file.Name)
+		}
+		if file.Name == evidence.Result.ID+".content" && evidence.NativePages == NativePagesInitialized {
+			if err := checkUploadedPageIdentity(evidence, data); err != nil {
+				return evidence, err
+			}
 		}
 	}
 	current, err := client.GetRootState(ctx)

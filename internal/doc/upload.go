@@ -19,11 +19,14 @@ import (
 const nativePagesPending = "pending-tablet-initialization"
 
 // UploadOptions requires an explicit title and a new recovery evidence path.
+// InitializePages creates the native page structure of every PDF page with the
+// document, instead of leaving it for the tablet to create when first opened.
 type UploadOptions struct {
-	Title      string
-	Folder     string
-	Evidence   string
-	OnProgress func(*UploadEvidence) error
+	Title           string
+	Folder          string
+	Evidence        string
+	InitializePages bool
+	OnProgress      func(*UploadEvidence) error
 }
 
 // validateUploadOptions rejects invalid options before UploadPDF reads the PDF or
@@ -81,6 +84,16 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	if pages < 1 {
 		return nil, fmt.Errorf("upload PDF has no pages")
 	}
+	evidence := &UploadEvidence{Version: 1, Title: opts.Title, Folder: opts.Folder, Pages: pages, NativePages: nativePagesPending}
+	var author string
+	if opts.InitializePages {
+		// Page identity is fixed here, before preflight, and recorded in the
+		// evidence written before staging; recovery never regenerates it.
+		evidence.NativePages = NativePagesInitialized
+		if evidence.PageIDs, author, err = newNativePageIDs(pages); err != nil {
+			return nil, err
+		}
+	}
 	root, err := uploadPreflight(ctx, client, opts)
 	if err != nil {
 		return nil, err
@@ -89,11 +102,11 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	if err != nil {
 		return nil, err
 	}
-	files, err := uploadFiles(id, pdf, pages, opts)
+	files, err := uploadFiles(id, pdf, evidence, author)
 	if err != nil {
 		return nil, err
 	}
-	evidence := &UploadEvidence{Version: 1, Title: opts.Title, Folder: opts.Folder, Pages: pages, NativePages: nativePagesPending, Result: cloud.CreateResult{ID: id, State: cloud.UpdateStaged, Generation: root.Generation}}
+	evidence.Result = cloud.CreateResult{ID: id, State: cloud.UpdateStaged, Generation: root.Generation}
 	for _, file := range files {
 		evidence.Files = append(evidence.Files, UploadFile{Name: file.Name, SHA256: archiveHash(file.Data), Size: int64(len(file.Data))})
 	}
@@ -181,13 +194,21 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 	return root, nil
 }
 
-func uploadFiles(id string, pdf []byte, pages int, opts UploadOptions) ([]cloud.FileUpdate, error) {
+func uploadFiles(id string, pdf []byte, evidence *UploadEvidence, author string) ([]cloud.FileUpdate, error) {
+	pages := evidence.Pages
 	now := fmt.Sprint(time.Now().UnixMilli())
-	metadata := map[string]any{"type": cloud.ItemTypeDocument, "visibleName": opts.Title, "parent": opts.Folder, "deleted": false, "pinned": false, "createdTime": now, "lastModified": now, "lastOpened": "0", "lastOpenedPage": 0}
+	metadata := map[string]any{"type": cloud.ItemTypeDocument, "visibleName": evidence.Title, "parent": evidence.Folder, "deleted": false, "pinned": false, "createdTime": now, "lastModified": now, "lastOpened": "0", "lastOpenedPage": 0}
 	// The ordinary PDF content schema represents unopened native pages as null.
-	// Page counts describe the actual PDF; tablet sync owns native initialization.
+	// Page counts describe the actual PDF; without InitializePages, tablet sync
+	// owns native initialization.
 	content := map[string]any{"fileType": "pdf", "formatVersion": 1, "pageCount": pages, "originalPageCount": pages, "pages": nil, "sizeInBytes": fmt.Sprint(len(pdf)), "coverPageNumber": -1, "documentMetadata": map[string]any{}, "extraMetadata": map[string]any{}, "fontName": "", "lineHeight": -1, "margins": 125, "orientation": "portrait", "textAlignment": "justify", "textScale": 1, "zoomMode": "bestFit", "tags": []any{}, "pageTags": []any{}}
-	files := []cloud.FileUpdate{{Name: id + ".pdf", Data: pdf}, {Name: id + ".pagedata", Data: []byte(strings.Repeat("\n", pages))}}
+	initialize := evidence.NativePages == NativePagesInitialized
+	if initialize {
+		if err := initializeContent(content, evidence.PageIDs, author); err != nil {
+			return nil, err
+		}
+	}
+	files := []cloud.FileUpdate{{Name: id + ".pdf", Data: pdf}, {Name: id + ".pagedata", Data: uploadPageData(pages, initialize)}}
 	for _, file := range []struct {
 		name  string
 		value any

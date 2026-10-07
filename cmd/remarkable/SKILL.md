@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-07 07:27
+  last_modified: 2026-10-07 09:44
   status: current
 ---
 
@@ -132,4 +132,6 @@ remarkable stroke export page-000.rm --output page-000.svg
 remarkable doc render "2026 - Daily" --page 0 --dpi 200 --output page-000.png
 remarkable doc sync "2026 - Daily" --output-dir exports --format png --force
 remarkable doc archive "2026 - Daily" --output daily-native.zip
+remarkable doc upload planner.pdf --title "2027 - Daily" --evidence upload.json --initialize-pages
+remarkable doc import 44444444-4444-4444-8444-444444444444 --mapping import-map.json
 ```

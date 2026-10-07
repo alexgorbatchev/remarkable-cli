@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -29,12 +30,15 @@ type uploadServer struct {
 	commits  int
 	failure  string
 	evidence string
-	t        *testing.T
+	// checked records evidence paths whose upload commit was checked; later
+	// commits, such as an import into the uploaded document, are not uploads.
+	checked map[string]bool
+	t       *testing.T
 }
 
 func newUploadServer(t *testing.T, failure, evidence string) (*uploadServer, *cloud.Client) {
 	t.Helper()
-	s := &uploadServer{t: t, blobs: make(map[string][]byte), failure: failure, evidence: evidence}
+	s := &uploadServer{t: t, blobs: make(map[string][]byte), failure: failure, evidence: evidence, checked: make(map[string]bool)}
 	root := []byte("4\n0:.:1:0\n")
 	for _, id := range []string{uploadFolderID, archiveDocID} {
 		metadata := cloud.ItemMetadata{Type: cloud.ItemTypeDocument, VisibleName: "Source"}
@@ -81,16 +85,22 @@ func (s *uploadServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPut {
 			s.writes++
 			s.commits++
-			data, err := os.ReadFile(s.evidence)
-			if err != nil {
-				s.t.Error(err)
-			}
-			var evidence UploadEvidence
-			if err := json.Unmarshal(data, &evidence); err != nil {
-				s.t.Error(err)
-			}
-			if evidence.Result.State != cloud.UpdateCommitUnknown || evidence.Result.ID == "" || evidence.Result.DocumentHash == "" {
-				s.t.Error("commit sent before durable recovery identity")
+			if !s.checked[s.evidence] {
+				s.checked[s.evidence] = true
+				data, err := os.ReadFile(s.evidence)
+				if err != nil {
+					s.t.Error(err)
+				}
+				var evidence UploadEvidence
+				if err := json.Unmarshal(data, &evidence); err != nil {
+					s.t.Error(err)
+				}
+				if evidence.Result.State != cloud.UpdateCommitUnknown || evidence.Result.ID == "" || evidence.Result.DocumentHash == "" {
+					s.t.Error("commit sent before durable recovery identity")
+				}
+				if evidence.NativePages == NativePagesInitialized && len(evidence.PageIDs) != evidence.Pages {
+					s.t.Error("commit sent before durable native page identity")
+				}
 			}
 			if s.failure == "conflict" {
 				w.WriteHeader(http.StatusPreconditionFailed)
@@ -139,138 +149,153 @@ func (s *uploadServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestUploadPDF(t *testing.T) {
-	for _, failure := range []string{"", "collision", "deleted-folder", "document-folder", "missing-folder", "invalid-pdf", "evidence-exists", "conflict", "unknown", "corrupt"} {
-		t.Run(failure, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "source.pdf")
-			pdf, err := os.ReadFile("testdata/linked_pages.pdf")
-			if err != nil {
-				t.Fatal(err)
+	for _, initialize := range []bool{false, true} {
+		for _, failure := range []string{"", "collision", "deleted-folder", "document-folder", "missing-folder", "invalid-pdf", "evidence-exists", "conflict", "unknown", "corrupt"} {
+			t.Run(fmt.Sprintf("initialize=%t/%s", initialize, failure), func(t *testing.T) {
+				testUploadPDF(t, initialize, failure)
+			})
+		}
+	}
+}
+
+func testUploadPDF(t *testing.T, initialize bool, failure string) {
+	wantNative := nativePagesPending
+	if initialize {
+		wantNative = NativePagesInitialized
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "source.pdf")
+	pdf, err := os.ReadFile("testdata/linked_pages.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failure == "invalid-pdf" {
+		pdf = []byte("%PDF-1.7 invalid")
+	}
+	if err := os.WriteFile(path, pdf, 0600); err != nil {
+		t.Fatal(err)
+	}
+	evidencePath := filepath.Join(dir, "upload.json")
+	if failure == "evidence-exists" {
+		if err := os.WriteFile(evidencePath, []byte("keep"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, c := newUploadServer(t, failure, evidencePath)
+	original := s.root.Hash
+	opts := UploadOptions{Title: "Planner", Folder: uploadFolderID, Evidence: evidencePath, InitializePages: initialize}
+	if failure == "missing-folder" {
+		opts.Folder = "33333333-3333-4333-8333-333333333333"
+	}
+	evidence, err := UploadPDF(context.Background(), c, path, opts)
+	if failure != "" {
+		if err == nil {
+			t.Fatal("expected upload error")
+		}
+		wantError := map[string]string{"collision": "already exists", "deleted-folder": "not a collection", "document-folder": "not a collection", "missing-folder": "not a collection", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
+		if !strings.Contains(err.Error(), wantError) {
+			t.Fatalf("wrong failure: %v, want %q", err, wantError)
+		}
+		switch failure {
+		case "conflict", "unknown", "corrupt":
+			if s.commits != 1 {
+				t.Fatalf("expected one generation-checked commit request, got %d", s.commits)
 			}
-			if failure == "invalid-pdf" {
-				pdf = []byte("%PDF-1.7 invalid")
+			if failure == "conflict" && !errors.Is(err, cloud.ErrGenerationConflict) {
+				t.Fatalf("lost generation conflict: %v", err)
 			}
-			if err := os.WriteFile(path, pdf, 0600); err != nil {
-				t.Fatal(err)
+			want := cloud.UpdateStaged
+			if failure == "unknown" {
+				want = cloud.UpdateCommitUnknown
 			}
-			evidencePath := filepath.Join(dir, "upload.json")
-			if failure == "evidence-exists" {
-				if err := os.WriteFile(evidencePath, []byte("keep"), 0600); err != nil {
-					t.Fatal(err)
+			if failure == "corrupt" {
+				want = cloud.UpdateCommitted
+			}
+			if evidence == nil || evidence.Result.State != want || !isUUID(evidence.Result.ID) {
+				t.Fatalf("missing recovery state: %+v, %v", evidence, err)
+			}
+			if failure == "unknown" {
+				before := s.writes
+				recovered, err := CheckUpload(context.Background(), c, evidencePath)
+				if err != nil || recovered.Result.State != cloud.UpdateVerified || s.writes != before {
+					t.Fatalf("read-only recovery failed: %+v, %v", recovered, err)
+				}
+				if recovered.NativePages != wantNative || !slices.Equal(recovered.PageIDs, evidence.PageIDs) {
+					t.Fatalf("recovery changed native page identity: %v, want %v", recovered.PageIDs, evidence.PageIDs)
 				}
 			}
-			s, c := newUploadServer(t, failure, evidencePath)
-			original := s.root.Hash
-			opts := UploadOptions{Title: "Planner", Folder: uploadFolderID, Evidence: evidencePath}
-			if failure == "missing-folder" {
-				opts.Folder = "33333333-3333-4333-8333-333333333333"
+		default:
+			if s.writes != 0 {
+				t.Fatalf("failed preflight wrote cloud data: %d", s.writes)
 			}
-			evidence, err := UploadPDF(context.Background(), c, path, opts)
-			if failure != "" {
-				if err == nil {
-					t.Fatal("expected upload error")
-				}
-				wantError := map[string]string{"collision": "already exists", "deleted-folder": "not a collection", "document-folder": "not a collection", "missing-folder": "not a collection", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
-				if !strings.Contains(err.Error(), wantError) {
-					t.Fatalf("wrong failure: %v, want %q", err, wantError)
-				}
-				switch failure {
-				case "conflict", "unknown", "corrupt":
-					if s.commits != 1 {
-						t.Fatalf("expected one generation-checked commit request, got %d", s.commits)
-					}
-					if failure == "conflict" && !errors.Is(err, cloud.ErrGenerationConflict) {
-						t.Fatalf("lost generation conflict: %v", err)
-					}
-					want := cloud.UpdateStaged
-					if failure == "unknown" {
-						want = cloud.UpdateCommitUnknown
-					}
-					if failure == "corrupt" {
-						want = cloud.UpdateCommitted
-					}
-					if evidence == nil || evidence.Result.State != want || !isUUID(evidence.Result.ID) {
-						t.Fatalf("missing recovery state: %+v, %v", evidence, err)
-					}
-					if failure == "unknown" {
-						before := s.writes
-						recovered, err := CheckUpload(context.Background(), c, evidencePath)
-						if err != nil || recovered.Result.State != cloud.UpdateVerified || s.writes != before {
-							t.Fatalf("read-only recovery failed: %+v, %v", recovered, err)
-						}
-					}
-				default:
-					if s.writes != 0 {
-						t.Fatalf("failed preflight wrote cloud data: %d", s.writes)
-					}
-				}
-				return
-			}
-			if err != nil || evidence.Result.State != cloud.UpdateVerified {
-				t.Fatalf("upload: %+v, %v", evidence, err)
-			}
-			pdfDoc, cleanup, err := render.OpenDocumentFromBytes(pdf)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer cleanup()
-			if pdfDoc.NumPage() < 2 || evidence.Pages != pdfDoc.NumPage() || evidence.NativePages != "pending-tablet-initialization" {
-				t.Fatalf("wrong page state: %+v", evidence)
-			}
-			if !bytes.Equal(s.blobs[archiveTestHash(pdf)], pdf) {
-				t.Fatal("PDF bytes or links changed")
-			}
-			root, err := cloud.ParseManifest(s.root.Hash, bytes.NewReader(s.blobs[s.root.Hash]))
-			if err != nil {
-				t.Fatal(err)
-			}
-			old, err := cloud.ParseManifest(original, bytes.NewReader(s.blobs[original]))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if root.Find(archiveDocID).Hash != old.Find(archiveDocID).Hash {
-				t.Fatal("annotated source changed")
-			}
-			manifest, err := cloud.ParseManifest(evidence.Result.DocumentHash, bytes.NewReader(s.blobs[evidence.Result.DocumentHash]))
-			if err != nil {
-				t.Fatal(err)
-			}
-			var metadata cloud.ItemMetadata
-			if err := json.Unmarshal(s.blobs[manifest.Find(evidence.Result.ID+".metadata").Hash], &metadata); err != nil {
-				t.Fatal(err)
-			}
-			if metadata.Parent != opts.Folder || metadata.VisibleName != opts.Title || metadata.Type != cloud.ItemTypeDocument {
-				t.Fatalf("wrong metadata: %+v", metadata)
-			}
-			var content map[string]json.RawMessage
-			if err := json.Unmarshal(s.blobs[manifest.Find(evidence.Result.ID+".content").Hash], &content); err != nil {
-				t.Fatal(err)
-			}
-			if _, ok := content["cPages"]; ok {
-				t.Fatal("fabricated native CRDT pages")
-			}
-			if string(content["pages"]) != "null" || string(content["pageCount"]) != fmt.Sprint(evidence.Pages) {
-				t.Fatalf("wrong uninitialized content: %s", content)
-			}
-			before := s.writes
-			if _, err := CheckUpload(context.Background(), c, evidencePath); err != nil || before != s.writes {
-				t.Fatalf("fresh recovery: %v", err)
-			}
-			// Populate the real disk cache with the good PDF, then have storage
-			// return corrupt bytes under its old hash to prove recovery bypasses it.
-			if _, err := c.GetBlob(context.Background(), archiveTestHash(pdf), evidence.Result.ID+".pdf"); err != nil {
-				t.Fatal(err)
-			}
-			s.failure = "corrupt"
-			if _, err := CheckUpload(context.Background(), c, evidencePath); err == nil {
-				t.Fatal("recovery accepted corrupted bytes from fresh download")
-			}
-			s.failure = ""
-			s.blobs[s.root.Hash] = bytes.ReplaceAll(s.blobs[s.root.Hash], []byte(evidence.Result.DocumentHash), []byte(strings.Repeat("a", 64)))
-			if _, err := CheckUpload(context.Background(), c, evidencePath); err == nil || !strings.Contains(err.Error(), "changed document hash") {
-				t.Fatalf("recovery accepted changed identity: %v", err)
-			}
-		})
+		}
+		return
+	}
+	if err != nil || evidence.Result.State != cloud.UpdateVerified {
+		t.Fatalf("upload: %+v, %v", evidence, err)
+	}
+	pdfDoc, cleanup, err := render.OpenDocumentFromBytes(pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if pdfDoc.NumPage() < 2 || evidence.Pages != pdfDoc.NumPage() || evidence.NativePages != wantNative || len(evidence.PageIDs) != map[bool]int{false: 0, true: evidence.Pages}[initialize] {
+		t.Fatalf("wrong page state: %+v", evidence)
+	}
+	if !bytes.Equal(s.blobs[archiveTestHash(pdf)], pdf) {
+		t.Fatal("PDF bytes or links changed")
+	}
+	root, err := cloud.ParseManifest(s.root.Hash, bytes.NewReader(s.blobs[s.root.Hash]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := cloud.ParseManifest(original, bytes.NewReader(s.blobs[original]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root.Find(archiveDocID).Hash != old.Find(archiveDocID).Hash {
+		t.Fatal("annotated source changed")
+	}
+	manifest, err := cloud.ParseManifest(evidence.Result.DocumentHash, bytes.NewReader(s.blobs[evidence.Result.DocumentHash]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadata cloud.ItemMetadata
+	if err := json.Unmarshal(s.blobs[manifest.Find(evidence.Result.ID+".metadata").Hash], &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.Parent != opts.Folder || metadata.VisibleName != opts.Title || metadata.Type != cloud.ItemTypeDocument {
+		t.Fatalf("wrong metadata: %+v", metadata)
+	}
+	var content map[string]json.RawMessage
+	if err := json.Unmarshal(s.blobs[manifest.Find(evidence.Result.ID+".content").Hash], &content); err != nil {
+		t.Fatal(err)
+	}
+	_, hasCPages := content["cPages"]
+	_, hasPages := content["pages"]
+	if hasCPages != initialize || string(content["pageCount"]) != fmt.Sprint(evidence.Pages) {
+		t.Fatalf("wrong native page structure for initialize=%t: %s", initialize, content)
+	}
+	if !initialize && string(content["pages"]) != "null" || initialize && hasPages {
+		t.Fatalf("wrong legacy page list for initialize=%t: %s", initialize, content)
+	}
+	before := s.writes
+	if _, err := CheckUpload(context.Background(), c, evidencePath); err != nil || before != s.writes {
+		t.Fatalf("fresh recovery: %v", err)
+	}
+	// Populate the real disk cache with the good PDF, then have storage
+	// return corrupt bytes under its old hash to prove recovery bypasses it.
+	if _, err := c.GetBlob(context.Background(), archiveTestHash(pdf), evidence.Result.ID+".pdf"); err != nil {
+		t.Fatal(err)
+	}
+	s.failure = "corrupt"
+	if _, err := CheckUpload(context.Background(), c, evidencePath); err == nil {
+		t.Fatal("recovery accepted corrupted bytes from fresh download")
+	}
+	s.failure = ""
+	s.blobs[s.root.Hash] = bytes.ReplaceAll(s.blobs[s.root.Hash], []byte(evidence.Result.DocumentHash), []byte(strings.Repeat("a", 64)))
+	if _, err := CheckUpload(context.Background(), c, evidencePath); err == nil || !strings.Contains(err.Error(), "changed document hash") {
+		t.Fatalf("recovery accepted changed identity: %v", err)
 	}
 }
 
