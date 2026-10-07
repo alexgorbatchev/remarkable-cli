@@ -8,7 +8,7 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 
 ## Architecture
 
-- `cmd/remarkable/` — Cobra CLI command implementations (`auth.go`, `doc.go`, `stroke.go`, `main.go`).
+- `cmd/remarkable/` — Cobra CLI: root setup, help, and error reporting (`main.go`, `exit.go`), offline argument and flag validation (`validation.go`), cloud client and HTTP policy (`client.go`, `client_http.go`), commands and their output formatting (`auth.go`, `doc.go`, `links.go`, `archive.go`, `import.go`, `upload.go`, `settings.go`, `stroke.go`, `skill.go`), and the embedded agent skill (`SKILL.md`, `references/<topic>.md`).
 - `internal/agent/` — Dual-mode formatting primitives (`IsAgentMode`, `PrintTable`, `PrintKeyValues`, `PrintTree`, `PrintStatus`, `PrintSeparator`).
 - `internal/config/` — XDG Base Directory resolution (`$XDG_CONFIG_HOME`, `$XDG_CACHE_HOME`, fallback to `~/.rmapi`).
 - `internal/doc/` — Document browsing, virtual tree construction, inspection, page search, hyperlinks, and page rendering.

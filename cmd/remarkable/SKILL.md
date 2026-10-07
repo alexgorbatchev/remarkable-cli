@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-07 07:18
   status: current
 ---
 
@@ -68,9 +68,13 @@ Status 2 is never used: the Go runtime exits 2 on a crash (unrecovered panic).
 values:
 
 - `verified`: root commit, native byte comparison, and associations passed.
-- `staged`: uncommitted changes; unreferenced blobs may exist; includes conflicts.
+- `staged`: uncommitted changes; unreferenced blobs may exist; includes commit-time
+  generation conflicts.
 - `commit-unknown`: attempted root commit, result unconfirmed.
 - `committed`: root succeeded, verification failed.
+
+`doc import` and `doc upload` reject preflight conflicts, such as existing page content
+or an existing title, with an error and no state.
 
 ## References
 
@@ -82,7 +86,7 @@ command below. `remarkable skill reference list` lists every topic with its comm
 | Print with | Read before |
 | --- | --- |
 | `AGENT=1 remarkable skill reference cat auth` | `auth`, `auth pair`, `auth status`, `auth token`, `status`: pairing, credentials, connectivity, bearer tokens. |
-| `AGENT=1 remarkable skill reference cat completion` | `completion` and its `bash`, `zsh`, `fish`, `powershell` scripts. |
+| `AGENT=1 remarkable skill reference cat completion` | `completion`, `completion bash`, `completion zsh`, `completion fish`, `completion powershell`: shell completion scripts. |
 | `AGENT=1 remarkable skill reference cat documents` | `doc`, `doc list`, `doc tree`, `doc inspect`, `doc search`, `doc links`: finding documents, page counts, PDF text search, hyperlinks. |
 | `AGENT=1 remarkable skill reference cat global` | `remarkable` and `help`: global flags, credential and cache locations, environment variables, HTTP timeouts, retries, redirects. |
 | `AGENT=1 remarkable skill reference cat native` | `doc archive`, `doc import`: native ZIP snapshots and stroke import mappings. |
@@ -102,7 +106,7 @@ Reference group: `list`, `cat`.
 
 ## `remarkable skill reference list`
 
-List each documented command with the topic of the reference that holds it: TSV
+List each command documented in a reference with that reference's topic: TSV
 `TOPIC`, `COMMAND` in agent mode, a table in human mode. Topics sort by name; commands
 keep reference order. Works offline without credentials or repository files.
 

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -151,17 +153,81 @@ func TestSkillReferenceList(t *testing.T) {
 	}
 }
 
+// indexRowPrefix starts each row of the SKILL.md reference index, which
+// continues with the topic, the closing backtick, and a cell that lists the
+// topic's commands before its first ": ".
+const indexRowPrefix = "| `AGENT=1 remarkable skill reference cat "
+
+// indexCommand shortens a section heading's usage to the form the index
+// lists: without the binary name, except for the root, and without arguments.
+func indexCommand(usage string) string {
+	words := strings.Fields(usage)
+	if len(words) > 1 {
+		words = words[1:]
+	}
+	words = slices.DeleteFunc(words, func(w string) bool {
+		return strings.HasPrefix(w, "<") || strings.HasPrefix(w, "[")
+	})
+	return strings.Join(words, " ")
+}
+
+// TestSkillIndexNamesEveryReference checks the SKILL.md index against the
+// embedded references: one row per topic, with its exact printing command,
+// listing exactly the commands that the topic's section headings document.
 func TestSkillIndexNamesEveryReference(t *testing.T) {
-	docs := referenceDocuments(t)
+	want := map[string][]string{}
+	for _, doc := range referenceDocuments(t) {
+		var commands []string
+		for _, usage := range sectionHeadings(doc.content) {
+			commands = append(commands, indexCommand(usage))
+		}
+		want[doc.topic] = commands
+	}
 	out, err := executeRoot("skill")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, doc := range docs {
-		command := "`AGENT=1 remarkable skill reference cat " + doc.topic + "`"
-		if !strings.Contains(out, command) {
-			t.Errorf("skill index must name reference %s with %s", doc.topic, command)
+	backticked := regexp.MustCompile("`([^`]+)`")
+	indexed := map[string]bool{}
+	for line := range strings.Lines(out) {
+		rest, ok := strings.CutPrefix(line, indexRowPrefix)
+		if !ok {
+			continue
 		}
+		topic, cells, ok := strings.Cut(rest, "` | ")
+		if !ok {
+			t.Errorf("malformed index row: %s", line)
+			continue
+		}
+		commands, ok := want[topic]
+		if !ok {
+			t.Errorf("index row prints topic %q, which is not an embedded reference", topic)
+			continue
+		}
+		if indexed[topic] {
+			t.Errorf("index lists topic %s more than once", topic)
+		}
+		indexed[topic] = true
+		listed, _, _ := strings.Cut(cells, ": ")
+		var got []string
+		for _, m := range backticked.FindAllStringSubmatch(listed, -1) {
+			got = append(got, m[1])
+		}
+		if !slices.Equal(got, commands) {
+			t.Errorf("index row for %s lists %q; its sections document %q", topic, got, commands)
+		}
+	}
+	for topic := range want {
+		if !indexed[topic] {
+			t.Errorf("skill index must name reference %s with %s%s`", topic, indexRowPrefix[2:], topic)
+		}
+	}
+}
+
+func TestPrintReferenceRejectsUnknownTopic(t *testing.T) {
+	err := printReference(io.Discard, "no-such-topic")
+	if err == nil || err.Error() != `unknown skill reference topic "no-such-topic"` {
+		t.Fatalf("expected unknown topic error, got %v", err)
 	}
 }
 
@@ -244,14 +310,12 @@ func TestHelpSkillAlert(t *testing.T) {
 	}
 }
 
-const sectionHeadingPrefix = "## `"
-
 // sectionHeadings returns the command usages that content's command section
 // headings, such as "## `remarkable doc list`", name, in document order.
 func sectionHeadings(content string) []string {
 	var usages []string
 	for line := range strings.Lines(content) {
-		if usage, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), sectionHeadingPrefix); ok {
+		if usage, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), commandHeadingPrefix); ok {
 			usages = append(usages, strings.TrimSuffix(usage, "`"))
 		}
 	}
@@ -288,7 +352,7 @@ func commandSections(t *testing.T, docs map[string]string) map[string]commandSec
 		for line := range strings.Lines(docs[name]) {
 			if strings.HasPrefix(line, "## ") {
 				flush()
-				if heading, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), sectionHeadingPrefix); ok {
+				if heading, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), commandHeadingPrefix); ok {
 					usage = strings.TrimSuffix(heading, "`")
 				}
 				continue
