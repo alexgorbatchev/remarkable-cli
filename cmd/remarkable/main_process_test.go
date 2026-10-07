@@ -367,16 +367,15 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 		http.Error(w, "invalid Authorization header", http.StatusUnauthorized)
 	}))
 	defer rejecting.Close()
-	paired := writeCredentials(t, pairedCredentials)
-	unpaired := writeCredentials(t, "")
-	unwritten := filepath.Join(t.TempDir(), "config.json")
 	png := filepath.Join(t.TempDir(), "page.png")
 	const hint = ": run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect\n"
 	cases := []struct {
-		name    string
-		args    []string
-		config  string
-		message string
+		name string
+		args []string
+		// credentials is the credentials file each run starts with and must
+		// still hold afterwards; credentialsAbsent means no file.
+		credentials string
+		message     string
 		// stdout is the failure line a command prints itself, without its mode
 		// prefix; empty means the command prints nothing.
 		stdout string
@@ -384,28 +383,28 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 		{
 			"rejected session and device tokens",
 			[]string{"doc", "render", "doc-1", "--no-cache", "-o", png},
-			paired,
+			pairedCredentials,
 			`resolving document "doc-1": get root state: auth renewal failed after 401: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header`,
 			"",
 		},
 		{
 			"rejected device token",
 			[]string{"auth", "token"},
-			paired,
+			pairedCredentials,
 			"fetching user token: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header",
 			"",
 		},
 		{
 			"no tokens",
 			[]string{"doc", "list", "--no-cache"},
-			unpaired,
+			"",
 			"listing cloud items: get root state: unauthorized: missing or invalid credentials: neither user token nor device token is configured",
 			"",
 		},
 		{
 			"rejected pairing code",
 			[]string{"auth", "pair", "abcdefgh"},
-			unwritten,
+			credentialsAbsent,
 			"unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header",
 			"Pairing failed: unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header\n",
 		},
@@ -414,10 +413,13 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 		t.Run(mode.agent, func(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					before := readCredentials(t, tc.config)
+					config := filepath.Join(t.TempDir(), "config.json")
+					if tc.credentials != credentialsAbsent {
+						config = writeCredentials(t, tc.credentials)
+					}
 					got := runMainProcess(t, mainRun{
 						args: tc.args,
-						env:  map[string]string{"AGENT": mode.agent, "REMARKABLE_HOST": rejecting.URL, "REMARKABLE_CONFIG": tc.config},
+						env:  map[string]string{"AGENT": mode.agent, "REMARKABLE_HOST": rejecting.URL, "REMARKABLE_CONFIG": config},
 					})
 					want := mode.prefix + tc.message + hint
 					wantStdout := ""
@@ -427,8 +429,8 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 					if got.exitCode != 1 {
 						t.Errorf("exit status = %d, want 1", got.exitCode)
 					}
-					if after := readCredentials(t, tc.config); after != before {
-						t.Errorf("credentials file %s = %q, want unchanged %q", tc.config, after, before)
+					if after := readCredentials(t, config); after != tc.credentials {
+						t.Errorf("credentials file %s = %q, want %q", config, after, tc.credentials)
 					}
 					if got.stdout != wantStdout {
 						t.Errorf("stdout = %q, want %q", got.stdout, wantStdout)
