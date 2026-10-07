@@ -98,10 +98,7 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	if err != nil {
 		return nil, err
 	}
-	id, err := uploadUUID("document")
-	if err != nil {
-		return nil, err
-	}
+	id := uploadUUID()
 	files, err := uploadFiles(id, pdf, evidence, author)
 	if err != nil {
 		return nil, err
@@ -130,15 +127,13 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 	return evidence, errors.Join(createErr, persistErr)
 }
 
-// uploadUUID returns a random version 4 UUID; purpose names it in errors.
-func uploadUUID(purpose string) (string, error) {
+// uploadUUID returns a random version 4 UUID.
+func uploadUUID() string {
 	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
-		return "", fmt.Errorf("generating %s UUID: %w", purpose, err)
-	}
+	_, _ = rand.Read(id[:]) // crypto/rand.Read never returns an error (Go 1.24+); it crashes the program on failure
 	id[6] = (id[6] & 0x0f) | 0x40
 	id[8] = (id[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", id[:4], id[4:6], id[6:8], id[8:10], id[10:]), nil
+	return fmt.Sprintf("%x-%x-%x-%x-%x", id[:4], id[4:6], id[6:8], id[8:10], id[10:])
 }
 
 func freshUploadManifest(ctx context.Context, client *cloud.Client, hash, name string) (*cloud.Manifest, error) {

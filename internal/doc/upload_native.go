@@ -134,23 +134,15 @@ func newNativePageStructure(pageIDs []string, author string) (*nativePageStructu
 
 // newNativePageIDs generates the document's native page IDs and the author
 // UUID that the uploaded page structure records for its registers.
-func newNativePageIDs(pages int) (pageIDs []string, author string, err error) {
+func newNativePageIDs(pages int) ([]string, string, error) {
 	if err := validateInitializedPageCount(pages); err != nil {
 		return nil, "", err
 	}
-	pageIDs = make([]string, 0, pages)
+	pageIDs := make([]string, 0, pages)
 	for range pages {
-		id, err := uploadUUID("native page")
-		if err != nil {
-			return nil, "", err
-		}
-		pageIDs = append(pageIDs, id)
+		pageIDs = append(pageIDs, uploadUUID())
 	}
-	author, err = uploadUUID("native page author")
-	if err != nil {
-		return nil, "", err
-	}
-	return pageIDs, author, nil
+	return pageIDs, uploadUUID(), nil
 }
 
 // initializeContent converts the ordinary format 1 PDF content into the format
