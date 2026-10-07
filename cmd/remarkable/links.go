@@ -28,11 +28,15 @@ func linkFields(l doc.PageLink) []string {
 // invalid UTF-8 sequence, and each UTF-8 byte of a space or of a character
 // unicode.IsPrint rejects: controls, format characters such as bidirectional
 // overrides, non-ASCII spaces, and line and paragraph separators. Spaces and
-// controls are never allowed unencoded in a URI or an IRI; for the non-ASCII
-// characters, encoding their UTF-8 bytes is the IRI-to-URI mapping of RFC 3987
-// section 3.1, which identifies the same resource. Every other character, '%'
-// and non-ASCII letters included, is kept, so a URI that needs no encoding is
-// returned unchanged. net/url has no function for this: its escape functions
+// controls are never allowed unencoded in a URI or an IRI. For a rejected
+// character in RFC 3987's ucschar or iprivate set, such as a non-ASCII space or
+// a line separator, encoding its UTF-8 bytes is the IRI-to-URI mapping of RFC
+// 3987 section 3.1, which locates the same resource. The others, such as C1
+// controls, the bidirectional formatting characters RFC 3987 section 4.1
+// forbids, and tag characters, cannot appear in a valid IRI; they are encoded
+// only to keep the output printable. Every other character, '%' and non-ASCII
+// letters included, is kept, so a URI that needs no encoding is returned
+// unchanged. net/url has no function for this: its escape functions
 // also encode reserved characters such as '/' and '?', and url.Parse rejects
 // control characters.
 func printableURI(uri string) string {

@@ -39,10 +39,7 @@ type cliFixtures struct {
 	// unloadablePDF is the unloadable-1 PDF: its page tree counts two pages
 	// but holds one, so PDFium cannot load page 1; page 0 reads "needle here".
 	unloadablePDF []byte
-	// uriLinksPDF is the urilinks-1 PDF: page 0 links to page 1, to a URI
-	// that needs no escaping, through a launch action, and to a URI holding
-	// control characters, non-ASCII white space, and a byte that is not UTF-8.
-	uriLinksPDF []byte
+	uriLinksPDF   []byte // urilinks-1 PDF built by uriLinksPDF
 }
 
 func loadCLIFixtures(t *testing.T) cliFixtures {
@@ -53,7 +50,6 @@ func loadCLIFixtures(t *testing.T) cliFixtures {
 		"oct1_notes_strokes.rm":   &f.strokes,
 		"oct1_notes_template.pdf": &f.blankPDF,
 		"unloadable_page.pdf":     &f.unloadablePDF,
-		"uri_links.pdf":           &f.uriLinksPDF,
 	} {
 		data, err := os.ReadFile(filepath.Join("../../internal/doc/testdata", name))
 		if err != nil {
@@ -61,6 +57,7 @@ func loadCLIFixtures(t *testing.T) cliFixtures {
 		}
 		*dst = data
 	}
+	f.uriLinksPDF = uriLinksPDF()
 	return f
 }
 
