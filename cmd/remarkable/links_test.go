@@ -81,9 +81,9 @@ func TestPrintableURI(t *testing.T) {
 	}{
 		{"empty", "", ""},
 		{"printable", "mailto:a@example.com?subject=%E2%9C%93", "mailto:a@example.com?subject=%E2%9C%93"},
-		{"valid replacement character", "https://example.com/�", "https://example.com/�"},
+		{"valid replacement character", "https://example.com/\uFFFD", "https://example.com/\uFFFD"},
 		{"truncated sequence", "https://example.com/\xE2\x80", "https://example.com/%E2%80"},
-		{"invisible characters", "a­b​c d", "a%C2%ADb%E2%80%8Bc%E2%80%A8d"},
+		{"invisible characters", "a\u00ADb\u200Bc\u2028d", "a%C2%ADb%E2%80%8Bc%E2%80%A8d"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
