@@ -266,6 +266,46 @@ func viaClosedProxy(t *testing.T) error {
 	return requestThroughProxy(t, &http.Transport{}, proxy.URL, "http://cloud.invalid/sync/v3/root")
 }
 
+// viaClosingHTTPSProxy returns the error a request reports when an HTTPS proxy
+// accepts the connection and closes it during the TLS handshake.
+func viaClosingHTTPSProxy(t *testing.T) error {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	return requestThroughProxy(t, &http.Transport{}, "https://"+listener.Addr().String(), "http://cloud.invalid/sync/v3/root")
+}
+
+// corruptCompressedBlob returns the error a blob download through the cloud
+// HTTP client reports when the server sends a gzip-encoded body that is not
+// valid gzip data.
+func corruptCompressedBlob(t *testing.T) error {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		if _, err := w.Write([]byte("not gzip data")); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer server.Close()
+	_, err := newCloudHTTPClient(false).Get(server.URL + blobPathPrefix + strings.Repeat("a", 64))
+	if err == nil {
+		t.Fatal("expected the blob download to fail")
+	}
+	return fmt.Errorf("get blob: %w", err)
+}
+
 // connectAnswered returns the error a cloud client request for an HTTPS cloud
 // reports when its HTTP proxy answers the CONNECT request with status.
 func connectAnswered(t *testing.T, status int) error {
@@ -333,6 +373,9 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 	unavailable := &cloud.StatusError{Op: "get root state", StatusCode: http.StatusServiceUnavailable}
 	rejected := &cloud.StatusError{Op: "get root state", StatusCode: http.StatusUnauthorized, Err: cloud.ErrUnauthorized}
 	missingFile := fmt.Errorf("reading mapping: %w", &fs.PathError{Op: "open", Path: "m.json", Err: fs.ErrNotExist})
+	missingBlob := &cloud.StatusError{Op: "get blob", StatusCode: http.StatusNotFound, Err: cloud.ErrItemNotFound}
+	alert := tlsCertificateRequired(t)
+	refusedDial := viaClosedProxy(t)
 	cases := []struct {
 		name string
 		err  error
@@ -364,6 +407,13 @@ func TestExitStatusClassifiesErrors(t *testing.T) {
 		{"untrusted HTTPS proxy certificate", viaHTTPSProxy(t, false), 1},
 		{"HTTPS proxy that does not speak TLS", viaPlainProxyAsHTTPS(t), 1},
 		{"proxy refusing the connection", viaClosedProxy(t), 5},
+		{"HTTPS proxy closing during its handshake", viaClosingHTTPSProxy(t), 5},
+		{"corrupt compressed blob", corruptCompressedBlob(t), 5},
+		{"cloud failure joined after missing item", errors.Join(missingBlob, unavailable), 5},
+		{"cloud failure joined before missing item", errors.Join(unavailable, missingBlob), 5},
+		{"refused dial joined after TLS alert", errors.Join(alert, refusedDial), 5},
+		{"refused dial joined before TLS alert", errors.Join(refusedDial, alert), 5},
+		{"credentials joined after cloud failure", errors.Join(unavailable, rejected), 4},
 		{"proxy CONNECT unavailable", connectAnswered(t, http.StatusServiceUnavailable), 5},
 		{"proxy CONNECT needs authentication", connectAnswered(t, http.StatusProxyAuthRequired), 1},
 		{"TLS alert while reading the body", fmt.Errorf("decode root state: %w", &bodyReadError{err: &net.OpError{Op: "local error", Err: errors.New("tls: bad record MAC")}}), 5},

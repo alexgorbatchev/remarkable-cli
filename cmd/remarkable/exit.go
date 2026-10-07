@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	render "github.com/alexgorbatchev/go-remarkable-render"
@@ -36,14 +37,29 @@ const (
 	exitCommitAttempted = 6
 )
 
+// statusPrecedence orders the failure statuses from the one that wins when a
+// failure has several causes to the one that loses.
+var statusPrecedence = []int{exitCommitAttempted, exitUnauthorized, exitCloudUnavailable, exitMissing, exitFailure}
+
 // exitStatus classifies err, which a command returned. When err has several
-// causes, the first matching status in this order wins: a sent root commit,
-// credentials, an unavailable cloud, then a missing input.
+// causes, the status that comes first in statusPrecedence wins: a sent root
+// commit, credentials, an unavailable cloud, a missing input, then any other
+// failure. Joined errors, such as one failure per imported page, are classified
+// branch by branch, so the order in which they were joined does not matter.
+// Wrappers above a join only add context, apart from the root commit marker.
 func exitStatus(err error) int {
 	var attempted *commitAttemptedError
-	switch {
-	case errors.As(err, &attempted):
+	if errors.As(err, &attempted) {
 		return exitCommitAttempted
+	}
+	if branches := joinedBranches(err); branches != nil {
+		status := exitFailure
+		for _, branch := range branches {
+			status = higherPrecedence(status, exitStatus(branch))
+		}
+		return status
+	}
+	switch {
 	case errors.Is(err, cloud.ErrUnauthorized), errors.Is(err, errCredentialsNotFound):
 		return exitUnauthorized
 	case cloudUnavailable(err):
@@ -53,6 +69,26 @@ func exitStatus(err error) int {
 		return exitMissing
 	}
 	return exitFailure
+}
+
+// joinedBranches returns the errors joined by the first error in err's chain
+// that joins several, such as one made by errors.Join, or nil when the chain
+// never branches.
+func joinedBranches(err error) []error {
+	for ; err != nil; err = errors.Unwrap(err) {
+		if joined, ok := err.(interface{ Unwrap() []error }); ok {
+			return joined.Unwrap()
+		}
+	}
+	return nil
+}
+
+// higherPrecedence returns whichever of the statuses a and b wins.
+func higherPrecedence(a, b int) int {
+	if slices.Index(statusPrecedence, b) < slices.Index(statusPrecedence, a) {
+		return b
+	}
+	return a
 }
 
 // Operations crypto/tls names in the *net.OpError it returns for a TLS alert:
@@ -70,10 +106,17 @@ const (
 const proxyConnectOp = "proxyconnect"
 
 // cloudFailureStatus reports a status that means the cloud, or a proxy on the
-// way to it, is failing: any server error, or one of the transient 408 and 429
-// statuses the HTTP policy retries.
+// way to it, is failing: any server error, or a status the HTTP policy retries.
+// Only some server errors are retried, but every one means the cloud is
+// failing.
 func cloudFailureStatus(code int) bool {
-	return code >= http.StatusInternalServerError || code == http.StatusRequestTimeout || code == http.StatusTooManyRequests
+	return code >= http.StatusInternalServerError || transientStatus(code)
+}
+
+// connectionClosed reports a connection that the server or a proxy closed
+// before the response, or the handshake that precedes it, was complete.
+func connectionClosed(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // cloudUnavailable reports whether err shows that a cloud request could not
@@ -85,10 +128,14 @@ func cloudFailureStatus(code int) bool {
 // a network as a missing host. An invalid cloud address or a TLS handshake
 // refused by either side, directly or through an HTTPS proxy, is a
 // configuration problem rather than an outage, so it stays a general failure.
+// err must not join several errors; exitStatus classifies each branch.
 func cloudUnavailable(err error) bool {
 	var status *cloud.StatusError
+	if errors.As(err, &status) && cloudFailureStatus(status.StatusCode) {
+		return true
+	}
 	var proxy *proxyConnectError
-	if errors.As(err, &status) && cloudFailureStatus(status.StatusCode) || errors.As(err, &proxy) {
+	if errors.As(err, &proxy) {
 		return true
 	}
 	// A body fails only after its handshake and headers succeeded, so even a
@@ -108,13 +155,15 @@ func cloudUnavailable(err error) bool {
 	if errors.As(err, &operation) {
 		// A proxy failure is classified as the same failure would be directly,
 		// such as a proxy that does not speak TLS behind an https:// proxy URL.
+		// net/http reports a direct connection that closed early inside a
+		// *url.Error, which a proxyconnect error replaces.
 		if operation.Op == proxyConnectOp {
-			return cloudUnavailable(operation.Err)
+			return connectionClosed(operation.Err) || cloudUnavailable(operation.Err)
 		}
 		return true
 	}
 	var request *url.Error
-	return errors.As(err, &request) && (errors.Is(request.Err, io.EOF) || errors.Is(request.Err, io.ErrUnexpectedEOF))
+	return errors.As(err, &request) && connectionClosed(request.Err)
 }
 
 // tlsRefused reports a TLS handshake that failed certificate verification or

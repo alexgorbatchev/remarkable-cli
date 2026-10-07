@@ -134,7 +134,7 @@ func bufferBlobResponse(resp *http.Response) (*http.Response, error) {
 	data, err := io.ReadAll(resp.Body)
 	closeErr := resp.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, &bodyReadError{err: err}
 	}
 	if closeErr != nil {
 		return nil, closeErr
@@ -153,7 +153,12 @@ func transientResponse(resp *http.Response, err error) bool {
 			errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) ||
 			errors.As(err, &networkError) && networkError.Timeout()
 	}
-	switch resp.StatusCode {
+	return transientStatus(resp.StatusCode)
+}
+
+// transientStatus reports a status that immutable blob requests retry.
+func transientStatus(code int) bool {
+	switch code {
 	case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusInternalServerError,
 		http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 		return true
