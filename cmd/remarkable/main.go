@@ -195,6 +195,27 @@ func configureCommandGroups(cmd *cobra.Command) {
 	}
 }
 
+// configureHelpArgs validates positional arguments on Cobra's generated help
+// command so that unknown topics or partial command paths are rejected as
+// invocation errors instead of printing help or unformatted messages and exiting 0.
+func configureHelpArgs(root *cobra.Command) {
+	for _, c := range root.Commands() {
+		if c.Name() == "help" {
+			c.Args = func(cmd *cobra.Command, args []string) error {
+				if len(args) == 0 {
+					return nil
+				}
+				target, remaining, err := cmd.Root().Find(args)
+				if err != nil || target == nil || target == cmd.Root() || len(remaining) > 0 {
+					return fmt.Errorf("unknown help topic %q", strings.Join(args, " "))
+				}
+				return nil
+			}
+			break
+		}
+	}
+}
+
 // prepareRoot adds Cobra's generated help and completion commands, which Cobra
 // would otherwise add inside Execute, so that silenceUsageOnRun reaches every
 // runnable command. Cobra's completion commands capture root's output writer
@@ -202,6 +223,7 @@ func configureCommandGroups(cmd *cobra.Command) {
 func prepareRoot(root *cobra.Command) {
 	configureCommandGroups(root)
 	root.InitDefaultHelpCmd()
+	configureHelpArgs(root)
 	root.InitDefaultCompletionCmd()
 	silenceUsageOnRun(root)
 }

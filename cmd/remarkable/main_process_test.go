@@ -574,3 +574,79 @@ func TestMainUsageScreenSkillAlert(t *testing.T) {
 	}
 }
 
+func TestMainHelpCommandUnknownTopic(t *testing.T) {
+	cases := []struct {
+		args      []string
+		wantTopic string
+	}{
+		{[]string{"help", "bogus"}, "bogus"},
+		{[]string{"help", "doc", "bogus"}, "doc bogus"},
+		{[]string{"help", "doc", "list", "bogus"}, "doc list bogus"},
+	}
+
+	for _, tc := range cases {
+		for _, mode := range errorModes {
+			name := strings.Join(tc.args, "_") + "/" + mode.agent
+			t.Run(name, func(t *testing.T) {
+				t.Setenv("AGENT", mode.agent)
+				got := runMainProcess(t, mainRun{args: tc.args})
+				if got.exitCode != 1 {
+					t.Errorf("exit status = %d, want 1", got.exitCode)
+				}
+				if got.stdout != "" {
+					t.Errorf("stdout = %q, want empty", got.stdout)
+				}
+				wantErr := fmt.Sprintf("%sunknown help topic %q\n", mode.prefix, tc.wantTopic)
+				if !strings.HasSuffix(got.stderr, wantErr) {
+					t.Errorf("stderr does not end with error line: stderr = %q, want suffix %q", got.stderr, wantErr)
+				}
+				if mode.agent != "0" {
+					if !strings.HasPrefix(got.stderr, skillAlert) || strings.Count(got.stderr, skillAlert) != 1 {
+						t.Errorf("agent stderr must start with exactly one skill alert: %q", got.stderr)
+					}
+				} else {
+					if strings.Contains(got.stderr, skillAlert) {
+						t.Errorf("human stderr should not contain skill alert: %q", got.stderr)
+					}
+				}
+			})
+		}
+	}
+
+	for _, mode := range errorModes {
+		t.Run("valid_help_doc_render/"+mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			got := runMainProcess(t, mainRun{args: []string{"help", "doc", "render"}})
+			if got.exitCode != 0 {
+				t.Errorf("exit status = %d, want 0", got.exitCode)
+			}
+			if got.stderr != "" {
+				t.Errorf("stderr = %q, want empty", got.stderr)
+			}
+			if !strings.Contains(got.stdout, "remarkable doc render") {
+				t.Errorf("stdout missing doc render help: %q", got.stdout)
+			}
+		})
+		t.Run("bare_help/"+mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			got := runMainProcess(t, mainRun{args: []string{"help"}})
+			if got.exitCode != 0 {
+				t.Errorf("exit status = %d, want 0", got.exitCode)
+			}
+			if got.stderr != "" {
+				t.Errorf("stderr = %q, want empty", got.stderr)
+			}
+			if mode.agent == "0" {
+				if !strings.Contains(got.stdout, "remarkable [flags] [command]") {
+					t.Errorf("stdout missing root help: %q", got.stdout)
+				}
+			} else {
+				if !strings.Contains(got.stdout, "command: remarkable") {
+					t.Errorf("stdout missing root help: %q", got.stdout)
+				}
+			}
+		})
+	}
+}
+
+
