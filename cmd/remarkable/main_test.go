@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/alexgorbatchev/go-rmscene"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 func executeRoot(args ...string) (string, error) {
@@ -47,32 +47,16 @@ func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 
 // cliFixtures holds the document files the mock cloud serves.
 type cliFixtures struct {
-	pdf      []byte // doc-1 background PDF with links
-	strokes  []byte // doc-1 page-1 .rm strokes
-	blankPDF []byte // blank-1 PDF: one page with an empty /Annots array, so no links
-	// unloadablePDF is the unloadable-1 PDF: its page tree counts two pages
-	// but holds one, so PDFium cannot load page 1; page 0 reads "needle here".
-	unloadablePDF []byte
-	uriLinksPDF   []byte // urilinks-1 PDF built by uriLinksPDF
+	testcloud.Fixtures
+	uriLinksPDF []byte // urilinks-1 PDF built by uriLinksPDF
 }
 
 func loadCLIFixtures(t *testing.T) cliFixtures {
 	t.Helper()
-	var f cliFixtures
-	for name, dst := range map[string]*[]byte{
-		"linked_pages.pdf":        &f.pdf,
-		"oct1_notes_strokes.rm":   &f.strokes,
-		"oct1_notes_template.pdf": &f.blankPDF,
-		"unloadable_page.pdf":     &f.unloadablePDF,
-	} {
-		data, err := os.ReadFile(filepath.Join("../../internal/doc/testdata", name))
-		if err != nil {
-			t.Fatalf("reading fixture %s: %v", name, err)
-		}
-		*dst = data
+	return cliFixtures{
+		Fixtures:    testcloud.LoadFixtures(t),
+		uriLinksPDF: uriLinksPDF(),
 	}
-	f.uriLinksPDF = uriLinksPDF()
-	return f
 }
 
 // pairedCredentials holds a device token and a session token.
@@ -98,72 +82,21 @@ func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Serv
 func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*httptest.Server, string) {
 	t.Helper()
 
-	fixtures := loadCLIFixtures(t)
+	var fail *testcloud.Failure
+	if failedPath != "" {
+		fail = &testcloud.Failure{
+			Path:  failedPath,
+			After: okRequests,
+		}
+	}
 
-	var failedPathRequests atomic.Int32
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == failedPath && int(failedPathRequests.Add(1)) > okRequests {
-			http.Error(w, "injected cloud failure", http.StatusBadGateway)
-			return
-		}
-		switch r.URL.Path {
-		case "/token/v2/user", "/token/json/2/user/new":
-			w.Write([]byte("mock-token"))
-		case "/token/json/2/device/new":
-			w.Write([]byte("mock-device-token"))
-		case "/sync/v3/root":
-			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
-		case "/sync/v3/files/root-hash":
-			w.Write([]byte("doc-hash:doc-1:0:100\nnotebook-hash:notebook-1:0:100\nblank-hash:blank-1:0:100\nunloadable-hash:unloadable-1:0:100\nnocontent-hash:nocontent-1:0:100\nurilinks-hash:urilinks-1:0:100\n"))
-		case "/sync/v3/files/urilinks-hash":
-			w.Write([]byte("urilinks-meta:urilinks-1.metadata:0:50\nurilinks-content:urilinks-1.content:0:50\nurilinks-pdf:urilinks-1.pdf:0:1100\n"))
-		case "/sync/v3/files/urilinks-meta":
-			w.Write([]byte(`{"visibleName":"URI Links PDF","type":"DocumentType"}`))
-		case "/sync/v3/files/urilinks-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["urilinks-page-1","urilinks-page-2"]}`))
-		case "/sync/v3/files/urilinks-pdf":
-			w.Write(fixtures.uriLinksPDF)
-		case "/sync/v3/files/nocontent-hash":
-			// A document that lists no content file.
-			w.Write([]byte("nocontent-meta:nocontent-1.metadata:0:50\n"))
-		case "/sync/v3/files/nocontent-meta":
-			w.Write([]byte(`{"visibleName":"No Content Document","type":"DocumentType"}`))
-		case "/sync/v3/files/unloadable-hash":
-			w.Write([]byte("unloadable-meta:unloadable-1.metadata:0:50\nunloadable-content:unloadable-1.content:0:50\nunloadable-pdf:unloadable-1.pdf:0:500\n"))
-		case "/sync/v3/files/unloadable-meta":
-			w.Write([]byte(`{"visibleName":"Unloadable Page PDF","type":"DocumentType"}`))
-		case "/sync/v3/files/unloadable-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["unloadable-page-1","unloadable-page-2"]}`))
-		case "/sync/v3/files/unloadable-pdf":
-			w.Write(fixtures.unloadablePDF)
-		case "/sync/v3/files/blank-hash":
-			w.Write([]byte("blank-meta:blank-1.metadata:0:50\nblank-content:blank-1.content:0:50\nblank-pdf:blank-1.pdf:0:1000\n"))
-		case "/sync/v3/files/blank-meta":
-			w.Write([]byte(`{"visibleName":"Unlinked PDF","type":"DocumentType"}`))
-		case "/sync/v3/files/blank-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["blank-page-1"]}`))
-		case "/sync/v3/files/blank-pdf":
-			w.Write(fixtures.blankPDF)
-		case "/sync/v3/files/notebook-hash":
-			w.Write([]byte("notebook-meta:notebook-1.metadata:0:50\nnotebook-content:notebook-1.content:0:50\n"))
-		case "/sync/v3/files/notebook-meta":
-			w.Write([]byte(`{"visibleName":"Handwritten Notebook","type":"DocumentType"}`))
-		case "/sync/v3/files/notebook-content":
-			w.Write([]byte(`{"fileType":"notebook","pageCount":1,"cPages":{"pages":[{"id":"notebook-page-1"}]}}`))
-		case "/sync/v3/files/doc-hash":
-			w.Write([]byte("meta-hash:doc-1.metadata:0:50\ncontent-hash:doc-1.content:0:100\npdf-hash:doc-1.pdf:0:1000\nstroke-hash:doc-1/page-1.rm:0:200\n"))
-		case "/sync/v3/files/meta-hash":
-			w.Write([]byte(`{"visibleName":"My Document","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z"}`))
-		case "/sync/v3/files/content-hash":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["page-1"]}`))
-		case "/sync/v3/files/pdf-hash":
-			w.Write(fixtures.pdf)
-		case "/sync/v3/files/stroke-hash":
-			w.Write(fixtures.strokes)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
+	ts := testcloud.New(t, testcloud.Options{
+		Preset:  testcloud.PresetCLI,
+		Failure: fail,
+		ExtraFiles: map[string][]byte{
+			"/sync/v3/files/urilinks-pdf": uriLinksPDF(),
+		},
+	})
 
 	configPath := writeCredentials(t, pairedCredentials)
 
@@ -173,7 +106,7 @@ func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*h
 	// developer's real blob cache.
 	t.Setenv("REMARKABLE_CACHE_DIR", t.TempDir())
 
-	return ts, configPath
+	return ts.Server, configPath
 }
 
 func TestAuthStatusListingFailure(t *testing.T) {

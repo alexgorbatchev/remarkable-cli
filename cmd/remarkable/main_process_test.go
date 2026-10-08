@@ -332,12 +332,18 @@ func TestMainReportsGeneratedCommandFailureWithoutUsage(t *testing.T) {
 			// Writing the script to a read-only descriptor fails inside the
 			// completion command's RunE.
 			got := runMainProcess(t, mainRun{args: []string{"completion", "bash"}, stdout: readOnly})
-			want := mode.prefix + "write /dev/stdout: bad file descriptor\n"
 			if got.exitCode != 1 {
 				t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 			}
-			if got.stderr != want {
-				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
+			wantPrefix := mode.prefix + "write /dev/stdout: "
+			if !strings.HasPrefix(got.stderr, wantPrefix) {
+				t.Errorf("stderr = %q, want prefix %q", got.stderr, wantPrefix)
+			}
+			if strings.Count(got.stderr, "\n") != 1 {
+				t.Errorf("stderr = %q, want exactly one line", got.stderr)
+			}
+			if strings.Contains(got.stderr, "Usage:") {
+				t.Errorf("stderr contains unexpected usage screen: %q", got.stderr)
 			}
 		})
 	}

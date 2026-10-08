@@ -3,7 +3,6 @@ package agent
 import (
 	"bytes"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 )
@@ -27,10 +26,7 @@ func TestIsAgentMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.envVal, func(t *testing.T) {
-			orig := os.Getenv("AGENT")
-			defer os.Setenv("AGENT", orig)
-
-			os.Setenv("AGENT", tt.envVal)
+			t.Setenv("AGENT", tt.envVal)
 			if got := IsAgentMode(); got != tt.want {
 				t.Errorf("IsAgentMode() with AGENT=%q = %v, want %v", tt.envVal, got, tt.want)
 			}
@@ -39,107 +35,101 @@ func TestIsAgentMode(t *testing.T) {
 }
 
 func TestPrintStatus_HumanVsAgent(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
+	t.Run("human", func(t *testing.T) {
+		t.Setenv("AGENT", "")
+		var bufHuman bytes.Buffer
+		PrintStatus(&bufHuman, "ok", "Operation completed")
+		PrintStatus(&bufHuman, "error", "Failed to connect")
 
-	// Human mode
-	os.Unsetenv("AGENT")
-	var bufHuman bytes.Buffer
-	PrintStatus(&bufHuman, "ok", "Operation completed")
-	PrintStatus(&bufHuman, "error", "Failed to connect")
+		if !strings.Contains(bufHuman.String(), "[OK]") {
+			t.Errorf("expected [OK] tag in human mode, got: %s", bufHuman.String())
+		}
+		if !strings.Contains(bufHuman.String(), "[ERROR]") {
+			t.Errorf("expected [ERROR] tag in human mode, got: %s", bufHuman.String())
+		}
+	})
 
-	if !strings.Contains(bufHuman.String(), "[OK]") {
-		t.Errorf("expected [OK] tag in human mode, got: %s", bufHuman.String())
-	}
-	if !strings.Contains(bufHuman.String(), "[ERROR]") {
-		t.Errorf("expected [ERROR] tag in human mode, got: %s", bufHuman.String())
-	}
+	t.Run("agent", func(t *testing.T) {
+		t.Setenv("AGENT", "1")
+		var bufAgent bytes.Buffer
+		if err := PrintStatus(&bufAgent, "ok", "Operation completed"); err != nil {
+			t.Fatal(err)
+		}
+		if err := PrintStatus(&bufAgent, "error", "Failed to connect"); err != nil {
+			t.Fatal(err)
+		}
 
-	// Agent mode
-	os.Setenv("AGENT", "1")
-	var bufAgent bytes.Buffer
-	if err := PrintStatus(&bufAgent, "ok", "Operation completed"); err != nil {
-		t.Fatal(err)
-	}
-	if err := PrintStatus(&bufAgent, "error", "Failed to connect"); err != nil {
-		t.Fatal(err)
-	}
-
-	if !strings.Contains(bufAgent.String(), "OK: Operation completed") {
-		t.Errorf("expected OK: in agent mode, got: %s", bufAgent.String())
-	}
-	if !strings.Contains(bufAgent.String(), "ERR: Failed to connect") {
-		t.Errorf("expected ERR: in agent mode, got: %s", bufAgent.String())
-	}
+		if !strings.Contains(bufAgent.String(), "OK: Operation completed") {
+			t.Errorf("expected OK: in agent mode, got: %s", bufAgent.String())
+		}
+		if !strings.Contains(bufAgent.String(), "ERR: Failed to connect") {
+			t.Errorf("expected ERR: in agent mode, got: %s", bufAgent.String())
+		}
+	})
 }
 
 func TestPrintTable_HumanVsAgent(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-
 	headers := []string{"ID", "NAME", "TYPE"}
 	rows := [][]string{
 		{"doc-1", "Daily Planner", "notebook"},
 		{"doc-2", "Quick Notes", "notebook"},
 	}
 
-	// Human mode
-	os.Unsetenv("AGENT")
-	var bufHuman bytes.Buffer
-	if err := PrintTable(&bufHuman, headers, rows); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(bufHuman.String(), "ID") || !strings.Contains(bufHuman.String(), "Daily Planner") {
-		t.Errorf("unexpected human table output: %s", bufHuman.String())
-	}
+	t.Run("human", func(t *testing.T) {
+		t.Setenv("AGENT", "")
+		var bufHuman bytes.Buffer
+		if err := PrintTable(&bufHuman, headers, rows); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(bufHuman.String(), "ID") || !strings.Contains(bufHuman.String(), "Daily Planner") {
+			t.Errorf("unexpected human table output: %s", bufHuman.String())
+		}
+	})
 
-	// Agent mode
-	os.Setenv("AGENT", "1")
-	var bufAgent bytes.Buffer
-	if err := PrintTable(&bufAgent, headers, rows); err != nil {
-		t.Fatal(err)
-	}
-	expectedTSV := "ID\tNAME\tTYPE\ndoc-1\tDaily Planner\tnotebook\ndoc-2\tQuick Notes\tnotebook\n"
-	if bufAgent.String() != expectedTSV {
-		t.Errorf("agent table want %q, got %q", expectedTSV, bufAgent.String())
-	}
+	t.Run("agent", func(t *testing.T) {
+		t.Setenv("AGENT", "1")
+		var bufAgent bytes.Buffer
+		if err := PrintTable(&bufAgent, headers, rows); err != nil {
+			t.Fatal(err)
+		}
+		expectedTSV := "ID\tNAME\tTYPE\ndoc-1\tDaily Planner\tnotebook\ndoc-2\tQuick Notes\tnotebook\n"
+		if bufAgent.String() != expectedTSV {
+			t.Errorf("agent table want %q, got %q", expectedTSV, bufAgent.String())
+		}
+	})
 }
 
 func TestPrintKeyValues_HumanVsAgent(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-
 	pairs := []KeyValuePair{
 		{Key: "Status", Value: "connected"},
 		{Key: "Items", Value: "42"},
 	}
 
-	// Human mode
-	os.Unsetenv("AGENT")
-	var bufHuman bytes.Buffer
-	if err := PrintKeyValues(&bufHuman, pairs); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(bufHuman.String(), "Status:") {
-		t.Errorf("unexpected human key values: %s", bufHuman.String())
-	}
+	t.Run("human", func(t *testing.T) {
+		t.Setenv("AGENT", "")
+		var bufHuman bytes.Buffer
+		if err := PrintKeyValues(&bufHuman, pairs); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(bufHuman.String(), "Status:") {
+			t.Errorf("unexpected human key values: %s", bufHuman.String())
+		}
+	})
 
-	// Agent mode
-	os.Setenv("AGENT", "1")
-	var bufAgent bytes.Buffer
-	if err := PrintKeyValues(&bufAgent, pairs); err != nil {
-		t.Fatal(err)
-	}
-	expected := "Status: connected\nItems: 42\n"
-	if bufAgent.String() != expected {
-		t.Errorf("agent key values want %q, got %q", expected, bufAgent.String())
-	}
+	t.Run("agent", func(t *testing.T) {
+		t.Setenv("AGENT", "1")
+		var bufAgent bytes.Buffer
+		if err := PrintKeyValues(&bufAgent, pairs); err != nil {
+			t.Fatal(err)
+		}
+		expected := "Status: connected\nItems: 42\n"
+		if bufAgent.String() != expected {
+			t.Errorf("agent key values want %q, got %q", expected, bufAgent.String())
+		}
+	})
 }
 
 func TestPrintTree_HumanVsAgent(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-
 	tree := &TreeNode{
 		Label: "Root",
 		Children: []*TreeNode{
@@ -148,52 +138,53 @@ func TestPrintTree_HumanVsAgent(t *testing.T) {
 		},
 	}
 
-	// Human mode
-	os.Unsetenv("AGENT")
-	var bufHuman bytes.Buffer
-	if err := PrintTree(&bufHuman, tree); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(bufHuman.String(), "├── Folder A") || !strings.Contains(bufHuman.String(), "└── Doc 2") {
-		t.Errorf("unexpected human tree output: %s", bufHuman.String())
-	}
+	t.Run("human", func(t *testing.T) {
+		t.Setenv("AGENT", "")
+		var bufHuman bytes.Buffer
+		if err := PrintTree(&bufHuman, tree); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(bufHuman.String(), "├── Folder A") || !strings.Contains(bufHuman.String(), "└── Doc 2") {
+			t.Errorf("unexpected human tree output: %s", bufHuman.String())
+		}
+	})
 
-	// Agent mode
-	os.Setenv("AGENT", "1")
-	var bufAgent bytes.Buffer
-	if err := PrintTree(&bufAgent, tree); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(bufAgent.String(), "* Root\n  * Folder A\n    * Doc 1\n  * Doc 2") {
-		t.Errorf("unexpected agent tree output: %s", bufAgent.String())
-	}
+	t.Run("agent", func(t *testing.T) {
+		t.Setenv("AGENT", "1")
+		var bufAgent bytes.Buffer
+		if err := PrintTree(&bufAgent, tree); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(bufAgent.String(), "* Root\n  * Folder A\n    * Doc 1\n  * Doc 2") {
+			t.Errorf("unexpected agent tree output: %s", bufAgent.String())
+		}
+	})
 }
 
 func TestTerminalWidthAndSeparator(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-
 	_ = TerminalWidth()
 
-	// Human separator
-	os.Unsetenv("AGENT")
-	var bufHuman bytes.Buffer
-	if err := PrintSeparator(&bufHuman); err != nil {
-		t.Fatal(err)
-	}
-	if len(bufHuman.String()) == 0 {
-		t.Error("expected non-empty separator in human mode")
-	}
+	t.Run("human", func(t *testing.T) {
+		t.Setenv("AGENT", "")
+		var bufHuman bytes.Buffer
+		if err := PrintSeparator(&bufHuman); err != nil {
+			t.Fatal(err)
+		}
+		if len(bufHuman.String()) == 0 {
+			t.Error("expected non-empty separator in human mode")
+		}
+	})
 
-	// Agent separator (should be omitted)
-	os.Setenv("AGENT", "1")
-	var bufAgent bytes.Buffer
-	if err := PrintSeparator(&bufAgent); err != nil {
-		t.Fatal(err)
-	}
-	if len(bufAgent.String()) != 0 {
-		t.Errorf("expected empty separator in agent mode, got %q", bufAgent.String())
-	}
+	t.Run("agent", func(t *testing.T) {
+		t.Setenv("AGENT", "1")
+		var bufAgent bytes.Buffer
+		if err := PrintSeparator(&bufAgent); err != nil {
+			t.Fatal(err)
+		}
+		if len(bufAgent.String()) != 0 {
+			t.Errorf("expected empty separator in agent mode, got %q", bufAgent.String())
+		}
+	})
 }
 
 func TestPrintTree_Nil(t *testing.T) {
@@ -207,9 +198,7 @@ func TestPrintTree_Nil(t *testing.T) {
 }
 
 func TestPrintTable_Escaping(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-	os.Setenv("AGENT", "1")
+	t.Setenv("AGENT", "1")
 
 	headers := []string{"ID", "NAME", "TYPE", "MODIFIED"}
 	rows := [][]string{
@@ -233,9 +222,7 @@ func TestPrintTable_Escaping(t *testing.T) {
 }
 
 func TestPrintTable_HumanModeEscaping(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-	os.Unsetenv("AGENT")
+	t.Setenv("AGENT", "")
 
 	headers := []string{"ID", "NAME"}
 	rows := [][]string{
@@ -260,9 +247,7 @@ func TestPrintTable_HumanModeEscaping(t *testing.T) {
 }
 
 func TestPrintKeyValues_HumanAlignment(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-	os.Unsetenv("AGENT")
+	t.Setenv("AGENT", "")
 
 	pairs := []KeyValuePair{
 		{Key: "ID", Value: "abc"},
@@ -301,9 +286,7 @@ func TestPrintKeyValues_HumanAlignment(t *testing.T) {
 }
 
 func TestPrintTable_HeaderVerbatim(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-	os.Unsetenv("AGENT")
+	t.Setenv("AGENT", "")
 
 	headers := []string{"LINK #", "TARGET PAGE"}
 	rows := [][]string{{"0", "1"}}
@@ -325,9 +308,7 @@ func TestPrintTable_HeaderVerbatim(t *testing.T) {
 
 
 func TestPrintTree_Escaping(t *testing.T) {
-	orig := os.Getenv("AGENT")
-	defer os.Setenv("AGENT", orig)
-	os.Setenv("AGENT", "1")
+	t.Setenv("AGENT", "1")
 
 	tree := &TreeNode{
 		Label: "/",

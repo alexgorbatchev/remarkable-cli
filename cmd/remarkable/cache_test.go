@@ -61,7 +61,7 @@ func TestCacheDirHoldsDownloadedBlobs(t *testing.T) {
 		if !slices.Equal(names, want) {
 			t.Fatalf("blob cache entries = %v, want %v", names, want)
 		}
-		for hash, data := range map[string][]byte{"pdf-hash": fixtures.pdf, "stroke-hash": fixtures.strokes} {
+		for hash, data := range map[string][]byte{"pdf-hash": fixtures.PDF, "stroke-hash": fixtures.Strokes} {
 			got, err := os.ReadFile(filepath.Join(cacheDir, "blobs", hash))
 			if err != nil || !bytes.Equal(got, data) {
 				t.Fatalf("cached %s differs from the downloaded bytes (err %v)", hash, err)

@@ -9,11 +9,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 func setupMockServer(t *testing.T) (*httptest.Server, *cloud.Client) {
@@ -40,103 +41,19 @@ type mockFailure struct {
 func setupMockServerFailing(t *testing.T, failure mockFailure) (*httptest.Server, *cloud.Client) {
 	t.Helper()
 
-	pdfData, err := os.ReadFile("testdata/linked_pages.pdf")
-	if err != nil {
-		t.Fatalf("reading pdf test fixture: %v", err)
-	}
-	rmData, err := os.ReadFile("testdata/oct1_notes_strokes.rm")
-	if err != nil {
-		t.Fatalf("reading rm test fixture: %v", err)
-	}
-	unloadablePDF, err := os.ReadFile("testdata/unloadable_page.pdf")
-	if err != nil {
-		t.Fatalf("reading unloadable pdf test fixture: %v", err)
-	}
-
-	var failedPathRequests atomic.Int32
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == failure.path && int(failedPathRequests.Add(1)) > failure.after {
-			if failure.body != "" {
-				w.Write([]byte(failure.body))
-				return
-			}
-			http.Error(w, "injected cloud failure", http.StatusBadGateway)
-			return
+	var fail *testcloud.Failure
+	if failure.path != "" {
+		fail = &testcloud.Failure{
+			Path:  failure.path,
+			After: failure.after,
+			Body:  failure.body,
 		}
-		switch r.URL.Path {
-		case "/token/v2/user":
-			w.Write([]byte("mock-token"))
-		case "/sync/v3/root":
-			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":4}`))
-		case "/sync/v3/files/root-hash":
-			// Eight items plus the schema v4 aggregate record.
-			w.Write([]byte("4\n0:.:75:211191896\nfolder-hash:folder-1:0:10\ndoc-hash:doc-1:0:100\nnopdf-hash:doc-nopdf:0:100\nnostroke-hash:doc-nostroke:0:100\nsuffix-hash:doc-suffix:0:100\nnocontent-hash:doc-nocontent:0:100\ncorrupt-hash:doc-corrupt:0:100\nunloadable-hash:doc-unloadable:0:100\n"))
-		case "/sync/v3/files/unloadable-hash":
-			w.Write([]byte("unloadable-meta:doc-unloadable.metadata:0:50\nunloadable-content:doc-unloadable.content:0:50\nunloadable-pdf:doc-unloadable.pdf:0:500\n"))
-		case "/sync/v3/files/unloadable-meta":
-			w.Write([]byte(`{"visibleName":"Unloadable Page Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/unloadable-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":2,"pages":["unloadable-page-1","unloadable-page-2"]}`))
-		case "/sync/v3/files/unloadable-pdf":
-			// Its page tree counts two pages but holds one, so PDFium cannot
-			// load page 1; page 0 reads "needle here".
-			w.Write(unloadablePDF)
-		case "/sync/v3/files/nocontent-hash":
-			w.Write([]byte("nocontent-meta:doc-nocontent.metadata:0:50\npdf-hash:doc-nocontent.pdf:0:1000\n"))
-		case "/sync/v3/files/nocontent-meta":
-			w.Write([]byte(`{"visibleName":"No Content Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/suffix-hash":
-			w.Write([]byte("suffix-meta:doc-suffix.metadata:0:50\nsuffix-content:doc-suffix.content:0:50\npdf-hash:other_name.pdf:0:1000\nstroke-hash:random_page.rm:0:200\n"))
-		case "/sync/v3/files/suffix-meta":
-			w.Write([]byte(`{"visibleName":"Suffix Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/suffix-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["random_page"]}`))
-		case "/sync/v3/files/nostroke-hash":
-			w.Write([]byte("nostroke-meta:doc-nostroke.metadata:0:50\nnostroke-content:doc-nostroke.content:0:50\npdf-hash:doc-nostroke.pdf:0:1000\n"))
-		case "/sync/v3/files/nostroke-meta":
-			w.Write([]byte(`{"visibleName":"No Stroke Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/nostroke-content":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["page-nostroke-1"]}`))
-		case "/sync/v3/files/folder-hash":
-			w.Write([]byte("folder-meta-hash:folder-1.metadata:0:50\n"))
-		case "/sync/v3/files/folder-meta-hash":
-			w.Write([]byte(`{"visibleName":"My Folder","type":"CollectionType"}`))
-		case "/sync/v3/files/doc-hash":
-			w.Write([]byte("meta-hash:doc-1.metadata:0:50\ncontent-hash:doc-1.content:0:100\npdf-hash:doc-1.pdf:0:1000\nstroke-hash:doc-1/page-uuid-1.rm:0:200\n"))
-		case "/sync/v3/files/meta-hash":
-			w.Write([]byte(`{"visibleName":"My Document","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z","parent":"folder-1"}`))
-		case "/sync/v3/files/content-hash":
-			w.Write([]byte(`{"fileType":"pdf","pageCount":1,"pages":["page-uuid-1"]}`))
-		case "/sync/v3/files/nopdf-hash":
-			w.Write([]byte("nopdf-meta:doc-nopdf.metadata:0:50\nnopdf-content:doc-nopdf.content:0:50\n"))
-		case "/sync/v3/files/nopdf-meta":
-			w.Write([]byte(`{"visibleName":"Empty Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/nopdf-content":
-			w.Write([]byte(`{"fileType":"notebook","pageCount":1,"cPages":{"pages":[{"id":"p1"}]}}`))
-		case "/sync/v3/files/corrupt-hash":
-			w.Write([]byte("corrupt-meta:doc-corrupt.metadata:0:50\ncorrupt-pdf:doc-corrupt.pdf:0:50\n"))
-		case "/sync/v3/files/corrupt-meta":
-			w.Write([]byte(`{"visibleName":"Corrupt Doc","type":"DocumentType"}`))
-		case "/sync/v3/files/corrupt-pdf":
-			w.Write([]byte("not-a-valid-pdf"))
-		case "/sync/v3/files/pdf-hash":
-			w.Write(pdfData)
-		case "/sync/v3/files/stroke-hash":
-			w.Write(rmData)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	client, err := cloud.NewClient(
-		cloud.WithConfig(&cloud.Config{DeviceToken: "dev", UserToken: "usr"}),
-		cloud.WithEndpoints(&cloud.Endpoints{WebappHost: ts.URL, StorageHost: ts.URL}),
-	)
-	if err != nil {
-		t.Fatalf("creating cloud client: %v", err)
 	}
-
-	return ts, client
+	ts := testcloud.New(t, testcloud.Options{
+		Preset:  testcloud.PresetDoc,
+		Failure: fail,
+	})
+	return ts.Server, ts.NewClient(t)
 }
 
 func TestSyncDocumentRejectsUnsupportedFormats(t *testing.T) {
@@ -281,7 +198,7 @@ func TestInspectMissingContent(t *testing.T) {
 	}
 }
 
-func TestDocService_Comprehensive(t *testing.T) {
+func TestDocService_ListAndTree(t *testing.T) {
 	ts, client := setupMockServer(t)
 	defer ts.Close()
 
@@ -340,227 +257,585 @@ func TestDocService_Comprehensive(t *testing.T) {
 	if err != nil || len(detailsWithPages.PageList) != 1 || !detailsWithPages.PageList[0].HasStrokes {
 		t.Fatalf("Inspect with pages failed: %v, %+v", err, detailsWithPages)
 	}
+}
 
-	// 4. SearchDocument
-	matches, err := SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "2026"})
-	if err != nil || len(matches) == 0 {
-		t.Fatalf("SearchDocument failed: %v, matches: %+v", err, matches)
-	}
-	if matches[0].PageIndex != 0 {
-		t.Errorf("expected page 0 match, got %d", matches[0].PageIndex)
-	}
+func TestSearchDocument(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
 
-	// Search matching deeper text (exercising start > 0)
-	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Priority"})
-	_, _ = SearchDocument(ctx, client, "doc-1", SearchQuery{Text: "Notes"})
-
-	// A blank query would otherwise match every page of the searchable doc-1.
-	for _, blank := range []string{"", " \r\n\t"} {
-		blankMatches, err := SearchDocument(ctx, client, "doc-1", SearchQuery{Text: blank})
-		if !errors.Is(err, errBlankSearchQuery) {
-			t.Errorf("SearchDocument(%q) = %+v, %v; want blank-query error", blank, blankMatches, err)
-		}
-	}
-
-	// Search on document with no PDF
-	_, errNoPDFSearch := SearchDocument(ctx, client, "doc-nopdf", SearchQuery{Text: "query"})
-	if errNoPDFSearch == nil {
-		t.Error("expected error searching doc with no PDF")
-	}
-
-	// Search on corrupt PDF
-	_, errCorrupt := SearchDocument(ctx, client, "doc-corrupt", SearchQuery{Text: "query"})
-	if errCorrupt == nil {
-		t.Error("expected error on corrupt PDF")
-	}
-
-	// 5. GetLinks
-	links, err := GetLinks(ctx, client, "doc-1", 0)
-	if err != nil || len(links) == 0 {
-		t.Fatalf("GetLinks failed: %v, links: %+v", err, links)
-	}
-	if links[0].TargetPage < 0 {
-		t.Errorf("expected positive target page, got %d", links[0].TargetPage)
-	}
-
-	// GetLinks on a notebook with no PDF names the missing PDF.
-	noPDFLinks, errNoPDFLinks := GetLinks(ctx, client, "doc-nopdf", 0)
-	if want := `document "doc-nopdf" has no background PDF`; errNoPDFLinks == nil || errNoPDFLinks.Error() != want {
-		t.Errorf("GetLinks on notebook without PDF = %+v, %v; want error %q", noPDFLinks, errNoPDFLinks, want)
-	}
-
-	// Out of bounds links
-	_, errOOB := GetLinks(ctx, client, "doc-1", 999)
-	if errOOB == nil {
-		t.Error("expected error for out of bounds links")
-	}
-	_, errNegLinks := GetLinks(ctx, client, "doc-1", -1)
-	if errNegLinks == nil {
-		t.Error("expected error for negative links")
-	}
-
-	// 6. Cat formats: pdf, text, rm, svg
-	var bufPDF bytes.Buffer
-	if err := Cat(ctx, client, "doc-1", 0, "pdf", &bufPDF); err != nil || bufPDF.Len() == 0 {
-		t.Fatalf("Cat pdf failed: %v", err)
+	tests := []struct {
+		name            string
+		doc             string
+		query           SearchQuery
+		wantPageIndexes []int
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name:            "match query 2026",
+			doc:             "doc-1",
+			query:           SearchQuery{Text: "2026"},
+			wantPageIndexes: []int{0, 1, 2, 3, 4, 5},
+		},
+		{
+			name:            "match deeper text Priority",
+			doc:             "doc-1",
+			query:           SearchQuery{Text: "Priority"},
+			wantPageIndexes: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name:            "match deeper text Notes",
+			doc:             "doc-1",
+			query:           SearchQuery{Text: "Notes"},
+			wantPageIndexes: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name:    "blank query",
+			doc:     "doc-1",
+			query:   SearchQuery{Text: ""},
+			wantErr: errBlankSearchQuery,
+		},
+		{
+			name:    "whitespace query",
+			doc:     "doc-1",
+			query:   SearchQuery{Text: " \r\n\t"},
+			wantErr: errBlankSearchQuery,
+		},
+		{
+			name:            "doc with no PDF",
+			doc:             "doc-nopdf",
+			query:           SearchQuery{Text: "query"},
+			wantErrContains: "no searchable PDF text",
+		},
+		{
+			name:            "corrupt PDF",
+			doc:             "doc-corrupt",
+			query:           SearchQuery{Text: "query"},
+			wantErrContains: "opening PDF",
+		},
 	}
 
-	// Suffix matching in Cat
-	_ = Cat(ctx, client, "doc-suffix", 0, "pdf", &bufPDF)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matches, err := SearchDocument(ctx, client, tt.doc, tt.query)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("SearchDocument(%q) error = %v, want %v", tt.query.Text, err, tt.wantErr)
+				}
+				return
+			}
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("SearchDocument(%q) error = %v, want error containing %q", tt.query.Text, err, tt.wantErrContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SearchDocument(%q) unexpected error: %v", tt.query.Text, err)
+			}
+			var gotIndexes []int
+			for _, m := range matches {
+				gotIndexes = append(gotIndexes, m.PageIndex)
+			}
+			if !slices.Equal(gotIndexes, tt.wantPageIndexes) {
+				t.Fatalf("SearchDocument(%q) page indexes = %v, want %v", tt.query.Text, gotIndexes, tt.wantPageIndexes)
+			}
+		})
+	}
+}
 
-	var bufText bytes.Buffer
-	if err := Cat(ctx, client, "doc-1", 0, "text", &bufText); err != nil || bufText.Len() == 0 {
-		t.Fatalf("Cat text failed: %v", err)
+func TestGetLinks(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
+
+	tests := []struct {
+		name            string
+		doc             string
+		page            int
+		wantLinks       bool
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name:      "doc-1 page 0 has links",
+			doc:       "doc-1",
+			page:      0,
+			wantLinks: true,
+		},
+		{
+			name:            "doc-nopdf has no background PDF",
+			doc:             "doc-nopdf",
+			page:            0,
+			wantErrContains: `document "doc-nopdf" has no background PDF`,
+		},
+		{
+			name:            "doc-corrupt opening PDF error",
+			doc:             "doc-corrupt",
+			page:            0,
+			wantErrContains: "opening PDF document",
+		},
+		{
+			name:            "out of bounds page 999",
+			doc:             "doc-1",
+			page:            999,
+			wantErrContains: "page index out of bounds",
+		},
+		{
+			name:            "negative page -1",
+			doc:             "doc-1",
+			page:            -1,
+			wantErrContains: "page index out of bounds",
+		},
 	}
 
-	var bufRM bytes.Buffer
-	if err := Cat(ctx, client, "doc-1", 0, "rm", &bufRM); err != nil || bufRM.Len() == 0 {
-		t.Fatalf("Cat rm failed: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			links, err := GetLinks(ctx, client, tt.doc, tt.page)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("GetLinks error = %v, want %v", err, tt.wantErr)
+				}
+			}
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("GetLinks error = %v, want error containing %q", err, tt.wantErrContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("GetLinks unexpected error: %v", err)
+			}
+			if tt.wantLinks && len(links) == 0 {
+				t.Fatal("GetLinks returned 0 links, want at least 1")
+			}
+			if tt.wantLinks && links[0].TargetPage < 0 {
+				t.Errorf("expected positive target page, got %d", links[0].TargetPage)
+			}
+		})
 	}
-	_ = Cat(ctx, client, "doc-suffix", 0, "rm", &bufRM)
+}
 
-	var bufSVG bytes.Buffer
-	if err := Cat(ctx, client, "doc-1", 0, "svg", &bufSVG); err != nil || !strings.Contains(bufSVG.String(), "<svg") {
-		t.Fatalf("Cat svg failed: %v", err)
+func TestCat(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
+
+	tests := []struct {
+		name            string
+		doc             string
+		page            int
+		format          string
+		wantMinLen      int
+		wantContains    string
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name:       "doc-1 pdf",
+			doc:        "doc-1",
+			page:       0,
+			format:     "pdf",
+			wantMinLen: 1,
+		},
+		{
+			name:       "doc-suffix pdf suffix fallback",
+			doc:        "doc-suffix",
+			page:       0,
+			format:     "pdf",
+			wantMinLen: 1,
+		},
+		{
+			name:       "doc-1 text",
+			doc:        "doc-1",
+			page:       0,
+			format:     "text",
+			wantMinLen: 1,
+		},
+		{
+			name:       "doc-1 rm",
+			doc:        "doc-1",
+			page:       0,
+			format:     "rm",
+			wantMinLen: 1,
+		},
+		{
+			name:       "doc-suffix rm suffix fallback",
+			doc:        "doc-suffix",
+			page:       0,
+			format:     "rm",
+			wantMinLen: 1,
+		},
+		{
+			name:         "doc-1 svg",
+			doc:          "doc-1",
+			page:         0,
+			format:       "svg",
+			wantContains: "<svg",
+		},
+		{
+			name:    "doc-1 out of bounds",
+			doc:     "doc-1",
+			page:    999,
+			format:  "rm",
+			wantErr: ErrPageOutOfBounds,
+		},
+		{
+			name:    "doc-1 negative page",
+			doc:     "doc-1",
+			page:    -1,
+			format:  "rm",
+			wantErr: ErrPageOutOfBounds,
+		},
+		{
+			name:            "doc-1 unsupported format",
+			doc:             "doc-1",
+			page:            0,
+			format:          "unsupported-format",
+			wantErrContains: "unsupported format",
+		},
+		{
+			name:            "doc-nopdf pdf",
+			doc:             "doc-nopdf",
+			page:            0,
+			format:          "pdf",
+			wantErrContains: "no background PDF",
+		},
+		{
+			name:            "doc-nopdf text",
+			doc:             "doc-nopdf",
+			page:            0,
+			format:          "text",
+			wantErrContains: "no PDF text",
+		},
+		{
+			name:            "doc-nostroke rm",
+			doc:             "doc-nostroke",
+			page:            0,
+			format:          "rm",
+			wantErrContains: "no stroke data found",
+		},
+		{
+			name:            "doc-nostroke svg",
+			doc:             "doc-nostroke",
+			page:            0,
+			format:          "svg",
+			wantErrContains: "no stroke data found",
+		},
+		{
+			name:            "doc-nocontent rm",
+			doc:             "doc-nocontent",
+			page:            0,
+			format:          "rm",
+			wantErr:         cloud.ErrItemNotFound,
+			wantErrContains: "fetching content schema",
+		},
+		{
+			name:            "doc-corrupt text",
+			doc:             "doc-corrupt",
+			page:            0,
+			format:          "text",
+			wantErrContains: "opening PDF",
+		},
 	}
 
-	// Cat errors
-	if err := Cat(ctx, client, "doc-1", 999, "rm", &bufRM); !errors.Is(err, ErrPageOutOfBounds) {
-		t.Errorf("out of bounds cat = %v, want ErrPageOutOfBounds", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := Cat(ctx, client, tt.doc, tt.page, tt.format, &buf)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Cat error = %v, want %v", err, tt.wantErr)
+				}
+			}
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("Cat error = %v, want error containing %q", err, tt.wantErrContains)
+				}
+				return
+			}
+			if tt.wantErr == nil && tt.wantErrContains == "" && err != nil {
+				t.Fatalf("Cat unexpected error: %v", err)
+			}
+			if tt.wantMinLen > 0 && buf.Len() < tt.wantMinLen {
+				t.Fatalf("Cat output len = %d, want >= %d", buf.Len(), tt.wantMinLen)
+			}
+			if tt.wantContains != "" && !strings.Contains(buf.String(), tt.wantContains) {
+				t.Fatalf("Cat output = %q, want substring %q", buf.String(), tt.wantContains)
+			}
+		})
 	}
-	if err := Cat(ctx, client, "doc-1", -1, "rm", &bufRM); err == nil {
-		t.Error("expected error on negative page cat")
-	}
-	if err := Cat(ctx, client, "doc-1", 0, "unsupported-format", &bufRM); err == nil {
-		t.Error("expected error on unsupported format")
-	}
-	if err := Cat(ctx, client, "doc-nopdf", 0, "pdf", &bufPDF); err == nil {
-		t.Error("expected error on doc with no pdf")
-	}
-	if err := Cat(ctx, client, "doc-nopdf", 0, "text", &bufText); err == nil {
-		t.Error("expected error on doc with no pdf text")
-	}
-	if err := Cat(ctx, client, "doc-nostroke", 0, "rm", &bufRM); err == nil {
-		t.Error("expected error on doc with no strokes")
-	}
-	_ = Cat(ctx, client, "doc-nostroke", 0, "svg", &bufSVG)
-	_ = Cat(ctx, client, "doc-nocontent", 0, "rm", &bufRM)
-	_ = Cat(ctx, client, "doc-corrupt", 0, "text", &bufText)
-	_, _ = GetLinks(ctx, client, "doc-corrupt", 0)
+}
 
-	// 7. RenderPage (with PDF, without PDF, and without strokes)
+func TestRenderPage(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
+
 	tmpDir := t.TempDir()
-	outPNG := filepath.Join(tmpDir, "rendered.png")
-	if err := RenderPage(ctx, client, "doc-1", 0, 0, outPNG); err != nil {
-		t.Fatalf("RenderPage failed: %v", err)
-	}
-	if info, err := os.Stat(outPNG); err != nil || info.Size() == 0 {
-		t.Fatalf("expected non-empty output PNG: %v", err)
+
+	tests := []struct {
+		name            string
+		doc             string
+		page            int
+		dpi             int
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name: "doc-1 default DPI",
+			doc:  "doc-1",
+			page: 0,
+			dpi:  0,
+		},
+		{
+			name: "doc-1 150 DPI",
+			doc:  "doc-1",
+			page: 0,
+			dpi:  150,
+		},
+		{
+			name: "doc-suffix 200 DPI suffix match",
+			doc:  "doc-suffix",
+			page: 0,
+			dpi:  200,
+		},
+		{
+			name: "doc-nostroke 200 DPI without strokes",
+			doc:  "doc-nostroke",
+			page: 0,
+			dpi:  200,
+		},
+		{
+			name:            "doc-nopdf no background template",
+			doc:             "doc-nopdf",
+			page:            0,
+			dpi:             200,
+			wantErrContains: "no PDF stationery template",
+		},
+		{
+			name:            "doc-corrupt missing content schema",
+			doc:             "doc-corrupt",
+			page:            0,
+			dpi:             200,
+			wantErr:         cloud.ErrItemNotFound,
+			wantErrContains: "fetching content schema",
+		},
+		{
+			name:            "doc-nocontent missing content schema",
+			doc:             "doc-nocontent",
+			page:            0,
+			dpi:             200,
+			wantErr:         cloud.ErrItemNotFound,
+			wantErrContains: "fetching content schema",
+		},
+		{
+			name:    "doc-1 out of bounds page 999",
+			doc:     "doc-1",
+			page:    999,
+			dpi:     200,
+			wantErr: ErrPageOutOfBounds,
+		},
+		{
+			name:    "doc-1 negative page -1",
+			doc:     "doc-1",
+			page:    -1,
+			dpi:     200,
+			wantErr: ErrPageOutOfBounds,
+		},
 	}
 
-	// Render without strokes
-	outNoStroke := filepath.Join(tmpDir, "rendered-nostroke.png")
-	if err := RenderPage(ctx, client, "doc-nostroke", 0, 200, outNoStroke); err != nil {
-		t.Fatalf("RenderPage nostroke failed: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outPath := filepath.Join(tmpDir, tt.name+".png")
+			err := RenderPage(ctx, client, tt.doc, tt.page, tt.dpi, outPath)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("RenderPage error = %v, want %v", err, tt.wantErr)
+				}
+			}
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("RenderPage error = %v, want error containing %q", err, tt.wantErrContains)
+				}
+				return
+			}
+			if tt.wantErr == nil && tt.wantErrContains == "" {
+				if err != nil {
+					t.Fatalf("RenderPage unexpected error: %v", err)
+				}
+				info, err := os.Stat(outPath)
+				if err != nil || info.Size() == 0 {
+					t.Fatalf("expected non-empty output PNG at %s (err: %v)", outPath, err)
+				}
+			}
+		})
 	}
-	_ = RenderPage(ctx, client, "doc-1", 0, 150, outPNG)
-	_ = RenderPage(ctx, client, "doc-suffix", 0, 200, outPNG)
-	_ = RenderPage(ctx, client, "doc-corrupt", 0, 200, outPNG)
-	_ = RenderPage(ctx, client, "doc-nocontent", 0, 200, outPNG)
+}
 
-	// Render without PDF background should return error
-	outNoPDF := filepath.Join(tmpDir, "rendered-nopdf.png")
-	if err := RenderPage(ctx, client, "doc-nopdf", 0, 200, outNoPDF); err == nil {
-		t.Error("expected error rendering doc with no pdf background")
-	}
+func TestSyncDocument(t *testing.T) {
+	ts, client := setupMockServer(t)
+	defer ts.Close()
+	ctx := context.Background()
 
-	// RenderPage OOB and negative
-	if err := RenderPage(ctx, client, "doc-1", 999, 200, outPNG); !errors.Is(err, ErrPageOutOfBounds) {
-		t.Errorf("out of bounds render = %v, want ErrPageOutOfBounds", err)
-	}
-	if err := RenderPage(ctx, client, "doc-1", -1, 200, outPNG); err == nil {
-		t.Error("expected error on negative page render")
-	}
-
-	// 8. SyncDocument (png, svg, rm) with explicit pages and defaults
+	tmpDir := t.TempDir()
 	syncDir := filepath.Join(tmpDir, "synced")
-	resultsPNG, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "png",
-		Force:     false,
-		Pages:     []int{0},
-	})
-	if err != nil || len(resultsPNG) != 1 || resultsPNG[0].State != "written" {
-		t.Fatalf("SyncDocument PNG failed: %v, %+v", err, resultsPNG)
+
+	tests := []struct {
+		name            string
+		doc             string
+		opts            SyncDocOptions
+		wantCount       int
+		wantState       string
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name: "doc-1 png written",
+			doc:  "doc-1",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "png",
+				Force:     false,
+				Pages:     []int{0},
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-1 png skipped when existing without force",
+			doc:  "doc-1",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "png",
+				Force:     false,
+			},
+			wantCount: 1,
+			wantState: "skipped",
+		},
+		{
+			name: "doc-1 svg written",
+			doc:  "doc-1",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "svg",
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-1 rm written",
+			doc:  "doc-1",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "rm",
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-nostroke png written",
+			doc:  "doc-nostroke",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "png",
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-nostroke svg written",
+			doc:  "doc-nostroke",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "svg",
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-nostroke rm written",
+			doc:  "doc-nostroke",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "rm",
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
+		{
+			name: "doc-corrupt missing content schema",
+			doc:  "doc-corrupt",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "png",
+				Force:     true,
+			},
+			wantErr:         cloud.ErrItemNotFound,
+			wantErrContains: "fetching content schema",
+		},
+		{
+			name: "doc-1 oob pages filtered",
+			doc:  "doc-1",
+			opts: SyncDocOptions{
+				OutputDir: syncDir,
+				Format:    "png",
+				Pages:     []int{-1, 0, 999},
+				Force:     true,
+			},
+			wantCount: 1,
+			wantState: "written",
+		},
 	}
 
-	// Second run should be skipped
-	resultsSkipped, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "png",
-		Force:     false,
-	})
-	if err != nil || len(resultsSkipped) != 1 || resultsSkipped[0].State != "skipped" {
-		t.Fatalf("expected skipped page, got: %+v", resultsSkipped)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := SyncDocument(ctx, client, tt.doc, tt.opts)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("SyncDocument error = %v, want %v", err, tt.wantErr)
+				}
+			}
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("SyncDocument error = %v, want error containing %q", err, tt.wantErrContains)
+				}
+				return
+			}
+			if tt.wantErr == nil && tt.wantErrContains == "" && err != nil {
+				t.Fatalf("SyncDocument unexpected error: %v", err)
+			}
+			if len(results) != tt.wantCount {
+				t.Fatalf("SyncDocument results count = %d, want %d", len(results), tt.wantCount)
+			}
+			if tt.wantCount > 0 && results[0].State != tt.wantState {
+				t.Fatalf("SyncDocument result[0].State = %q, want %q", results[0].State, tt.wantState)
+			}
+		})
 	}
 
-	// Sync with default options (empty OutputDir, empty Format)
-	resultsDefault, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: "",
-		Format:    "",
-		Force:     true,
-	})
-	if err != nil || len(resultsDefault) != 1 {
-		t.Fatalf("SyncDocument default failed: %v", err)
-	}
-	_ = os.RemoveAll("My Document") // cleanup default output
+	t.Run("default output directory isolates writes to temp dir", func(t *testing.T) {
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
 
-	// Sync SVG
-	resultsSVG, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "svg",
-		Force:     true,
-	})
-	if err != nil || len(resultsSVG) != 1 {
-		t.Fatalf("SyncDocument SVG failed: %v", err)
-	}
-
-	// Sync RM
-	resultsRM, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "rm",
-		Force:     true,
-	})
-	if err != nil || len(resultsRM) != 1 {
-		t.Fatalf("SyncDocument RM failed: %v", err)
-	}
-
-	// Sync doc-nostroke and invalid page indices
-	_, _ = SyncDocument(ctx, client, "doc-nostroke", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "png",
-		Force:     true,
-	})
-	_, _ = SyncDocument(ctx, client, "doc-nostroke", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "svg",
-		Force:     true,
-	})
-	_, _ = SyncDocument(ctx, client, "doc-nostroke", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "rm",
-		Force:     true,
-	})
-	_, _ = SyncDocument(ctx, client, "doc-corrupt", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "png",
-		Force:     true,
-	})
-	_, _ = SyncDocument(ctx, client, "doc-1", SyncDocOptions{
-		OutputDir: syncDir,
-		Format:    "png",
-		Pages:     []int{-1, 0, 999},
-		Force:     true,
+		results, err := SyncDocument(ctx, client, "doc-1", SyncDocOptions{
+			OutputDir: "",
+			Format:    "",
+			Force:     true,
+		})
+		if err != nil || len(results) != 1 {
+			t.Fatalf("SyncDocument default failed: %v, results=%+v", err, results)
+		}
+		expectedPath := filepath.Join(tempDir, "My Document", "page-000.png")
+		if _, err := os.Stat(expectedPath); err != nil {
+			t.Fatalf("expected written page at %s, err: %v", expectedPath, err)
+		}
 	})
 }
 
