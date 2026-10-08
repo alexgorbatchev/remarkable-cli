@@ -41,6 +41,7 @@ func TestResolveConfigPath(t *testing.T) {
 	t.Run("fallback to ~/.rmapi", func(t *testing.T) {
 		tmpHome := t.TempDir()
 		t.Setenv("HOME", tmpHome)
+		t.Setenv("USERPROFILE", tmpHome)
 		t.Setenv("REMARKABLE_CONFIG", "")
 		t.Setenv("XDG_CONFIG_HOME", "")
 
@@ -78,6 +79,7 @@ func TestResolveCacheDir(t *testing.T) {
 	t.Run("default fallback", func(t *testing.T) {
 		tmpHome := t.TempDir()
 		t.Setenv("HOME", tmpHome)
+		t.Setenv("USERPROFILE", tmpHome)
 		t.Setenv("REMARKABLE_CACHE_DIR", "")
 		t.Setenv("XDG_CACHE_HOME", "")
 		expected := filepath.Join(tmpHome, ".cache", "remarkable-cli")
