@@ -113,7 +113,6 @@ func newRootCmd() *cobra.Command {
 			Args: []cobrahelptree.ArgSpec{
 				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
 			},
-			MutatesDB: true,
 		},
 		"remarkable stroke inspect": {
 			Args: []cobrahelptree.ArgSpec{

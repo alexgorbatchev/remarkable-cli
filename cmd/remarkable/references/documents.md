@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-08 01:10
+  last_modified: 2026-10-08 03:15
   status: current
 ---
 
@@ -22,7 +22,7 @@ using Go escapes; `strconv.UnquoteChar` decodes them.
 | --- | --- | --- | --- | --- |
 | `--folder` | — | `string` | `""` | Filter by parent folder ID; empty means no parent filter. |
 | `--type` | — | `string` | `""` | Filter by exact type: `DocumentType` or `CollectionType`; empty means all. |
-| `--query` | `-q` | `string` | `""` | Match title substring, ignoring case and surrounding query whitespace. |
+| `--query` | `-q` | `string` | `""` | Match title substring under Unicode full case folding, ignoring surrounding whitespace. |
 | `--limit` | — | `int` | `0` | Keep the first N filtered rows of that order when positive; 0 or negative means unlimited. |
 
 ## `remarkable doc tree`

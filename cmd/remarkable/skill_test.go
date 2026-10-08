@@ -521,3 +521,28 @@ func TestSkillOutputErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestMutatesDBMatchesDocumentedCommands(t *testing.T) {
+	t.Setenv("AGENT", "1")
+
+	wantMutatesDB := map[string]bool{
+		"remarkable auth pair":             true,
+		"remarkable doc import":            true,
+		"remarkable doc settings transfer": true,
+		"remarkable doc upload":            true,
+	}
+
+	walkCommands(commandTree(t), func(cmd *cobra.Command) {
+		path := cmd.CommandPath()
+		out, err := executeRoot(append(strings.Fields(path)[1:], "--help")...)
+		if err != nil {
+			t.Fatalf("%s help: %v", path, err)
+		}
+		hasMutatesDB := strings.Contains(out, "mutates_db: true")
+		want := wantMutatesDB[path]
+		if hasMutatesDB != want {
+			t.Errorf("%s: mutates_db = %v, want %v", path, hasMutatesDB, want)
+		}
+	})
+}
+

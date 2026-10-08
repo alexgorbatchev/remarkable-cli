@@ -33,11 +33,10 @@ type itemOrder struct {
 // with the same name never interleave.
 //
 // Names compare by their Unicode full case folding first, so case does not
-// decide the order, as with the case-insensitive --query filter and doc
-// search, and the result is closer to an alphabetical view such as the
-// tablet's than raw bytes are. Names with equal foldings then compare by their
-// UTF-8 bytes, and IDs by bytes, which keeps the order total and identical on
-// every run.
+// decide the order, as with the case-insensitive --query filter, and the
+// result is closer to an alphabetical view such as the tablet's than raw
+// bytes are. Names with equal foldings then compare by their UTF-8 bytes, and
+// IDs by bytes, which keeps the order total and identical on every run.
 func sortItems(items []*cloud.Item) {
 	fold := cases.Fold()
 	o := itemOrder{

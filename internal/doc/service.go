@@ -14,6 +14,7 @@ import (
 	render "github.com/alexgorbatchev/go-remarkable-render"
 	"github.com/alexgorbatchev/go-rmscene"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
+	"golang.org/x/text/cases"
 )
 
 // ItemSummary represents a user-facing document or folder.
@@ -35,7 +36,8 @@ func List(ctx context.Context, client *cloud.Client, folderID, docType, query st
 	sortItems(items)
 
 	summaries := make([]ItemSummary, 0, len(items))
-	query = strings.ToLower(strings.TrimSpace(query))
+	fold := cases.Fold()
+	foldedQuery := fold.String(strings.TrimSpace(query))
 
 	for _, it := range items {
 		if folderID != "" && it.Metadata.Parent != folderID {
@@ -44,7 +46,7 @@ func List(ctx context.Context, client *cloud.Client, folderID, docType, query st
 		if docType != "" && string(it.Metadata.Type) != docType {
 			continue
 		}
-		if query != "" && !strings.Contains(strings.ToLower(it.Metadata.VisibleName), query) {
+		if foldedQuery != "" && !strings.Contains(fold.String(it.Metadata.VisibleName), foldedQuery) {
 			continue
 		}
 		summaries = append(summaries, ItemSummary{
