@@ -21,6 +21,7 @@ import (
 )
 
 const uploadFolderID = "11111111-1111-4111-8111-111111111111"
+const uploadParentFolderID = "44444444-4444-4444-8444-444444444444"
 
 type uploadServer struct {
 	mu       sync.Mutex
@@ -40,11 +41,21 @@ func newUploadServer(t *testing.T, failure, evidence string) (*uploadServer, *cl
 	t.Helper()
 	s := &uploadServer{t: t, blobs: make(map[string][]byte), failure: failure, evidence: evidence, checked: make(map[string]bool)}
 	root := []byte("4\n0:.:1:0\n")
-	for _, id := range []string{uploadFolderID, archiveDocID} {
+	for _, id := range []string{uploadFolderID, archiveDocID, uploadParentFolderID} {
 		metadata := cloud.ItemMetadata{Type: cloud.ItemTypeDocument, VisibleName: "Source"}
+		if id == uploadParentFolderID {
+			metadata.Type = cloud.ItemTypeCollection
+			metadata.VisibleName = "ParentFolder"
+			if failure == "trashed-ancestor-folder" {
+				metadata.Parent = "trash"
+			}
+		}
 		if id == uploadFolderID {
 			metadata.Type = cloud.ItemTypeCollection
 			metadata.VisibleName = "Folder"
+			if failure == "trashed-ancestor-folder" {
+				metadata.Parent = uploadParentFolderID
+			}
 		}
 		if failure == "collision" && id == archiveDocID {
 			metadata.VisibleName = "Planner"
@@ -150,7 +161,7 @@ func (s *uploadServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestUploadPDF(t *testing.T) {
 	for _, initialize := range []bool{false, true} {
-		for _, failure := range []string{"", "collision", "deleted-folder", "document-folder", "missing-folder", "invalid-pdf", "evidence-exists", "conflict", "unknown", "corrupt"} {
+		for _, failure := range []string{"", "collision", "deleted-folder", "trashed-ancestor-folder", "document-folder", "missing-folder", "invalid-pdf", "evidence-exists", "conflict", "unknown", "corrupt"} {
 			t.Run(fmt.Sprintf("initialize=%t/%s", initialize, failure), func(t *testing.T) {
 				testUploadPDF(t, initialize, failure)
 			})
@@ -192,7 +203,7 @@ func testUploadPDF(t *testing.T, initialize bool, failure string) {
 		if err == nil {
 			t.Fatal("expected upload error")
 		}
-		wantError := map[string]string{"collision": "already exists", "deleted-folder": "deleted or in trash", "document-folder": "not a collection", "missing-folder": "not found", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
+		wantError := map[string]string{"collision": "already exists", "deleted-folder": "deleted or in trash", "trashed-ancestor-folder": "deleted or in trash", "document-folder": "not a collection", "missing-folder": "not found", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
 		if !strings.Contains(err.Error(), wantError) {
 			t.Fatalf("wrong failure: %v, want %q", err, wantError)
 		}

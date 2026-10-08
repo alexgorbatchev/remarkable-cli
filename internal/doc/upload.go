@@ -153,7 +153,7 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 	if err != nil {
 		return nil, fmt.Errorf("reading upload root snapshot: %w", err)
 	}
-	var folderItem *cloud.ItemMetadata
+	allMeta := make(map[string]cloud.ItemMetadata)
 	for _, entry := range manifest.Entries {
 		if entry.ID == "." {
 			continue
@@ -177,23 +177,36 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 		if err := json.Unmarshal(data, &metadata); err != nil {
 			return nil, fmt.Errorf("reading upload metadata: %w", err)
 		}
-		if entry.ID == opts.Folder {
-			m := metadata
-			folderItem = &m
-		}
+		allMeta[entry.ID] = metadata
 		if !metadata.Deleted && metadata.Parent == opts.Folder && metadata.VisibleName == opts.Title {
 			return nil, fmt.Errorf("title %q already exists in destination folder (%s); choose a distinct title", opts.Title, entry.ID)
 		}
 	}
 	if opts.Folder != "" {
-		if folderItem == nil {
+		folderItem, ok := allMeta[opts.Folder]
+		if !ok {
 			return nil, fmt.Errorf("destination folder %s not found: %w", opts.Folder, cloud.ErrItemNotFound)
 		}
 		if folderItem.Type != cloud.ItemTypeCollection {
 			return nil, fmt.Errorf("destination folder %s is not a collection", opts.Folder)
 		}
-		if folderItem.Deleted || folderItem.Parent == "trash" {
-			return nil, fmt.Errorf("destination folder %s is deleted or in trash", opts.Folder)
+		visited := make(map[string]bool)
+		for cur := opts.Folder; cur != ""; {
+			if visited[cur] {
+				return nil, fmt.Errorf("destination folder %s has a cycle in its parent chain", opts.Folder)
+			}
+			visited[cur] = true
+			item, ok := allMeta[cur]
+			if !ok {
+				return nil, fmt.Errorf("destination folder %s ancestor %s not found: %w", opts.Folder, cur, cloud.ErrItemNotFound)
+			}
+			if item.Deleted || item.Parent == "trash" {
+				return nil, fmt.Errorf("destination folder %s is deleted or in trash", opts.Folder)
+			}
+			if item.Type != cloud.ItemTypeCollection {
+				return nil, fmt.Errorf("destination folder %s ancestor %s is not a collection", opts.Folder, cur)
+			}
+			cur = item.Parent
 		}
 	}
 	return root, nil
