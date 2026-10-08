@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -476,6 +477,56 @@ func TestMainReportsUnknownCommandOnce(t *testing.T) {
 			}
 			if got.stderr != want {
 				t.Errorf("stderr = %q, want only the error once: %q", got.stderr, want)
+			}
+		})
+	}
+}
+
+func TestMainReportsUnknownSubcommandUnderGroup(t *testing.T) {
+	cases := []struct {
+		args        []string
+		wantCommand string
+		unknownWord string
+	}{
+		{[]string{"doc", "bogus"}, "remarkable doc", "bogus"},
+		{[]string{"auth", "bogus"}, "remarkable auth", "bogus"},
+		{[]string{"stroke", "bogus"}, "remarkable stroke", "bogus"},
+		{[]string{"doc", "settings", "bogus"}, "remarkable doc settings", "bogus"},
+		{[]string{"skill", "reference", "cats"}, "remarkable skill reference", "cats"},
+	}
+
+	for _, tc := range cases {
+		for _, mode := range errorModes {
+			name := strings.Join(tc.args, "_") + "/" + mode.agent
+			t.Run(name, func(t *testing.T) {
+				t.Setenv("AGENT", mode.agent)
+				got := runMainProcess(t, mainRun{args: tc.args})
+				if got.exitCode != 1 {
+					t.Errorf("exit status = %d, want 1", got.exitCode)
+				}
+				if got.stdout != "" {
+					t.Errorf("stdout = %q, want empty", got.stdout)
+				}
+				wantErr := fmt.Sprintf("%sunknown command %q for %q\n", mode.prefix, tc.unknownWord, tc.wantCommand)
+				if !strings.HasSuffix(got.stderr, wantErr) {
+					t.Errorf("stderr does not end with error line: stderr = %q, want suffix %q", got.stderr, wantErr)
+				}
+			})
+		}
+	}
+
+	for _, mode := range errorModes {
+		t.Run("bare_doc/"+mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			got := runMainProcess(t, mainRun{args: []string{"doc"}})
+			if got.exitCode != 0 {
+				t.Errorf("exit status = %d, want 0", got.exitCode)
+			}
+			if got.stderr != "" {
+				t.Errorf("stderr = %q, want empty", got.stderr)
+			}
+			if !strings.Contains(got.stdout, "remarkable doc") {
+				t.Errorf("stdout missing doc help: %q", got.stdout)
 			}
 		})
 	}

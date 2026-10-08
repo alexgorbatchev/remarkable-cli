@@ -170,11 +170,28 @@ func silenceUsageOnRun(cmd *cobra.Command) {
 	}
 }
 
+// configureCommandGroups gives every command group (a command with
+// subcommands and no Run/RunE) Args: cobra.NoArgs and a RunE returning
+// cmd.Help(), as root does, so that an unknown subcommand is rejected as an
+// invocation error instead of printing help to stdout and exiting 0.
+func configureCommandGroups(cmd *cobra.Command) {
+	if len(cmd.Commands()) > 0 && cmd.Run == nil && cmd.RunE == nil {
+		cmd.Args = cobra.NoArgs
+		cmd.RunE = func(c *cobra.Command, args []string) error {
+			return c.Help()
+		}
+	}
+	for _, child := range cmd.Commands() {
+		configureCommandGroups(child)
+	}
+}
+
 // prepareRoot adds Cobra's generated help and completion commands, which Cobra
 // would otherwise add inside Execute, so that silenceUsageOnRun reaches every
 // runnable command. Cobra's completion commands capture root's output writer
 // when they are created, so callers configure output before preparing.
 func prepareRoot(root *cobra.Command) {
+	configureCommandGroups(root)
 	root.InitDefaultHelpCmd()
 	root.InitDefaultCompletionCmd()
 	silenceUsageOnRun(root)
