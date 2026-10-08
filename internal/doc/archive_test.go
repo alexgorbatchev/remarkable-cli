@@ -120,11 +120,15 @@ func archiveFixture(t *testing.T, schema, failure, output string) (*cloud.Client
 				http.NotFound(w, r)
 				return
 			case "corrupt":
-				w.Write([]byte("corrupted bytes"))
+				if _, err := w.Write([]byte("corrupted bytes")); err != nil {
+					t.Error(err)
+				}
 				return
 			case "interrupted":
 				w.Header().Set("Content-Length", "100")
-				w.Write([]byte("partial"))
+				if _, err := w.Write([]byte("partial")); err != nil {
+					t.Error(err)
+				}
 				return
 			case "publish-race":
 				if err := os.WriteFile(output, []byte("keep original"), 0600); err != nil {

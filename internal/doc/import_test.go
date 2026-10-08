@@ -76,7 +76,9 @@ func importFixture(t *testing.T, failure string, existing []byte) (*cloud.Client
 				root.Hash = update.Hash
 				root.Generation++
 			}
-			json.NewEncoder(w).Encode(root)
+			if err := json.NewEncoder(w).Encode(root); err != nil {
+				t.Error(err)
+			}
 			return
 		}
 		hash := strings.TrimPrefix(r.URL.Path, "/sync/v3/files/")
@@ -101,7 +103,9 @@ func importFixture(t *testing.T, failure string, existing []byte) (*cloud.Client
 		if failure == "verify" && strings.HasSuffix(r.Header.Get("rm-filename"), ".rm") && *puts > 0 {
 			data = []byte("corrupt")
 		}
-		w.Write(data)
+		if _, err := w.Write(data); err != nil {
+			t.Error(err)
+		}
 	}))
 	t.Cleanup(server.Close)
 	client, err := cloud.NewClient(cloud.WithStorageHost(server.URL), cloud.WithConfig(&cloud.Config{UserToken: "test"}), cloud.WithCacheDir(t.TempDir()))

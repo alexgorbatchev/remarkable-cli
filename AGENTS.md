@@ -18,6 +18,7 @@ Instructions for autonomous coding agents working on `remarkable-cli`.
 ## Development Loop
 
 - Run unit tests: `just test`
+- Run lint (`golangci-lint`): `just lint`
 - Run lint and checks: `just check`
 - Build binary: `just build` (outputs strictly to `bin/remarkable`)
 - Run human mode: `just run <args>`

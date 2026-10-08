@@ -127,7 +127,9 @@ func (s *uploadServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			s.root.Hash = update.Hash
 			s.root.Generation++
 			if s.failure == "unknown" {
-				fmt.Fprint(w, "invalid JSON")
+				if _, err := fmt.Fprint(w, "invalid JSON"); err != nil {
+					s.t.Error(err)
+				}
 				return
 			}
 		}

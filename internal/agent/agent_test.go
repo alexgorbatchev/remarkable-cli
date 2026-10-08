@@ -38,8 +38,12 @@ func TestPrintStatus_HumanVsAgent(t *testing.T) {
 	t.Run("human", func(t *testing.T) {
 		t.Setenv("AGENT", "")
 		var bufHuman bytes.Buffer
-		PrintStatus(&bufHuman, "ok", "Operation completed")
-		PrintStatus(&bufHuman, "error", "Failed to connect")
+		if err := PrintStatus(&bufHuman, "ok", "Operation completed"); err != nil {
+			t.Fatal(err)
+		}
+		if err := PrintStatus(&bufHuman, "error", "Failed to connect"); err != nil {
+			t.Fatal(err)
+		}
 
 		if !strings.Contains(bufHuman.String(), "[OK]") {
 			t.Errorf("expected [OK] tag in human mode, got: %s", bufHuman.String())

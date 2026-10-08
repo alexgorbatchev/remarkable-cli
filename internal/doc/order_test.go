@@ -91,10 +91,14 @@ func newShuffledListingClient(t *testing.T, seed uint64) *cloud.Client {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/sync/v3/root":
-			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
+			if _, err := w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)); err != nil {
+				t.Error(err)
+			}
 			return
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte(root.String()))
+			if _, err := w.Write([]byte(root.String())); err != nil {
+				t.Error(err)
+			}
 			return
 		}
 		body, ok := files[strings.TrimPrefix(r.URL.Path, "/sync/v3/files/")]
@@ -102,7 +106,9 @@ func newShuffledListingClient(t *testing.T, seed uint64) *cloud.Client {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Write([]byte(body))
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Error(err)
+		}
 	}))
 	t.Cleanup(ts.Close)
 

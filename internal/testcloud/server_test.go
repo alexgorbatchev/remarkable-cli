@@ -53,8 +53,11 @@ func TestTestCloudPresetsAndFailure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get custom file: %v", err)
 		}
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
+		defer func() { _ = resp.Body.Close() }()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read custom file: %v", err)
+		}
 		if string(body) != "custom-content" {
 			t.Errorf("custom file body = %q, want custom-content", string(body))
 		}

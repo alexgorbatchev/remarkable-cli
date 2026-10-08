@@ -40,7 +40,7 @@ func TestMainExitStatus(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		conn.Close() // The client sees the connection end before any response.
+		_ = conn.Close() // The client sees the connection end before any response.
 	}))
 	defer dropping.Close()
 	truncating := newTruncatingServer(t)
@@ -147,8 +147,10 @@ func newTruncatingServer(t *testing.T) *httptest.Server {
 			t.Error(err)
 			return
 		}
-		defer conn.Close()
-		buf.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"hash\":\"root-")
+		defer func() { _ = conn.Close() }()
+		if _, err := buf.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"hash\":\"root-"); err != nil {
+			t.Error(err)
+		}
 		if err := buf.Flush(); err != nil {
 			t.Error(err)
 		}
@@ -165,7 +167,7 @@ func truncatedBody(t *testing.T) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, err = io.ReadAll(resp.Body)
 	if err == nil {
 		t.Fatal("expected a truncated body")
@@ -274,14 +276,14 @@ func viaClosingHTTPSProxy(t *testing.T) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
-			conn.Close()
+			_ = conn.Close()
 		}
 	}()
 	return requestThroughProxy(t, &http.Transport{}, "https://"+listener.Addr().String(), "http://cloud.invalid/sync/v3/root")
@@ -347,14 +349,14 @@ func tlsHandshakeTimeout(t *testing.T) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
-			defer conn.Close() // Hold the connection open without answering.
+			defer func() { _ = conn.Close() }() // Hold the connection open without answering.
 		}
 	}()
 	client := &http.Client{Transport: &http.Transport{TLSHandshakeTimeout: 50 * time.Millisecond}}

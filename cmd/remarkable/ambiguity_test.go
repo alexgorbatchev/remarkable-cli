@@ -66,7 +66,9 @@ func newFolderCloud(t *testing.T, items []folderItem) (string, string) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/token/v2/user", "/token/json/2/user/new":
-			w.Write([]byte("mock-token"))
+			if _, err := w.Write([]byte("mock-token")); err != nil {
+				t.Error(err)
+			}
 			return
 		}
 		body, ok := files[strings.TrimPrefix(r.URL.Path, "/sync/v3/")]
@@ -74,7 +76,9 @@ func newFolderCloud(t *testing.T, items []folderItem) (string, string) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write([]byte(body))
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Error(err)
+		}
 	}))
 	t.Cleanup(ts.Close)
 	return ts.URL, writeCredentials(t, pairedCredentials)

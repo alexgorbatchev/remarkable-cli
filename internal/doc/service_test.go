@@ -928,25 +928,30 @@ func TestParseFormats(t *testing.T) {
 
 func TestList_CaseFoldingQuery(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		write := func(s string) {
+			if _, err := io.WriteString(w, s); err != nil {
+				t.Error(err)
+			}
+		}
 		switch r.URL.Path {
 		case "/token/v2/user", "/token/json/2/user/new":
-			w.Write([]byte("mock-token"))
+			write("mock-token")
 		case "/sync/v3/root":
-			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
+			write(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)
 		case "/sync/v3/files/root-hash":
-			w.Write([]byte("h1:d1:0:10\nh2:d2:0:10\nh3:d3:0:10\n"))
+			write("h1:d1:0:10\nh2:d2:0:10\nh3:d3:0:10\n")
 		case "/sync/v3/files/h1":
-			w.Write([]byte("m1:d1.metadata:0:50\n"))
+			write("m1:d1.metadata:0:50\n")
 		case "/sync/v3/files/m1":
-			w.Write([]byte(`{"visibleName":"Straße","type":"DocumentType"}`))
+			write(`{"visibleName":"Straße","type":"DocumentType"}`)
 		case "/sync/v3/files/h2":
-			w.Write([]byte("m2:d2.metadata:0:50\n"))
+			write("m2:d2.metadata:0:50\n")
 		case "/sync/v3/files/m2":
-			w.Write([]byte(`{"visibleName":"κόσμος","type":"DocumentType"}`))
+			write(`{"visibleName":"κόσμος","type":"DocumentType"}`)
 		case "/sync/v3/files/h3":
-			w.Write([]byte("m3:d3.metadata:0:50\n"))
+			write("m3:d3.metadata:0:50\n")
 		case "/sync/v3/files/m3":
-			w.Write([]byte(`{"visibleName":"ſtyle guide","type":"DocumentType"}`))
+			write(`{"visibleName":"ſtyle guide","type":"DocumentType"}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

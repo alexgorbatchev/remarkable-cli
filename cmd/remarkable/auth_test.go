@@ -39,7 +39,9 @@ func TestAuthPairPermissionsAndTokens(t *testing.T) {
 				http.Error(w, "invalid code length", http.StatusBadRequest)
 				return
 			}
-			w.Write([]byte(expectedDeviceToken))
+			if _, err := w.Write([]byte(expectedDeviceToken)); err != nil {
+				t.Error(err)
+			}
 
 		case "/token/json/2/user/new", "/token/v2/user":
 			userCalls.Add(1)
@@ -53,7 +55,9 @@ func TestAuthPairPermissionsAndTokens(t *testing.T) {
 				http.Error(w, "invalid device token bearer", http.StatusUnauthorized)
 				return
 			}
-			w.Write([]byte(expectedUserToken))
+			if _, err := w.Write([]byte(expectedUserToken)); err != nil {
+				t.Error(err)
+			}
 
 		default:
 			http.NotFound(w, r)

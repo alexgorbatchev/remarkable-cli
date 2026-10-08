@@ -46,7 +46,7 @@ func TestCloudHTTPDelayedBlob(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			got, err := io.ReadAll(resp.Body)
 			if err != nil || !bytes.Equal(got, data) {
 				t.Fatalf("body = %q, error = %v", got, err)
@@ -127,7 +127,7 @@ func TestCloudHTTPBlobRecovery(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer resp.Body.Close()
+				defer func() { _ = resp.Body.Close() }()
 				got, err := io.ReadAll(resp.Body)
 				if err != nil || !bytes.Equal(got, data) {
 					t.Fatalf("partial/changed response: len=%d, %v", len(got), err)
@@ -177,7 +177,7 @@ func TestCloudHTTPRetryBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if calls.Load() != tt.want || resp.StatusCode != tt.status {
 				t.Fatalf("calls=%d, status=%d", calls.Load(), resp.StatusCode)
 			}
@@ -418,7 +418,7 @@ func TestCloudHTTPRedirectSafety(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			wantStatus, wantRedirected := http.StatusTemporaryRedirect, int64(0)
 			if tt.redirected {
 				wantStatus, wantRedirected = http.StatusOK, 1

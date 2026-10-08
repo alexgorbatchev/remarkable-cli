@@ -76,7 +76,9 @@ func newImportCloud(t *testing.T, reject func(*http.Request) int) importCloud {
 				root.Hash = update.Hash
 				root.Generation++
 			}
-			json.NewEncoder(w).Encode(root)
+			if err := json.NewEncoder(w).Encode(root); err != nil {
+				t.Error(err)
+			}
 			return
 		}
 		hash := strings.TrimPrefix(r.URL.Path, "/sync/v3/files/")
@@ -93,7 +95,9 @@ func newImportCloud(t *testing.T, reject func(*http.Request) int) importCloud {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write(data)
+		if _, err := w.Write(data); err != nil {
+			t.Error(err)
+		}
 	}))
 	t.Cleanup(server.Close)
 	dir := t.TempDir()

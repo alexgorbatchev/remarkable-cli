@@ -28,10 +28,11 @@ build:
 install:
     go install -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable
 
-# Run static analysis and vet
+# Run static analysis and lint
 lint:
     go mod tidy -diff
     go vet ./...
+    golangci-lint run ./...
 
 # Alias for lint
 vet: lint

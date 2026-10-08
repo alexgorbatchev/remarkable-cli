@@ -328,7 +328,7 @@ func TestMainReportsGeneratedCommandFailureWithoutUsage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer readOnly.Close()
+			defer func() { _ = readOnly.Close() }()
 			// Writing the script to a read-only descriptor fails inside the
 			// completion command's RunE.
 			got := runMainProcess(t, mainRun{args: []string{"completion", "bash"}, stdout: readOnly})
