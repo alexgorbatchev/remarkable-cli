@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 
 	"github.com/alexgorbatchev/go-rmscene"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
@@ -45,16 +47,16 @@ func newStrokeCmd() *cobra.Command {
 				{Key: "Points", Value: fmt.Sprintf("%d", stats.Points)},
 			}
 
-			for tool, count := range stats.Tools {
+			for _, tool := range slices.Sorted(maps.Keys(stats.Tools)) {
 				pairs = append(pairs, agent.KeyValuePair{
 					Key:   "Tool: " + tool,
-					Value: fmt.Sprintf("%d lines", count),
+					Value: fmt.Sprintf("%d lines", stats.Tools[tool]),
 				})
 			}
-			for color, count := range stats.Colors {
+			for _, color := range slices.Sorted(maps.Keys(stats.Colors)) {
 				pairs = append(pairs, agent.KeyValuePair{
 					Key:   "Color: " + color,
-					Value: fmt.Sprintf("%d lines", count),
+					Value: fmt.Sprintf("%d lines", stats.Colors[color]),
 				})
 			}
 

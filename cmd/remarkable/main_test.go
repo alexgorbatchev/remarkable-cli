@@ -339,6 +339,49 @@ func TestStrokeCommands(t *testing.T) {
 	_, _ = executeRoot("stroke", "export", strokePath, "-o", "/dev/null/cannot/write.svg")
 }
 
+func TestStrokeInspect_DeterministicOrder(t *testing.T) {
+	t.Setenv("AGENT", "1")
+	rmPath := filepath.Join("..", "..", "internal", "stroke", "testdata", "oct1_notes_strokes.rm")
+
+	wantOrder := []string{
+		"File: ../../internal/stroke/testdata/oct1_notes_strokes.rm",
+		"File Size: 201969 bytes",
+		"Total Blocks: 409",
+		"Lines: 393",
+		"Points: 12457",
+		"Tool: Ballpoint: 154 lines",
+		"Tool: Calligraphy: 31 lines",
+		"Tool: Fineliner: 51 lines",
+		"Tool: Highlighter: 45 lines",
+		"Tool: Marker: 16 lines",
+		"Tool: Mechanical Pencil: 40 lines",
+		"Tool: Paintbrush: 29 lines",
+		"Tool: Pencil: 24 lines",
+		"Tool: Shader: 3 lines",
+		"Color: Black: 321 lines",
+		"Color: Blue: 6 lines",
+		"Color: Gray: 18 lines",
+		"Color: Highlight: 48 lines",
+	}
+
+	var firstOutput string
+	for i := range 20 {
+		out, err := executeRoot("stroke", "inspect", rmPath)
+		if err != nil {
+			t.Fatalf("run %d: stroke inspect failed: %v", i, err)
+		}
+		if i == 0 {
+			firstOutput = out
+			lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+			if !slices.Equal(lines, wantOrder) {
+				t.Fatalf("unexpected line order:\ngot:\n%s\nwant:\n%s", strings.Join(lines, "\n"), strings.Join(wantOrder, "\n"))
+			}
+		} else if out != firstOutput {
+			t.Fatalf("run %d: nondeterministic output:\ngot:\n%s\nwant:\n%s", i, out, firstOutput)
+		}
+	}
+}
+
 func TestAuthCommands(t *testing.T) {
 	ts, configPath := setupCLITestEnv(t)
 	defer ts.Close()

@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-08 03:45
   status: current
 ---
 
@@ -11,7 +11,7 @@ Local v6 `.rm` operations; cloud credentials are unnecessary.
 
 ## `remarkable stroke inspect <file.rm>`
 
-Print key-value lines `File`, `File Size`, `Total Blocks`, `Lines`, `Points`, tool/color counts.
+Print key-value lines `File`, `File Size`, `Total Blocks`, `Lines`, `Points`, tool/color counts in alphabetical tool and color order.
 
 ## `remarkable stroke export <file.rm>`
 
