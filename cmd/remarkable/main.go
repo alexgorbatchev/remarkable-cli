@@ -149,6 +149,16 @@ func newRootCmd() *cobra.Command {
 		help(c, args)
 	})
 
+	usage := cmd.UsageFunc()
+	cmd.SetUsageFunc(func(c *cobra.Command) error {
+		if agent.IsAgentMode() {
+			if _, err := fmt.Fprintln(c.OutOrStderr(), "ALERT: Agents must read `AGENT=1 remarkable skill` before using this tool."); err != nil {
+				return err
+			}
+		}
+		return usage(c)
+	})
+
 	return cmd
 }
 

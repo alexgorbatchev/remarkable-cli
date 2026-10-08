@@ -531,3 +531,46 @@ func TestMainReportsUnknownSubcommandUnderGroup(t *testing.T) {
 		})
 	}
 }
+
+func TestMainUsageScreenSkillAlert(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"unknown flag on doc list", []string{"doc", "list", "--bogus"}},
+		{"argument count on stroke inspect", []string{"stroke", "inspect"}},
+		{"missing required flag on doc render", []string{"doc", "render", "doc-1"}},
+		{"unknown subcommand on skill", []string{"skill", "bogus"}},
+	}
+
+	for _, mode := range []string{"0", "1", "true", "yes"} {
+		for _, tc := range cases {
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				t.Setenv("AGENT", mode)
+				got := runMainProcess(t, mainRun{args: tc.args})
+				if got.exitCode != 1 {
+					t.Fatalf("exit status = %d, want 1", got.exitCode)
+				}
+				if got.stdout != "" {
+					t.Fatalf("stdout = %q, want empty", got.stdout)
+				}
+				if mode == "0" {
+					if strings.Contains(got.stderr, skillAlert) {
+						t.Errorf("human usage screen contains skill alert: %q", got.stderr)
+					}
+					return
+				}
+				if !strings.HasPrefix(got.stderr, skillAlert) || strings.Count(got.stderr, skillAlert) != 1 {
+					t.Errorf("stderr must start with exactly one skill alert: %q", got.stderr)
+				}
+				if !strings.Contains(got.stderr, "command: ") {
+					t.Errorf("stderr missing agent usage screen: %q", got.stderr)
+				}
+				if !strings.Contains(got.stderr, "ERR: ") {
+					t.Errorf("stderr missing error line: %q", got.stderr)
+				}
+			})
+		}
+	}
+}
+
