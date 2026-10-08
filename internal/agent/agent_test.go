@@ -3,8 +3,10 @@ package agent
 import (
 	"bytes"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestIsAgentMode(t *testing.T) {
@@ -181,4 +183,102 @@ func TestPrintTree_Nil(t *testing.T) {
 	if buf.Len() != 0 {
 		t.Errorf("expected empty for nil tree")
 	}
+}
+
+func TestPrintTable_Escaping(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+	os.Setenv("AGENT", "1")
+
+	headers := []string{"ID", "NAME", "TYPE", "MODIFIED"}
+	rows := [][]string{
+		{"id-1", "Notes\tDocumentType\nfake-id\tInjected", "DocumentType", "1700000000000"},
+	}
+
+	var buf bytes.Buffer
+	PrintTable(&buf, headers, rows)
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("PrintTable produced %d lines, want 2 (header + 1 row): %q", len(lines), buf.String())
+	}
+	for i, line := range lines {
+		fields := strings.Split(line, "\t")
+		if len(fields) != len(headers) {
+			t.Errorf("line %d has %d fields, want %d: %q", i, len(fields), len(headers), line)
+		}
+	}
+}
+
+func TestPrintTree_Escaping(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+	os.Setenv("AGENT", "1")
+
+	tree := &TreeNode{
+		Label: "/",
+		Children: []*TreeNode{
+			{Label: "a\n* forged"},
+		},
+	}
+
+	var buf bytes.Buffer
+	PrintTree(&buf, tree)
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("PrintTree produced %d lines, want 2 bullets: %q", len(lines), buf.String())
+	}
+	if !strings.Contains(lines[1], `a\n* forged`) {
+		t.Errorf("bullet label not escaped: %q", lines[1])
+	}
+}
+
+func TestPrintableText(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain ASCII", in: "Chapter 1: Getting Started", want: "Chapter 1: Getting Started"},
+		{name: "empty", in: "", want: ""},
+		{name: "backslash", in: `C:\docs\plan.pdf`, want: `C:\\docs\\plan.pdf`},
+		{name: "C0 controls", in: "bell\a backspace\b lf\n cr\r tab\t vtab\v ff\f esc\x1b", want: `bell\a backspace\b lf\n cr\r tab\t vtab\v ff\f esc\x1b`},
+		{name: "NUL and DEL", in: "start\x00middle\x7fend", want: `start\x00middle\x7fend`},
+		{name: "C1 controls", in: "a\u0080b\u009fc", want: `a\u0080b\u009fc`},
+		{name: "unicode format characters", in: "soft\u00adhyphen zero\u200bwidth right-to-left\u202eoverride", want: `soft\u00adhyphen zero\u200bwidth right-to-left\u202eoverride`},
+		{name: "line separator", in: "first\u2028second", want: `first\u2028second`},
+		{name: "private use", in: "icon:\ue000", want: `icon:\ue000`},
+		{name: "invalid UTF-8 bytes", in: "bad:\xff\xfe", want: `bad:\xff\xfe`},
+		{name: "truncated UTF-8 sequence", in: "lead:\xe2\x80", want: `lead:\xe2\x80`},
+		{name: "printable non-ASCII letters", in: "Grüße, Welt! 🚀 — 100%", want: "Grüße, Welt! 🚀 — 100%"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := PrintableText(tc.in)
+			if got != tc.want {
+				t.Errorf("PrintableText(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+			if decoded := unescapeText(t, got); decoded != tc.in {
+				t.Errorf("decoding PrintableText(%q) = %q gives %q", tc.in, got, decoded)
+			}
+		})
+	}
+}
+
+func unescapeText(t *testing.T, s string) string {
+	t.Helper()
+	var b []byte
+	for s != "" {
+		value, multibyte, tail, err := strconv.UnquoteChar(s, 0)
+		if err != nil {
+			t.Fatalf("strconv.UnquoteChar(%q, 0): %v", s, err)
+		}
+		if multibyte {
+			b = utf8.AppendRune(b, value)
+		} else {
+			b = append(b, byte(value))
+		}
+		s = tail
+	}
+	return string(b)
 }

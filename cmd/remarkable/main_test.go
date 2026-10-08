@@ -526,3 +526,45 @@ func TestDocCommands(t *testing.T) {
 		t.Fatalf("doc sync agent failed: %s", outSyncAgent)
 	}
 }
+
+func TestDocList_EscapedNames(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token/v2/user", "/token/json/2/user/new":
+			w.Write([]byte("mock-token"))
+		case "/sync/v3/root":
+			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
+		case "/sync/v3/files/root-hash":
+			w.Write([]byte("forged-hash:forged-1:0:100\n"))
+		case "/sync/v3/files/forged-hash":
+			w.Write([]byte("forged-meta:forged-1.metadata:0:50\n"))
+		case "/sync/v3/files/forged-meta":
+			w.Write([]byte(`{"visibleName":"Notes\tDocumentType\nfake-id\tInjected","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	configPath := writeCredentials(t, pairedCredentials)
+	t.Setenv("REMARKABLE_HOST", ts.URL)
+	t.Setenv("REMARKABLE_CONFIG", configPath)
+	t.Setenv("AGENT", "1")
+
+	out, err := executeRoot("doc", "list")
+	if err != nil {
+		t.Fatalf("doc list failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	// Expected: 1 header line + 1 document row = 2 lines
+	if len(lines) != 2 {
+		t.Fatalf("doc list produced %d lines, want 2: %q", len(lines), out)
+	}
+	headers := strings.Split(lines[0], "\t")
+	row := strings.Split(lines[1], "\t")
+	if len(row) != len(headers) {
+		t.Fatalf("row has %d fields, want %d: %q", len(row), len(headers), lines[1])
+	}
+}
+

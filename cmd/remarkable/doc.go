@@ -314,7 +314,7 @@ func newDocCmd() *cobra.Command {
 
 			if agent.IsAgentMode() {
 				for _, r := range results {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", r.State, r.Path)
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", r.State, agent.PrintableText(r.Path))
 				}
 				return nil
 			}
@@ -324,10 +324,10 @@ func newDocCmd() *cobra.Command {
 			for _, r := range results {
 				if r.State == "written" {
 					written++
-					agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Synced %s", r.Path))
+					agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Synced %s", agent.PrintableText(r.Path)))
 				} else {
 					skipped++
-					agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("Skipped unchanged %s", r.Path))
+					agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("Skipped unchanged %s", agent.PrintableText(r.Path)))
 				}
 			}
 			agent.PrintSeparator(cmd.OutOrStdout())

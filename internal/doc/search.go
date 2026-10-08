@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 )
 
 // Maximum snippet context around a match, in runes (Unicode code points).
@@ -175,7 +177,8 @@ func indexFold(s, substr string) (start, end int, ok bool) {
 // snippetAround returns text[start:end] widened by up to snippetRunesBefore
 // runes before and snippetRunesAfter runes after, stepping by whole runes so a
 // cut never splits a multi-byte character, with runs of whitespace collapsed to
-// single spaces and leading/trailing whitespace trimmed. start and end must be
+// single spaces, leading/trailing whitespace trimmed, and non-printable
+// characters escaped with agent.PrintableText. start and end must be
 // rune boundaries of text.
 func snippetAround(text string, start, end int) string {
 	for i := 0; i < snippetRunesBefore && start > 0; i++ {
@@ -186,5 +189,5 @@ func snippetAround(text string, start, end int) string {
 		_, size := utf8.DecodeRuneInString(text[end:])
 		end += size
 	}
-	return normalizeSearchText(text[start:end])
+	return agent.PrintableText(normalizeSearchText(text[start:end]))
 }

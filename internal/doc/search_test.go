@@ -174,7 +174,7 @@ func TestSearchPageTextMatching(t *testing.T) {
 			name:  "invalid UTF-8 bytes keep their page offsets",
 			text:  "a\xff\r\n\r\nneedle\xfe end",
 			query: SearchQuery{Text: "needle"},
-			want:  "a\xff needle\xfe end",
+			want:  `a\xff needle\xfe end`,
 		},
 		{
 			name:  "substring matches longer token",
@@ -299,3 +299,40 @@ func TestSearchPageTextWholeWordDate(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchPageText_ControlCharactersEscaped(t *testing.T) {
+	query := mustNormalizeQuery(t, SearchQuery{Text: "budget"})
+	cases := []struct {
+		name string
+		text string
+		want string
+	}{
+		{
+			name: "ESC and BEL",
+			text: "Q3 budget \x1b[2J\x1b]0;pwned\x07 review",
+			want: `Q3 budget \x1b[2J\x1b]0;pwned\a review`,
+		},
+		{
+			name: "NUL, BS, DEL, and RLO",
+			text: "Q3 budget \x00nul \x08bs \x7fdel nel ls \u202eRLO",
+			want: `Q3 budget \x00nul \bbs \x7fdel nel ls \u202eRLO`,
+		},
+		{
+			name: "invalid UTF-8 bytes",
+			text: "Q3 budget \xff\xfe invalid",
+			want: `Q3 budget \xff\xfe invalid`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := searchPageText(tc.text, query)
+			if !ok {
+				t.Fatalf("searchPageText(%q) did not match", tc.text)
+			}
+			if got != tc.want {
+				t.Errorf("got snippet %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+

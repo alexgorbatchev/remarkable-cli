@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 09:59
+  last_modified: 2026-10-08 00:30
   status: current
 ---
 
@@ -15,6 +15,8 @@ List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; filters combine. Rows sort by parent 
 path (root first, then each folder by name and ID), name, then ID. Names compare
 case-folded (Unicode full folding), then by UTF-8 bytes; IDs by bytes; type is not a
 key. Items whose parent chain misses the root (e.g. in a trashed folder) come last by parent ID.
+Agent TSV fields escape characters failing `unicode.IsPrint`, `\`, and invalid UTF-8 bytes
+using Go escapes; `strconv.UnquoteChar` decodes them.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -27,6 +29,8 @@ key. Items whose parent chain misses the root (e.g. in a trashed folder) come la
 
 Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sort as in
 `doc list`. Items whose parent chain misses the root are omitted. List IDs with `doc list`.
+Labels escape characters failing `unicode.IsPrint`, newlines, `\`, and invalid UTF-8 bytes
+using Go escapes; `strconv.UnquoteChar` decodes them.
 
 ## `remarkable doc inspect <id-or-name>`
 
@@ -47,7 +51,8 @@ copied from a snippet match its page; an empty or whitespace-only query is an in
 error. Emit headerless `page-index<TAB>snippet` per matching page; no matches produce no
 rows. Each row covers its page's first counted match: the snippet holds the matched page
 text plus up to 20 characters (Unicode code points) before it and 40 after, with whitespace
-runs collapsed to single spaces and trimmed from both ends.
+runs collapsed to single spaces and trimmed from both ends; characters failing `unicode.IsPrint`,
+`\`, and invalid UTF-8 bytes take Go escapes decodable with `strconv.UnquoteChar`.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

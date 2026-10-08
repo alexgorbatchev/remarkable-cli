@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 )
 
 // URIs of the URI action links of uriLinksPDF as its PDF literal strings
@@ -218,7 +220,7 @@ func TestPrintableText(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := printableText(tc.in)
+			got := agent.PrintableText(tc.in)
 			if got != tc.want {
 				t.Errorf("printableText(%q) = %q, want %q", tc.in, got, tc.want)
 			}
