@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-08 05:55
+  last_modified: 2026-10-08 20:01
   status: current
 ---
 
@@ -35,7 +35,8 @@ global flags (`global` reference); groups print help.
 - A failure writes its error message to stderr once, without trailing whitespace,
   prefixed `ERR: ` in agent mode or `[ERROR] ` in human mode. Invocation errors
   print the command's usage screen before that message: unknown flags, wrong
-  argument counts, missing required flags, and values rejected without cloud or
+  argument counts, missing required flags, unparseable flag values (such as
+  `--page abc` or `--initialize-pages=maybe`), and values rejected without cloud or
   file access (`--format`, negative `--page`, empty `doc sync` `--output-dir`,
   empty `doc render`/`doc archive` `--output`, empty paths (`stroke inspect`,
   `stroke export`, `doc upload`, `doc upload-check`), empty `--mapping`, upload
@@ -46,7 +47,7 @@ global flags (`global` reference); groups print help.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
   When the cloud rejects credentials or a pairing code, or the credentials file
-  holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
+  is missing or holds no token, the error ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`.
 - Use `doc render` for PNG pages with backgrounds and strokes; `doc cat` SVG and
   `stroke export` hold strokes only. Text extraction and search read PDF text layers.
 - `doc sync` skips solely by path existence. Use `--force` after cloud or DPI

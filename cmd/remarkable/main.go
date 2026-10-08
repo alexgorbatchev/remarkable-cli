@@ -37,7 +37,7 @@ func newRootCmd() *cobra.Command {
 	cmd.SetVersionTemplate("{{.Version}}\n")
 
 	// Global flags
-	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (defaults to ~/.config/remarkable-cli/config.json or ~/.rmapi)")
+	cmd.PersistentFlags().StringVarP(&cfgFlag, "config", "c", "", "Path to credentials file (otherwise REMARKABLE_CONFIG, existing $XDG_CONFIG_HOME/remarkable-cli/config.json with XDG base ~/.config, then ~/.rmapi)")
 	cmd.PersistentFlags().StringVar(&cacheDirFlag, "cache-dir", "", "Path to the cache of downloaded manifests, PDFs and strokes, safe to delete (defaults to ~/.cache/remarkable-cli)")
 	cmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print outgoing reMarkable API requests for diagnostics")
 	cmd.PersistentFlags().BoolVar(&noCacheFlag, "no-cache", false, "Disable local disk caching of blobs and manifests")
@@ -51,6 +51,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStatusShortcutCmd())
 	cmd.AddCommand(newSkillCmd())
 
+	documentArg := cobrahelptree.ArgSpec{Name: "<id-or-name>", Description: "Document UUID, exact display name, or folder path"}
 	catalog := cobrahelptree.TechCatalog{
 		"remarkable doc settings transfer": {
 			Args: []cobrahelptree.ArgSpec{
@@ -68,7 +69,7 @@ func newRootCmd() *cobra.Command {
 		},
 		"remarkable doc archive": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID, exact display name, or folder path"},
+				documentArg,
 			},
 		},
 		"remarkable doc import": {
@@ -85,33 +86,33 @@ func newRootCmd() *cobra.Command {
 		},
 		"remarkable doc search": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 				{Name: "<query>", Description: "Text string to search across document pages"},
 			},
 		},
 		"remarkable doc links": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 			},
 		},
 		"remarkable doc inspect": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 			},
 		},
 		"remarkable doc cat": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 			},
 		},
 		"remarkable doc render": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 			},
 		},
 		"remarkable doc sync": {
 			Args: []cobrahelptree.ArgSpec{
-				{Name: "<id-or-name>", Description: "Document UUID or exact display name"},
+				documentArg,
 			},
 		},
 		"remarkable stroke inspect": {
@@ -241,7 +242,7 @@ func execute(root *cobra.Command) error {
 // again.
 func errorReport(err error) string {
 	message := strings.TrimRightFunc(err.Error(), unicode.IsSpace)
-	if errors.Is(err, cloud.ErrUnauthorized) {
+	if errors.Is(err, cloud.ErrUnauthorized) || errors.Is(err, errCredentialsNotFound) {
 		message += ": run 'remarkable auth pair <code>' with a new code from https://" + pairingCodePage
 	}
 	return message

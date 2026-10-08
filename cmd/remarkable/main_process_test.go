@@ -368,7 +368,7 @@ func TestMainProcessIgnoresInheritedCredentials(t *testing.T) {
 	ts, _ := setupCLITestEnv(t)
 	defer ts.Close()
 	got := runMainProcess(t, mainRun{args: []string{"doc", "list"}})
-	want := "ERR: credentials file not found at " + got.env["REMARKABLE_CONFIG"] + ": run 'remarkable auth pair <code>' first\n"
+	want := "ERR: credentials file not found at " + got.env["REMARKABLE_CONFIG"] + ": run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect\n"
 	if got.exitCode != 4 {
 		t.Errorf("exit status = %d, want %d", got.exitCode, 4)
 	}
@@ -460,6 +460,22 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 						t.Errorf("stderr = %q, want %q", got.stderr, want)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestMainHintsPairingWhenCredentialsFileMissing(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			got := runMainProcess(t, mainRun{
+				args: []string{"doc", "list"},
+				env:  map[string]string{"AGENT": mode.agent},
+			})
+			want := mode.prefix + "credentials file not found at " + got.env["REMARKABLE_CONFIG"] +
+				": run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect\n"
+			if got.exitCode != 4 || got.stdout != "" || got.stderr != want {
+				t.Errorf("result = %+v, want exit 4, empty stdout, stderr %q", got, want)
 			}
 		})
 	}
@@ -664,5 +680,3 @@ func TestMainHelpCommandUnknownTopic(t *testing.T) {
 		})
 	}
 }
-
-

@@ -11,7 +11,7 @@
 - **Separate PDF uploads**: Creates a cloud document from a local multi-page PDF, preserving its bytes and links and saving recovery identity before committing. With `--initialize-pages`, it also creates the native page of every PDF page, so handwriting import and settings transfer can follow without opening the document on the tablet.
 - **Migration settings transfer**: Copies document tags, mapped page tags, and view settings to a separate document while preserving its PDF and handwriting.
 - **High-resolution page rendering**: Composites background stationery with vector handwriting layers into crisp 200 DPI PNGs in painter's order.
-- **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash, reducing repeat renders from ~150 network requests to 1.
+- **Content-addressed disk caching**: Caches blobs and manifests by SHA-256 hash so repeat renders reuse unchanged downloads.
 - **Dual-mode output**: Formats aligned ASCII tables and trees for humans, and compact token-conservative TSV for scripts and AI agents (`AGENT=1`).
 
 # How It Works
@@ -33,10 +33,10 @@
 - Highlighter and shader strokes are grouped and rendered underneath pen ink with square linecaps to keep black handwriting sharp and legible.
 - When `AGENT=1` is set in the environment, tree glyphs, borders, and column alignment spaces are omitted in favor of flat key-values and raw tab-separated lines.
 - Diagnostic logs and API request counters write to stderr, while requested page content (SVG, raw text, or binary strokes) streams directly to stdout for clean shell redirection.
-- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Trailing whitespace, such as the newline that ends a cloud server's reason, is removed. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `doc render` or `doc archive` `--output`, an empty `--mapping`, a pairing code that is not 8 characters, a non-UUID `doc import` or `doc settings transfer` argument, or an empty or whitespace-only `doc search` query. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
+- A failed command writes its error message to stderr once, prefixed with `[ERROR] `, or with `ERR: ` when `AGENT=1` is set. Trailing whitespace, such as the newline that ends a cloud server's reason, is removed. Invocation errors print the command's usage screen before the message: an unknown flag, a wrong number of arguments, a missing required flag, an unparseable flag value such as --page abc or --initialize-pages=maybe, or a value rejected without reading files or contacting the cloud, such as an unsupported `--format`, a negative `--page`, an empty `doc render` or `doc archive` `--output`, an empty `--mapping`, a pairing code that is not 8 characters, a non-UUID `doc import` or `doc settings transfer` argument, or an empty or whitespace-only `doc search` query. Failures after the command starts, such as an unreadable file or an unreachable cloud, print no usage screen.
 - A name, or one segment of a folder path, that matches several live documents or folders fails instead of picking one, and exits 1. After the error message, stderr lists every match with its `ID`, its `FOLDER` path from the root (`/` for an item at the root), and `REACHABLE`: a table in human mode, tab-separated lines under a header with `AGENT=1`. Reachable matches come first, then matches sort by folder path and ID, so the list is identical on every run. `REACHABLE` is `no` for a match that no path reaches, because an ancestor is trashed, deleted, missing from the listing, a document, or part of a parent loop; its `FOLDER` then holds only the live folders below that ancestor, or `-` when there are none. Pass the UUID of the intended document instead; `doc list --folder <ID>` lists the documents inside a matching folder.
 - The exit status tells failures apart, so a script can retry when the cloud is unreachable, re-pair when credentials are rejected, or report a missing document without reading the error text; see [Exit Status](#exit-status).
-- When the cloud rejects the saved credentials or a pairing code, or the credentials file holds no token, the error message ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`. A rejected pairing code leaves the credentials file unchanged; pairing with an accepted code overwrites it.
+- When the cloud rejects the saved credentials or a pairing code, or the credentials file is missing or holds no token, the error message ends with `: run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect`. A rejected pairing code leaves the credentials file unchanged; pairing with an accepted code overwrites it.
 - Native archives download every attachment directly from the cloud, verify its hash and byte length, and check that the root hash and generation remain unchanged. A concurrent cloud change causes an error, including a change to another document. Complete ZIP bytes are published only after verification; existing output paths are preserved even if created during the export.
 
 # Installation
@@ -51,7 +51,7 @@ curl -sSL https://github.com/alexgorbatchev/remarkable-cli/releases/latest/downl
 # Setup
 
 - [Pairing Code](https://my.remarkable.com/device/desktop/connect) - Required for initial device registration. Run `remarkable auth pair <code>` to generate and save a device token.
-- [Configuration](~/.config/remarkable-cli/config.json) - Saved automatically to `$XDG_CONFIG_HOME/remarkable-cli/config.json` with fallback to `~/.rmapi`. Override with `--config` or `REMARKABLE_CONFIG`.
+- Credentials use rmapi's `devicetoken: ...` and `usertoken: ...` lines. The path comes from `--config`, then `REMARKABLE_CONFIG`, then an existing `$XDG_CONFIG_HOME/remarkable-cli/config.json` (XDG base defaults to `~/.config`), then `~/.rmapi`. Without an override or an existing XDG file, pairing saves to `~/.rmapi`.
 
 # Quick Start
 
@@ -73,9 +73,12 @@ Sample Output:
 
 # Options & Flags
 
+This section covers selected commands. For every command and option, including authentication, tree browsing, upload recovery, stroke inspection, help, and shell completion, run `remarkable skill` and read the references it indexes with `remarkable skill reference cat <topic>`.
+Document arguments accept a UUID, an exact display name, or a slash-separated folder/document path. Search results and `--page` use 0-based indexes; add one to report a tablet page position.
+
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--config <path>` | `-c` | `~/.config/remarkable-cli/config.json` | Path to credentials file (fallback: `~/.rmapi`) |
+| `--config <path>` | `-c` | resolved path | Override credentials path; otherwise `REMARKABLE_CONFIG`, an existing XDG `remarkable-cli/config.json`, then `~/.rmapi` (see Setup) |
 | `--cache-dir <dir>` | | `~/.cache/remarkable-cli` | Path to the cache of downloaded manifests, PDFs, and strokes; safe to delete |
 | `--no-cache` | | `false` | Disable local disk caching and force network downloads |
 | `--debug` | | `false` | Log outgoing reMarkable API requests and latencies |
@@ -107,7 +110,7 @@ have not yet been opened on the tablet, report 0.
 
 | Argument | Description |
 | :--- | :--- |
-| `<id-or-name>` | Document UUID or exact visible title |
+| `<id-or-name>` | Document UUID, exact display name, or folder path |
 | `<query>` | Text string to search across document pages |
 
 | Flag | Short | Default | Description |

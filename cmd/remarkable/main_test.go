@@ -40,6 +40,29 @@ func executeRootOutAndErr(args ...string) (string, string, error) {
 	return stdout.String(), stderr.String(), err
 }
 
+func TestDocumentHelpDescribesAcceptedPaths(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			t.Setenv("COLUMNS", "240")
+			for _, verb := range []string{"archive", "search", "links", "inspect", "cat", "render", "sync"} {
+				t.Run(verb, func(t *testing.T) {
+					out, stderr, err := executeRootOutAndErr("doc", verb, "--help")
+					if err != nil || stderr != "" {
+						t.Fatalf("help failed: %v, stderr %q", err, stderr)
+					}
+					if !strings.Contains(out, "Document UUID, exact display name, or folder path") {
+						t.Errorf("help omits folder paths: %q", out)
+					}
+					if verb == "search" && !strings.Contains(out, "0-based page indexes") {
+						t.Errorf("search help omits index origin: %q", out)
+					}
+				})
+			}
+		})
+	}
+}
+
 func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
 	return setupCLITestEnvWithFailure(t, "")
@@ -144,7 +167,6 @@ func TestAuthStatusRootFailure(t *testing.T) {
 		})
 	}
 }
-
 
 func TestDocSyncCloudFailures(t *testing.T) {
 	for _, mode := range []string{"0", "1"} {
@@ -433,7 +455,6 @@ func TestDocSearch_HumanModeEscaping(t *testing.T) {
 	}
 }
 
-
 func TestDocCommands(t *testing.T) {
 	ts, _ := setupCLITestEnv(t)
 	defer ts.Close()
@@ -706,6 +727,3 @@ func TestCommandWriteErrors(t *testing.T) {
 		}
 	}
 }
-
-
-
