@@ -110,7 +110,7 @@ func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*h
 		case "/token/v2/user", "/token/json/2/user/new":
 			w.Write([]byte("mock-token"))
 		case "/token/json/2/device/new":
-			w.Write([]byte(`{"deviceToken":"paired-token"}`))
+			w.Write([]byte("mock-device-token"))
 		case "/sync/v3/root":
 			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
 		case "/sync/v3/files/root-hash":

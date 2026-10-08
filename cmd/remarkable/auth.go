@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,19 +94,16 @@ func newAuthCmd() *cobra.Command {
 				return fmt.Errorf("initializing client: %w", err)
 			}
 
-			deviceToken, err := client.PairDevice(ctx, code)
-			if err != nil {
-				return err
-			}
-
 			configPath := config.ResolveConfigPath(cfgFlag)
-			if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-				return fmt.Errorf("creating config directory: %w", err)
+			_, pairErr := client.PairDevice(ctx, code)
+			cfg := client.Config()
+			if cfg.DeviceToken != "" {
+				if err := cloud.WriteConfigFile(configPath, &cfg); err != nil {
+					return fmt.Errorf("saving credentials to %s: %w", configPath, err)
+				}
 			}
-
-			content := fmt.Sprintf("devicetoken: %s\n", deviceToken)
-			if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
-				return fmt.Errorf("saving credentials to %s: %w", configPath, err)
+			if pairErr != nil {
+				return pairErr
 			}
 
 			return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Device successfully paired. Credentials saved to %s", configPath))

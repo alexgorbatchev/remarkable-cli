@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-08 07:30
   status: current
 ---
 
@@ -13,7 +13,8 @@ Authentication group: `pair`, `status`, `token`.
 
 Use an 8-character code from `https://my.remarkable.com/device/desktop/connect`.
 Register a device and overwrite resolved credentials with `devicetoken` text,
-mode `0600`. Emit `OK:` and the path; `--config` selects that path.
+mode `0600`, creating missing directories with mode `0700`. Emit `OK:` and the path;
+`--config` selects that path.
 
 ## `remarkable auth status`
 
