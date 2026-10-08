@@ -259,6 +259,70 @@ func TestPrintTable_HumanModeEscaping(t *testing.T) {
 	}
 }
 
+func TestPrintKeyValues_HumanAlignment(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+	os.Unsetenv("AGENT")
+
+	pairs := []KeyValuePair{
+		{Key: "ID", Value: "abc"},
+		{Key: "Name", Value: "Planner"},
+		{Key: "Modified", Value: "1700"},
+	}
+
+	var buf bytes.Buffer
+	if err := PrintKeyValues(&buf, pairs); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "ID:        abc\nName:      Planner\nModified:  1700\n"
+	if buf.String() != want {
+		t.Errorf("human key values want %q, got %q", want, buf.String())
+	}
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+
+	valCol := -1
+	for i, line := range lines {
+		colonIdx := strings.Index(line, ":")
+		if colonIdx == -1 {
+			t.Fatalf("line %d missing colon: %q", i, line)
+		}
+		valIdx := strings.Index(line[colonIdx+1:], pairs[i].Value) + colonIdx + 1
+		if valCol == -1 {
+			valCol = valIdx
+		} else if valIdx != valCol {
+			t.Errorf("line %d value starts at column %d, want column %d (line: %q)", i, valIdx, valCol, line)
+		}
+	}
+}
+
+func TestPrintTable_HeaderVerbatim(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+	os.Unsetenv("AGENT")
+
+	headers := []string{"LINK #", "TARGET PAGE"}
+	rows := [][]string{{"0", "1"}}
+
+	var buf bytes.Buffer
+	if err := PrintTable(&buf, headers, rows); err != nil {
+		t.Fatal(err)
+	}
+
+	out := buf.String()
+	if strings.Contains(out, "LINK  #") {
+		t.Errorf("header auto-formatted with extra space: %q", out)
+	}
+	if !strings.Contains(out, "LINK #") {
+		t.Errorf("header missing verbatim text: %q", out)
+	}
+}
+
+
 
 func TestPrintTree_Escaping(t *testing.T) {
 	orig := os.Getenv("AGENT")

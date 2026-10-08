@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"golang.org/x/term"
 )
 
@@ -157,7 +158,7 @@ func PrintTable(w io.Writer, headers []string, rows [][]string) error {
 	}
 
 	var buf bytes.Buffer
-	table := tablewriter.NewTable(&buf, tablewriter.WithHeader(headers))
+	table := tablewriter.NewTable(&buf, tablewriter.WithHeaderAutoFormat(tw.Off), tablewriter.WithHeader(headers))
 	if err := table.Bulk(escapedRows); err != nil {
 		return err
 	}
@@ -195,8 +196,9 @@ func PrintKeyValues(w io.Writer, pairs []KeyValuePair) error {
 
 	maxKeyLen := 0
 	for _, p := range escaped {
-		if len(p.Key) > maxKeyLen {
-			maxKeyLen = len(p.Key)
+		keyWithColon := p.Key + ":"
+		if len(keyWithColon) > maxKeyLen {
+			maxKeyLen = len(keyWithColon)
 		}
 	}
 	format := fmt.Sprintf("%%-%ds  %%s\n", maxKeyLen)
