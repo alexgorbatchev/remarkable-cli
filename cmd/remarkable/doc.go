@@ -133,9 +133,13 @@ func newDocCmd() *cobra.Command {
 			headers := []string{"PAGE", "SNIPPET"}
 			rows := make([][]string, 0, len(matches))
 			for _, m := range matches {
+				snippet, err := agent.UnescapeText(m.Snippet)
+				if err != nil {
+					snippet = m.Snippet
+				}
 				rows = append(rows, []string{
 					fmt.Sprintf("%d", m.PageIndex),
-					m.Snippet,
+					snippet,
 				})
 			}
 			agent.PrintTable(cmd.OutOrStdout(), headers, rows)

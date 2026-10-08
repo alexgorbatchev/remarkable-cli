@@ -106,6 +106,25 @@ func PrintableText(text string) string {
 	return b.String()
 }
 
+// UnescapeText decodes text escaped by PrintableText using strconv.UnquoteChar.
+// A \xNN escape decodes to a byte, and any other escape decodes to a code point.
+func UnescapeText(s string) (string, error) {
+	var b []byte
+	for s != "" {
+		value, multibyte, tail, err := strconv.UnquoteChar(s, 0)
+		if err != nil {
+			return "", err
+		}
+		if multibyte {
+			b = utf8.AppendRune(b, value)
+		} else {
+			b = append(b, byte(value))
+		}
+		s = tail
+	}
+	return string(b), nil
+}
+
 // PrintTable formats tabular data as an ASCII table in human mode, or flat TSV in agent mode.
 func PrintTable(w io.Writer, headers []string, rows [][]string) {
 	escapedRows := make([][]string, len(rows))

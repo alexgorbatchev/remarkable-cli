@@ -400,6 +400,32 @@ func TestDocSearchMatching(t *testing.T) {
 	}
 }
 
+func TestDocSearch_HumanModeEscaping(t *testing.T) {
+	ts, _ := setupCLITestEnv(t)
+	defer ts.Close()
+	t.Setenv("AGENT", "0")
+
+	out, err := executeRoot("doc", "search", "urilinks-1", "Ctrl", "--no-cache")
+	if err != nil {
+		t.Fatalf("doc search failed: %v, out: %s", err, out)
+	}
+
+	// Must contain single-escaped ESC (\x1b) and single-escaped backslash (\\)
+	if !strings.Contains(out, `Ctrl\x1b[31m`) {
+		t.Errorf("doc search human output missing single-escaped ESC: %q", out)
+	}
+	if strings.Contains(out, `Ctrl\\x1b[31m`) {
+		t.Errorf("doc search human output double-escaped ESC: %q", out)
+	}
+	if !strings.Contains(out, `a\\b`) {
+		t.Errorf("doc search human output missing escaped backslash: %q", out)
+	}
+	if strings.Contains(out, `a\\\\b`) {
+		t.Errorf("doc search human output double-escaped backslash: %q", out)
+	}
+}
+
+
 func TestDocCommands(t *testing.T) {
 	ts, _ := setupCLITestEnv(t)
 	defer ts.Close()

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"strconv"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 )
@@ -236,18 +234,9 @@ func TestPrintableText(t *testing.T) {
 // code point.
 func unescapeText(t *testing.T, s string) string {
 	t.Helper()
-	var b []byte
-	for s != "" {
-		value, multibyte, tail, err := strconv.UnquoteChar(s, 0)
-		if err != nil {
-			t.Fatalf("strconv.UnquoteChar(%q, 0): %v", s, err)
-		}
-		if multibyte {
-			b = utf8.AppendRune(b, value)
-		} else {
-			b = append(b, byte(value))
-		}
-		s = tail
+	decoded, err := agent.UnescapeText(s)
+	if err != nil {
+		t.Fatalf("agent.UnescapeText(%q): %v", s, err)
 	}
-	return string(b)
+	return decoded
 }
