@@ -58,8 +58,7 @@ func newStrokeCmd() *cobra.Command {
 				})
 			}
 
-			agent.PrintKeyValues(cmd.OutOrStdout(), pairs)
-			return nil
+			return agent.PrintKeyValues(cmd.OutOrStdout(), pairs)
 		},
 	}
 
@@ -82,11 +81,12 @@ func newStrokeCmd() *cobra.Command {
 				if err := os.WriteFile(strokeOutputFlag, []byte(svgStr), 0644); err != nil {
 					return fmt.Errorf("writing SVG output to %s: %w", strokeOutputFlag, err)
 				}
-				agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Exported SVG to %s", strokeOutputFlag))
-				return nil
+				return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Exported SVG to %s", strokeOutputFlag))
 			}
 
-			fmt.Fprint(cmd.OutOrStdout(), svgStr)
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), svgStr); err != nil {
+				return fmt.Errorf("writing SVG output: %w", err)
+			}
 			return nil
 		},
 	}

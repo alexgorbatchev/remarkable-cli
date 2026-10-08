@@ -219,7 +219,9 @@ func TestBuildTreeOrderIsDeterministic(t *testing.T) {
 						t.Fatalf("seed %d call %d: BuildTree failed: %v", seed, call, err)
 					}
 					var out bytes.Buffer
-					agent.PrintTree(&out, tree)
+					if err := agent.PrintTree(&out, tree); err != nil {
+						t.Fatalf("seed %d call %d: PrintTree failed: %v", seed, call, err)
+					}
 					if out.String() != tt.want {
 						t.Fatalf("seed %d call %d: tree output\n got:\n%s\nwant:\n%s", seed, call, out.String(), tt.want)
 					}

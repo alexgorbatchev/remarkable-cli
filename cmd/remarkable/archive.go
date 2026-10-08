@@ -43,7 +43,7 @@ func printArchiveEvidence(w io.Writer, output string, snapshot *doc.ArchiveSnaps
 	// The formatting primitives write to memory so the final output write can
 	// return failures to the command instead of silently losing evidence.
 	var buf bytes.Buffer
-	agent.PrintKeyValues(&buf, []agent.KeyValuePair{
+	if err := agent.PrintKeyValues(&buf, []agent.KeyValuePair{
 		{Key: "state", Value: "verified"},
 		{Key: "output", Value: output},
 		{Key: "document_id", Value: snapshot.DocumentID},
@@ -51,12 +51,16 @@ func printArchiveEvidence(w io.Writer, output string, snapshot *doc.ArchiveSnaps
 		{Key: "root_hash", Value: snapshot.Root.Hash},
 		{Key: "generation", Value: fmt.Sprint(snapshot.Root.Generation)},
 		{Key: "manifest_sha256", Value: snapshot.ManifestSHA256},
-	})
+	}); err != nil {
+		return err
+	}
 	rows := make([][]string, 0, len(snapshot.Files))
 	for _, file := range snapshot.Files {
 		rows = append(rows, []string{file.Name, file.Hash, file.SHA256, fmt.Sprint(file.Size)})
 	}
-	agent.PrintTable(&buf, []string{"NAME", "HASH", "SHA256", "BYTES"}, rows)
+	if err := agent.PrintTable(&buf, []string{"NAME", "HASH", "SHA256", "BYTES"}, rows); err != nil {
+		return err
+	}
 	if _, err := io.Copy(w, &buf); err != nil {
 		return fmt.Errorf("writing archive evidence: %w", err)
 	}

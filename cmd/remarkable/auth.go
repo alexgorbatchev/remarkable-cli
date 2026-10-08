@@ -20,7 +20,6 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	client, err := newCloudClient(ctx)
 	if err != nil {
-		agent.PrintStatus(cmd.OutOrStdout(), "error", fmt.Sprintf("Authentication failed: %v", err))
 		return err
 	}
 
@@ -29,7 +28,6 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	latency := time.Since(start)
 
 	if err != nil {
-		agent.PrintStatus(cmd.OutOrStdout(), "error", fmt.Sprintf("Connection failed: %v", err))
 		return err
 	}
 
@@ -39,25 +37,27 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if agent.IsAgentMode() {
-		agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{
+		return agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{
 			{Key: "status", Value: "connected"},
 			{Key: "generation", Value: fmt.Sprintf("%d", root.Generation)},
 			{Key: "items", Value: fmt.Sprintf("%d", len(items))},
 			{Key: "latency_ms", Value: fmt.Sprintf("%d", latency.Milliseconds())},
 		})
-		return nil
 	}
 
-	agent.PrintStatus(cmd.OutOrStdout(), "ok", "Connected to reMarkable Cloud Sync v3")
-	agent.PrintSeparator(cmd.OutOrStdout())
-	agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{
+	if err := agent.PrintStatus(cmd.OutOrStdout(), "ok", "Connected to reMarkable Cloud Sync v3"); err != nil {
+		return err
+	}
+	if err := agent.PrintSeparator(cmd.OutOrStdout()); err != nil {
+		return err
+	}
+	return agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{
 		{Key: "Status", Value: "connected"},
 		{Key: "Generation", Value: fmt.Sprintf("%d", root.Generation)},
 		{Key: "Total Items", Value: fmt.Sprintf("%d documents & collections", len(items))},
-		{Key: "API Latency", Value: fmt.Sprintf("%s", latency.Round(time.Millisecond))},
+		{Key: "API Latency", Value: latency.Round(time.Millisecond).String()},
 		{Key: "Config Path", Value: config.ResolveConfigPath(cfgFlag)},
 	})
-	return nil
 }
 
 func newAuthCmd() *cobra.Command {
@@ -96,7 +96,6 @@ func newAuthCmd() *cobra.Command {
 
 			deviceToken, err := client.PairDevice(ctx, code)
 			if err != nil {
-				agent.PrintStatus(cmd.OutOrStdout(), "error", fmt.Sprintf("Pairing failed: %v", err))
 				return err
 			}
 
@@ -110,8 +109,7 @@ func newAuthCmd() *cobra.Command {
 				return fmt.Errorf("saving credentials to %s: %w", configPath, err)
 			}
 
-			agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Device successfully paired. Credentials saved to %s", configPath))
-			return nil
+			return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Device successfully paired. Credentials saved to %s", configPath))
 		},
 	}
 
@@ -132,7 +130,9 @@ func newAuthCmd() *cobra.Command {
 				return fmt.Errorf("fetching user token: %w", err)
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), token)
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), token); err != nil {
+				return fmt.Errorf("writing token: %w", err)
+			}
 			return nil
 		},
 	}

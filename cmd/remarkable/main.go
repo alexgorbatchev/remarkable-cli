@@ -241,10 +241,10 @@ func candidateRows(e *cloud.AmbiguousNameError) [][]string {
 // name is ambiguous, the table of every item it matches, so the caller can
 // pass one item's ID.
 func reportError(w io.Writer, err error) {
-	agent.PrintStatus(w, "error", errorReport(err))
+	_ = agent.PrintStatus(w, "error", errorReport(err))
 	var ambiguous *cloud.AmbiguousNameError
 	if errors.As(err, &ambiguous) {
-		agent.PrintTable(w, candidateHeaders, candidateRows(ambiguous))
+		_ = agent.PrintTable(w, candidateHeaders, candidateRows(ambiguous))
 	}
 }
 

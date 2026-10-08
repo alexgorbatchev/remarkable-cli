@@ -1,14 +1,42 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/alexgorbatchev/remarkable-cli/internal/doc"
 	"github.com/spf13/cobra"
 )
+
+func printImportResult(w io.Writer, result *doc.ImportResult) error {
+	var buf bytes.Buffer
+	if err := agent.PrintKeyValues(&buf, []agent.KeyValuePair{{Key: "state", Value: string(result.State)}}); err != nil {
+		return err
+	}
+	for _, name := range result.Uploaded {
+		if err := agent.PrintKeyValues(&buf, []agent.KeyValuePair{{Key: "uploaded", Value: name}}); err != nil {
+			return err
+		}
+	}
+	rows := make([][]string, 0, len(result.Pages))
+	for _, page := range result.Pages {
+		rows = append(rows, []string{fmt.Sprint(page.Page), page.PageID, page.Source, string(result.State)})
+	}
+	if len(rows) > 0 {
+		if err := agent.PrintTable(&buf, []string{"PAGE", "PAGE ID", "SOURCE", "STATE"}, rows); err != nil {
+			return err
+		}
+	}
+	if _, err := io.Copy(w, &buf); err != nil {
+		return fmt.Errorf("writing import results: %w", err)
+	}
+	return nil
+}
 
 func newDocImportCmd() *cobra.Command {
 	var mappingPath string
@@ -31,16 +59,7 @@ func newDocImportCmd() *cobra.Command {
 			if result == nil {
 				return err
 			}
-			agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "state", Value: string(result.State)}})
-			for _, name := range result.Uploaded {
-				agent.PrintKeyValues(cmd.OutOrStdout(), []agent.KeyValuePair{{Key: "uploaded", Value: name}})
-			}
-			rows := make([][]string, 0, len(result.Pages))
-			for _, page := range result.Pages {
-				rows = append(rows, []string{fmt.Sprint(page.Page), page.PageID, page.Source, string(result.State)})
-			}
-			agent.PrintTable(cmd.OutOrStdout(), []string{"PAGE", "PAGE ID", "SOURCE", "STATE"}, rows)
-			return afterCommit(result.State, err)
+			return afterCommit(result.State, errors.Join(err, printImportResult(cmd.OutOrStdout(), result)))
 		},
 	}
 	cmd.Flags().Var(checkedString(&mappingPath, "", validString(requireNonEmptyPath)), "mapping", "Required JSON file mapping native stroke paths to 0-based destination pages")

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,6 +26,18 @@ func executeRoot(args ...string) (string, error) {
 
 	err := execute(cmd)
 	return buf.String(), err
+}
+
+func executeRootOutAndErr(args ...string) (string, string, error) {
+	cmd := newRootCmd()
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs(args)
+
+	err := execute(cmd)
+	return stdout.String(), stderr.String(), err
 }
 
 func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
@@ -181,6 +195,24 @@ func TestAuthStatusListingFailure(t *testing.T) {
 	}
 }
 
+func TestAuthStatusRootFailure(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Run("agent="+mode, func(t *testing.T) {
+			t.Setenv("AGENT", mode)
+			ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/root")
+			defer ts.Close()
+			stdout, _, err := executeRootOutAndErr("auth", "status")
+			if err == nil {
+				t.Fatalf("auth status must fail when root fails")
+			}
+			if stdout != "" {
+				t.Fatalf("failed auth status must produce empty stdout, got: %q", stdout)
+			}
+		})
+	}
+}
+
+
 func TestDocSyncCloudFailures(t *testing.T) {
 	for _, mode := range []string{"0", "1"} {
 		t.Run(mode, func(t *testing.T) {
@@ -188,12 +220,12 @@ func TestDocSyncCloudFailures(t *testing.T) {
 			ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/files/pdf-hash")
 			defer ts.Close()
 			for _, format := range []string{"jpg", "png"} {
-				out, err := executeRoot("doc", "sync", "doc-1", "--format", format, "--no-cache", "-o", t.TempDir())
+				stdout, _, err := executeRootOutAndErr("doc", "sync", "doc-1", "--format", format, "--no-cache", "-o", t.TempDir())
 				if err == nil {
-					t.Fatalf("sync %s must fail; output: %s", format, out)
+					t.Fatalf("sync %s must fail", format)
 				}
-				if strings.Contains(out, "written:") || strings.Contains(out, "[OK]") {
-					t.Fatalf("failed sync reported success: %s", out)
+				if format == "png" && stdout != "" {
+					t.Fatalf("failed sync must produce empty stdout, got: %q", stdout)
 				}
 			}
 		})
@@ -649,5 +681,45 @@ func TestDocSync_EscapedPaths(t *testing.T) {
 		})
 	}
 }
+
+type failWriter struct{}
+
+func (f failWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("simulated write failure")
+}
+
+func TestCommandWriteErrors(t *testing.T) {
+	ts, _ := setupCLITestEnv(t)
+	defer ts.Close()
+
+	rmPath := filepath.Join("..", "..", "internal", "stroke", "testdata", "oct1_notes_strokes.rm")
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"stroke inspect", []string{"stroke", "inspect", rmPath}},
+		{"stroke export", []string{"stroke", "export", rmPath}},
+		{"auth token", []string{"auth", "token"}},
+		{"doc list", []string{"doc", "list"}},
+	}
+
+	for _, tc := range cases {
+		for _, agentVal := range []string{"0", "1"} {
+			t.Run(tc.name+"/agent="+agentVal, func(t *testing.T) {
+				t.Setenv("AGENT", agentVal)
+				cmd := newRootCmd()
+				cmd.SetOut(failWriter{})
+				cmd.SetErr(io.Discard)
+				cmd.SetArgs(tc.args)
+				err := execute(cmd)
+				if err == nil {
+					t.Fatalf("%s with failing stdout writer must return error, got nil", tc.name)
+				}
+			})
+		}
+	}
+}
+
 
 

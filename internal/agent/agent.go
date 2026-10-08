@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -30,21 +31,22 @@ func TerminalWidth() int {
 }
 
 // PrintSeparator outputs a full-width divider line in human mode, and is omitted in agent mode.
-func PrintSeparator(w io.Writer) {
+func PrintSeparator(w io.Writer) error {
 	if IsAgentMode() {
-		return
+		return nil
 	}
 	cols := TerminalWidth()
 	if cols > 120 {
 		cols = 120
 	}
-	fmt.Fprintln(w, strings.Repeat("-", cols))
+	_, err := fmt.Fprintln(w, strings.Repeat("-", cols))
+	return err
 }
 
 // PrintStatus prints a status line with strict text tags ([OK], [INFO], [WARN], [ERROR]).
 // In agent mode it prints compact prefixes (OK:, INFO:, WARN:, ERR:).
 // Strict ban on emojis in both modes.
-func PrintStatus(w io.Writer, level, message string) {
+func PrintStatus(w io.Writer, level, message string) error {
 	upper := strings.ToUpper(strings.TrimSpace(level))
 	if IsAgentMode() {
 		prefix := upper
@@ -54,12 +56,13 @@ func PrintStatus(w io.Writer, level, message string) {
 		case "WARNING":
 			prefix = "WARN"
 		}
-		fmt.Fprintf(w, "%s: %s\n", prefix, message)
-		return
+		_, err := fmt.Fprintf(w, "%s: %s\n", prefix, message)
+		return err
 	}
 
 	tag := fmt.Sprintf("[%s]", upper)
-	fmt.Fprintf(w, "%-7s %s\n", tag, message)
+	_, err := fmt.Fprintf(w, "%-7s %s\n", tag, message)
+	return err
 }
 
 // DecodeChar decodes the first character of s, which must not be empty. It
@@ -126,7 +129,7 @@ func UnescapeText(s string) (string, error) {
 }
 
 // PrintTable formats tabular data as an ASCII table in human mode, or flat TSV in agent mode.
-func PrintTable(w io.Writer, headers []string, rows [][]string) {
+func PrintTable(w io.Writer, headers []string, rows [][]string) error {
 	escapedRows := make([][]string, len(rows))
 	for i, row := range rows {
 		escapedRow := make([]string, len(row))
@@ -138,18 +141,31 @@ func PrintTable(w io.Writer, headers []string, rows [][]string) {
 
 	if IsAgentMode() {
 		// Flat, compact, token-conservative TSV output
+		var buf bytes.Buffer
 		if len(headers) > 0 {
-			fmt.Fprintln(w, strings.Join(headers, "\t"))
+			if _, err := fmt.Fprintln(&buf, strings.Join(headers, "\t")); err != nil {
+				return err
+			}
 		}
 		for _, row := range escapedRows {
-			fmt.Fprintln(w, strings.Join(row, "\t"))
+			if _, err := fmt.Fprintln(&buf, strings.Join(row, "\t")); err != nil {
+				return err
+			}
 		}
-		return
+		_, err := io.Copy(w, &buf)
+		return err
 	}
 
-	table := tablewriter.NewTable(w, tablewriter.WithHeader(headers))
-	_ = table.Bulk(escapedRows)
-	_ = table.Render()
+	var buf bytes.Buffer
+	table := tablewriter.NewTable(&buf, tablewriter.WithHeader(headers))
+	if err := table.Bulk(escapedRows); err != nil {
+		return err
+	}
+	if err := table.Render(); err != nil {
+		return err
+	}
+	_, err := io.Copy(w, &buf)
+	return err
 }
 
 // KeyValuePair represents an ordered key-value entry.
@@ -159,7 +175,7 @@ type KeyValuePair struct {
 }
 
 // PrintKeyValues formats a sequence of key-values cleanly.
-func PrintKeyValues(w io.Writer, pairs []KeyValuePair) {
+func PrintKeyValues(w io.Writer, pairs []KeyValuePair) error {
 	escaped := make([]KeyValuePair, len(pairs))
 	for i, p := range pairs {
 		escaped[i] = KeyValuePair{
@@ -170,9 +186,11 @@ func PrintKeyValues(w io.Writer, pairs []KeyValuePair) {
 
 	if IsAgentMode() {
 		for _, p := range escaped {
-			fmt.Fprintf(w, "%s: %s\n", p.Key, p.Value)
+			if _, err := fmt.Fprintf(w, "%s: %s\n", p.Key, p.Value); err != nil {
+				return err
+			}
 		}
-		return
+		return nil
 	}
 
 	maxKeyLen := 0
@@ -183,8 +201,11 @@ func PrintKeyValues(w io.Writer, pairs []KeyValuePair) {
 	}
 	format := fmt.Sprintf("%%-%ds  %%s\n", maxKeyLen)
 	for _, p := range escaped {
-		fmt.Fprintf(w, format, p.Key+":", p.Value)
+		if _, err := fmt.Fprintf(w, format, p.Key+":", p.Value); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // TreeNode represents a node in a hierarchical tree.
@@ -194,27 +215,33 @@ type TreeNode struct {
 }
 
 // PrintTree prints a tree using box glyphs in human mode or indented bullets in agent mode.
-func PrintTree(w io.Writer, root *TreeNode) {
+func PrintTree(w io.Writer, root *TreeNode) error {
 	if root == nil {
-		return
+		return nil
 	}
 	if IsAgentMode() {
-		printTreeAgent(w, root, 0)
-		return
+		return printTreeAgent(w, root, 0)
 	}
-	fmt.Fprintln(w, PrintableText(root.Label))
-	printTreeHuman(w, root.Children, "")
+	if _, err := fmt.Fprintln(w, PrintableText(root.Label)); err != nil {
+		return err
+	}
+	return printTreeHuman(w, root.Children, "")
 }
 
-func printTreeAgent(w io.Writer, node *TreeNode, depth int) {
+func printTreeAgent(w io.Writer, node *TreeNode, depth int) error {
 	indent := strings.Repeat("  ", depth)
-	fmt.Fprintf(w, "%s* %s\n", indent, PrintableText(node.Label))
-	for _, child := range node.Children {
-		printTreeAgent(w, child, depth+1)
+	if _, err := fmt.Fprintf(w, "%s* %s\n", indent, PrintableText(node.Label)); err != nil {
+		return err
 	}
+	for _, child := range node.Children {
+		if err := printTreeAgent(w, child, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func printTreeHuman(w io.Writer, nodes []*TreeNode, prefix string) {
+func printTreeHuman(w io.Writer, nodes []*TreeNode, prefix string) error {
 	for i, node := range nodes {
 		isLast := i == len(nodes)-1
 		branch := "├── "
@@ -223,9 +250,14 @@ func printTreeHuman(w io.Writer, nodes []*TreeNode, prefix string) {
 			branch = "└── "
 			nextPrefix = prefix + "    "
 		}
-		fmt.Fprintf(w, "%s%s%s\n", prefix, branch, PrintableText(node.Label))
+		if _, err := fmt.Fprintf(w, "%s%s%s\n", prefix, branch, PrintableText(node.Label)); err != nil {
+			return err
+		}
 		if len(node.Children) > 0 {
-			printTreeHuman(w, node.Children, nextPrefix)
+			if err := printTreeHuman(w, node.Children, nextPrefix); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }

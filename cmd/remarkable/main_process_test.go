@@ -411,7 +411,7 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 			[]string{"auth", "pair", "abcdefgh"},
 			credentialsAbsent,
 			"unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header",
-			"Pairing failed: unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header\n",
+			"",
 		},
 	}
 	for _, mode := range errorModes {

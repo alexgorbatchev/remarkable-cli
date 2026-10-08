@@ -134,7 +134,9 @@ func printReferenceList(w io.Writer) error {
 	// The formatting primitives write to memory so a failed output write is
 	// returned to the command instead of being lost.
 	var buf bytes.Buffer
-	agent.PrintTable(&buf, []string{"TOPIC", "COMMAND"}, rows)
+	if err := agent.PrintTable(&buf, []string{"TOPIC", "COMMAND"}, rows); err != nil {
+		return err
+	}
 	if _, err := io.Copy(w, &buf); err != nil {
 		return fmt.Errorf("printing skill reference list: %w", err)
 	}

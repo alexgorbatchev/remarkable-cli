@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -57,8 +58,12 @@ func TestPrintStatus_HumanVsAgent(t *testing.T) {
 	// Agent mode
 	os.Setenv("AGENT", "1")
 	var bufAgent bytes.Buffer
-	PrintStatus(&bufAgent, "ok", "Operation completed")
-	PrintStatus(&bufAgent, "error", "Failed to connect")
+	if err := PrintStatus(&bufAgent, "ok", "Operation completed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrintStatus(&bufAgent, "error", "Failed to connect"); err != nil {
+		t.Fatal(err)
+	}
 
 	if !strings.Contains(bufAgent.String(), "OK: Operation completed") {
 		t.Errorf("expected OK: in agent mode, got: %s", bufAgent.String())
@@ -81,7 +86,9 @@ func TestPrintTable_HumanVsAgent(t *testing.T) {
 	// Human mode
 	os.Unsetenv("AGENT")
 	var bufHuman bytes.Buffer
-	PrintTable(&bufHuman, headers, rows)
+	if err := PrintTable(&bufHuman, headers, rows); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(bufHuman.String(), "ID") || !strings.Contains(bufHuman.String(), "Daily Planner") {
 		t.Errorf("unexpected human table output: %s", bufHuman.String())
 	}
@@ -89,7 +96,9 @@ func TestPrintTable_HumanVsAgent(t *testing.T) {
 	// Agent mode
 	os.Setenv("AGENT", "1")
 	var bufAgent bytes.Buffer
-	PrintTable(&bufAgent, headers, rows)
+	if err := PrintTable(&bufAgent, headers, rows); err != nil {
+		t.Fatal(err)
+	}
 	expectedTSV := "ID\tNAME\tTYPE\ndoc-1\tDaily Planner\tnotebook\ndoc-2\tQuick Notes\tnotebook\n"
 	if bufAgent.String() != expectedTSV {
 		t.Errorf("agent table want %q, got %q", expectedTSV, bufAgent.String())
@@ -108,7 +117,9 @@ func TestPrintKeyValues_HumanVsAgent(t *testing.T) {
 	// Human mode
 	os.Unsetenv("AGENT")
 	var bufHuman bytes.Buffer
-	PrintKeyValues(&bufHuman, pairs)
+	if err := PrintKeyValues(&bufHuman, pairs); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(bufHuman.String(), "Status:") {
 		t.Errorf("unexpected human key values: %s", bufHuman.String())
 	}
@@ -116,7 +127,9 @@ func TestPrintKeyValues_HumanVsAgent(t *testing.T) {
 	// Agent mode
 	os.Setenv("AGENT", "1")
 	var bufAgent bytes.Buffer
-	PrintKeyValues(&bufAgent, pairs)
+	if err := PrintKeyValues(&bufAgent, pairs); err != nil {
+		t.Fatal(err)
+	}
 	expected := "Status: connected\nItems: 42\n"
 	if bufAgent.String() != expected {
 		t.Errorf("agent key values want %q, got %q", expected, bufAgent.String())
@@ -138,7 +151,9 @@ func TestPrintTree_HumanVsAgent(t *testing.T) {
 	// Human mode
 	os.Unsetenv("AGENT")
 	var bufHuman bytes.Buffer
-	PrintTree(&bufHuman, tree)
+	if err := PrintTree(&bufHuman, tree); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(bufHuman.String(), "├── Folder A") || !strings.Contains(bufHuman.String(), "└── Doc 2") {
 		t.Errorf("unexpected human tree output: %s", bufHuman.String())
 	}
@@ -146,7 +161,9 @@ func TestPrintTree_HumanVsAgent(t *testing.T) {
 	// Agent mode
 	os.Setenv("AGENT", "1")
 	var bufAgent bytes.Buffer
-	PrintTree(&bufAgent, tree)
+	if err := PrintTree(&bufAgent, tree); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(bufAgent.String(), "* Root\n  * Folder A\n    * Doc 1\n  * Doc 2") {
 		t.Errorf("unexpected agent tree output: %s", bufAgent.String())
 	}
@@ -161,7 +178,9 @@ func TestTerminalWidthAndSeparator(t *testing.T) {
 	// Human separator
 	os.Unsetenv("AGENT")
 	var bufHuman bytes.Buffer
-	PrintSeparator(&bufHuman)
+	if err := PrintSeparator(&bufHuman); err != nil {
+		t.Fatal(err)
+	}
 	if len(bufHuman.String()) == 0 {
 		t.Error("expected non-empty separator in human mode")
 	}
@@ -169,7 +188,9 @@ func TestTerminalWidthAndSeparator(t *testing.T) {
 	// Agent separator (should be omitted)
 	os.Setenv("AGENT", "1")
 	var bufAgent bytes.Buffer
-	PrintSeparator(&bufAgent)
+	if err := PrintSeparator(&bufAgent); err != nil {
+		t.Fatal(err)
+	}
 	if len(bufAgent.String()) != 0 {
 		t.Errorf("expected empty separator in agent mode, got %q", bufAgent.String())
 	}
@@ -177,7 +198,9 @@ func TestTerminalWidthAndSeparator(t *testing.T) {
 
 func TestPrintTree_Nil(t *testing.T) {
 	var buf bytes.Buffer
-	PrintTree(&buf, nil)
+	if err := PrintTree(&buf, nil); err != nil {
+		t.Fatal(err)
+	}
 	if buf.Len() != 0 {
 		t.Errorf("expected empty for nil tree")
 	}
@@ -194,7 +217,9 @@ func TestPrintTable_Escaping(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintTable(&buf, headers, rows)
+	if err := PrintTable(&buf, headers, rows); err != nil {
+		t.Fatal(err)
+	}
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("PrintTable produced %d lines, want 2 (header + 1 row): %q", len(lines), buf.String())
@@ -218,7 +243,9 @@ func TestPrintTable_HumanModeEscaping(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintTable(&buf, headers, rows)
+	if err := PrintTable(&buf, headers, rows); err != nil {
+		t.Fatal(err)
+	}
 	out := buf.String()
 
 	if strings.Contains(out, "\x1b") {
@@ -246,7 +273,9 @@ func TestPrintTree_Escaping(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintTree(&buf, tree)
+	if err := PrintTree(&buf, tree); err != nil {
+		t.Fatal(err)
+	}
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("PrintTree produced %d lines, want 2 bullets: %q", len(lines), buf.String())
@@ -297,3 +326,42 @@ func unescapeText(t *testing.T, s string) string {
 	}
 	return decoded
 }
+
+type testFailWriter struct{}
+
+func (f testFailWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("simulated write failure")
+}
+
+func TestAgentPrimitives_WriteError(t *testing.T) {
+	fw := testFailWriter{}
+	headers := []string{"A", "B"}
+	rows := [][]string{{"1", "2"}}
+	pairs := []KeyValuePair{{Key: "k", Value: "v"}}
+	tree := &TreeNode{Label: "root", Children: []*TreeNode{{Label: "child"}}}
+
+	for _, mode := range []string{"0", "1"} {
+		t.Run("mode="+mode, func(t *testing.T) {
+			t.Setenv("AGENT", mode)
+
+			if mode == "0" {
+				if err := PrintSeparator(fw); err == nil {
+					t.Errorf("PrintSeparator must return error on write failure")
+				}
+			}
+			if err := PrintStatus(fw, "ok", "msg"); err == nil {
+				t.Errorf("PrintStatus must return error on write failure")
+			}
+			if err := PrintTable(fw, headers, rows); err == nil {
+				t.Errorf("PrintTable must return error on write failure")
+			}
+			if err := PrintKeyValues(fw, pairs); err == nil {
+				t.Errorf("PrintKeyValues must return error on write failure")
+			}
+			if err := PrintTree(fw, tree); err == nil {
+				t.Errorf("PrintTree must return error on write failure")
+			}
+		})
+	}
+}
+

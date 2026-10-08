@@ -84,7 +84,7 @@ func newFolderCloud(t *testing.T, items []folderItem) (string, string) {
 // the current output mode.
 func candidateTable(rows [][]string) string {
 	var b bytes.Buffer
-	agent.PrintTable(&b, []string{"ID", "FOLDER", "REACHABLE"}, rows)
+	_ = agent.PrintTable(&b, []string{"ID", "FOLDER", "REACHABLE"}, rows)
 	return b.String()
 }
 

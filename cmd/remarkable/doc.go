@@ -69,8 +69,7 @@ func newDocCmd() *cobra.Command {
 				})
 			}
 
-			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
-			return nil
+			return agent.PrintTable(cmd.OutOrStdout(), headers, rows)
 		},
 	}
 	docListCmd.Flags().StringVar(&docFolderFlag, "folder", "", "Filter items by parent folder ID")
@@ -95,8 +94,7 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
-			agent.PrintTree(cmd.OutOrStdout(), tree)
-			return nil
+			return agent.PrintTree(cmd.OutOrStdout(), tree)
 		},
 	}
 
@@ -120,14 +118,15 @@ func newDocCmd() *cobra.Command {
 
 			if agent.IsAgentMode() {
 				for _, m := range matches {
-					fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\n", m.PageIndex, m.Snippet)
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\n", m.PageIndex, m.Snippet); err != nil {
+						return fmt.Errorf("writing search match: %w", err)
+					}
 				}
 				return nil
 			}
 
 			if len(matches) == 0 {
-				agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No matches found for %q", args[1]))
-				return nil
+				return agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No matches found for %q", args[1]))
 			}
 
 			headers := []string{"PAGE", "SNIPPET"}
@@ -142,8 +141,7 @@ func newDocCmd() *cobra.Command {
 					snippet,
 				})
 			}
-			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
-			return nil
+			return agent.PrintTable(cmd.OutOrStdout(), headers, rows)
 		},
 	}
 
@@ -173,18 +171,15 @@ func newDocCmd() *cobra.Command {
 			}
 
 			if agent.IsAgentMode() {
-				agent.PrintTable(cmd.OutOrStdout(), nil, rows)
-				return nil
+				return agent.PrintTable(cmd.OutOrStdout(), nil, rows)
 			}
 
 			if len(links) == 0 {
-				agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No hyperlinks found on page %d", linksPageFlag))
-				return nil
+				return agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("No hyperlinks found on page %d", linksPageFlag))
 			}
 
 			headers := []string{"LINK #", "TARGET PAGE", "URI", "TEXT", "RECT"}
-			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
-			return nil
+			return agent.PrintTable(cmd.OutOrStdout(), headers, rows)
 		},
 	}
 	docLinksCmd.Flags().Var(pageIndex(&linksPageFlag, 0), "page", "Page index to inspect links from (0-based)")
@@ -216,11 +211,15 @@ func newDocCmd() *cobra.Command {
 				{Key: "Modified", Value: details.LastModified},
 			}
 
-			agent.PrintKeyValues(cmd.OutOrStdout(), pairs)
+			if err := agent.PrintKeyValues(cmd.OutOrStdout(), pairs); err != nil {
+				return err
+			}
 
 			if inspectPagesFlag && len(details.PageList) > 0 {
 				if !agent.IsAgentMode() {
-					fmt.Fprintln(cmd.OutOrStdout())
+					if _, err := fmt.Fprintln(cmd.OutOrStdout()); err != nil {
+						return fmt.Errorf("writing separator: %w", err)
+					}
 				}
 				headers := []string{"PAGE", "PAGE ID", "STROKES"}
 				rows := make([][]string, 0, len(details.PageList))
@@ -235,7 +234,7 @@ func newDocCmd() *cobra.Command {
 						strokeStr,
 					})
 				}
-				agent.PrintTable(cmd.OutOrStdout(), headers, rows)
+				return agent.PrintTable(cmd.OutOrStdout(), headers, rows)
 			}
 			return nil
 		},
@@ -279,8 +278,7 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
-			agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Rendered page %d to %s", renderPageFlag, renderOutputFlag))
-			return nil
+			return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Rendered page %d to %s", renderPageFlag, renderOutputFlag))
 		},
 	}
 	docRenderCmd.Flags().Var(pageIndex(&renderPageFlag, 0), "page", "Page index to render (0-based)")
@@ -310,13 +308,14 @@ func newDocCmd() *cobra.Command {
 
 			results, err := doc.SyncDocument(ctx, client, args[0], opts)
 			if err != nil {
-				agent.PrintStatus(cmd.OutOrStdout(), "error", fmt.Sprintf("Document sync failed: %v", err))
 				return err
 			}
 
 			if agent.IsAgentMode() {
 				for _, r := range results {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", r.State, agent.PrintableText(r.Path))
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", r.State, agent.PrintableText(r.Path)); err != nil {
+						return fmt.Errorf("writing sync result: %w", err)
+					}
 				}
 				return nil
 			}
@@ -326,15 +325,20 @@ func newDocCmd() *cobra.Command {
 			for _, r := range results {
 				if r.State == "written" {
 					written++
-					agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Synced %s", agent.PrintableText(r.Path)))
+					if err := agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Synced %s", agent.PrintableText(r.Path))); err != nil {
+						return err
+					}
 				} else {
 					skipped++
-					agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("Skipped unchanged %s", agent.PrintableText(r.Path)))
+					if err := agent.PrintStatus(cmd.OutOrStdout(), "info", fmt.Sprintf("Skipped unchanged %s", agent.PrintableText(r.Path))); err != nil {
+						return err
+					}
 				}
 			}
-			agent.PrintSeparator(cmd.OutOrStdout())
-			agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Sync complete: %d written, %d skipped", written, skipped))
-			return nil
+			if err := agent.PrintSeparator(cmd.OutOrStdout()); err != nil {
+				return err
+			}
+			return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Sync complete: %d written, %d skipped", written, skipped))
 		},
 	}
 	docSyncCmd.Flags().StringVarP(&syncOutputDirFlag, "output-dir", "o", ".", "Output directory for exported pages")

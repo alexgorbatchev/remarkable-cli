@@ -73,7 +73,7 @@ func uploadNextStep(nativePages string) string {
 
 func printUploadEvidence(w io.Writer, path string, evidence *doc.UploadEvidence) error {
 	var buf bytes.Buffer
-	agent.PrintKeyValues(&buf, []agent.KeyValuePair{
+	if err := agent.PrintKeyValues(&buf, []agent.KeyValuePair{
 		{Key: "state", Value: string(evidence.Result.State)},
 		{Key: "document_id", Value: evidence.Result.ID},
 		{Key: "title", Value: evidence.Title},
@@ -85,9 +85,13 @@ func printUploadEvidence(w io.Writer, path string, evidence *doc.UploadEvidence)
 		{Key: "evidence", Value: path},
 		{Key: "native_pages", Value: evidence.NativePages},
 		{Key: "next_step", Value: uploadNextStep(evidence.NativePages)},
-	})
+	}); err != nil {
+		return err
+	}
 	for _, name := range evidence.Result.Uploaded {
-		fmt.Fprintf(&buf, "uploaded: %s\n", name)
+		if _, err := fmt.Fprintf(&buf, "uploaded: %s\n", name); err != nil {
+			return err
+		}
 	}
 	if _, err := io.Copy(w, &buf); err != nil {
 		return fmt.Errorf("writing upload evidence output: %w", err)
