@@ -17,7 +17,7 @@ func linkFields(l render.PageLink) []string {
 	if l.TargetPage >= 0 {
 		target = strconv.Itoa(l.TargetPage)
 	}
-	return []string{strconv.Itoa(l.Index), target, printableURI(l.URI), agent.PrintableText(l.Text), formatRect(l.Rect)}
+	return []string{strconv.Itoa(l.Index), target, printableURI(l.URI), l.Text, formatRect(l.Rect)}
 }
 
 // formatRect returns r as "left,bottom,right,top" in the PDF points the

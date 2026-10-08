@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-08 00:30
+  last_modified: 2026-10-08 01:10
   status: current
 ---
 
@@ -26,9 +26,10 @@ global flags (`global` reference); groups print help.
 - Read the exit status (below) and stdout. Agent tables are TSV with headers;
   key-value output uses `key: value`; trees use indented `*` bullets.
   Search/link results lack headers. A failed read exits nonzero, never as empty output.
-  Agent TSV cells, tree labels, search snippets, and link text escape controls,
-  whitespace characters that could split rows/fields, `\`, and invalid UTF-8 bytes
-  using Go escapes reversible with `strconv.UnquoteChar`.
+  Agent TSV cells, tree labels, key-value values, search snippets, link text,
+  and `doc sync` paths escape controls, whitespace characters that could split
+  rows/fields, `\`, and invalid UTF-8 bytes using Go escapes reversible with
+  `strconv.UnquoteChar`.
 - Redirect `doc cat` binary output to a file, preserving PDF and `.rm`
   bytes. Keep stderr separate from stdout; `--debug` logs go to stderr.
 - A failure writes its error message to stderr once, without trailing whitespace,

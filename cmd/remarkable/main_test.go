@@ -568,3 +568,60 @@ func TestDocList_EscapedNames(t *testing.T) {
 	}
 }
 
+func TestDocSync_EscapedPaths(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token/v2/user", "/token/json/2/user/new":
+			w.Write([]byte("mock-token"))
+		case "/sync/v3/root":
+			w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`))
+		case "/sync/v3/files/root-hash":
+			w.Write([]byte("doc-hash:doc-1:0:100\n"))
+		case "/sync/v3/files/doc-hash":
+			w.Write([]byte("meta-hash:doc-1.metadata:0:50\ncontent-hash:doc-1.content:0:100\nstroke-hash:doc-1/page-1.rm:0:200\n"))
+		case "/sync/v3/files/meta-hash":
+			w.Write([]byte(`{"visibleName":"My\nNotes\u001b[2J","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z"}`))
+		case "/sync/v3/files/content-hash":
+			w.Write([]byte(`{"fileType":"notebook","cPages":{"pages":[{"id":"page-1"}]}}`))
+		case "/sync/v3/files/stroke-hash":
+			w.Write([]byte("fake-rm"))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	configPath := writeCredentials(t, pairedCredentials)
+	outDir := t.TempDir()
+
+	for _, mode := range []struct {
+		agent string
+	}{
+		{"0"},
+		{"1"},
+	} {
+		t.Run("agent="+mode.agent, func(t *testing.T) {
+			t.Setenv("REMARKABLE_HOST", ts.URL)
+			t.Setenv("REMARKABLE_CONFIG", configPath)
+			t.Setenv("REMARKABLE_CACHE_DIR", t.TempDir())
+			t.Setenv("AGENT", mode.agent)
+
+			out, err := executeRoot("doc", "sync", "doc-1", "-o", outDir, "--format", "rm", "--force")
+			if err != nil {
+				t.Fatalf("doc sync failed: %v, out: %s", err, out)
+			}
+
+			if strings.Contains(out, "\x1b") {
+				t.Errorf("doc sync output contains raw ESC: %q", out)
+			}
+			if strings.Contains(out, "\nNotes") {
+				t.Errorf("doc sync output contains unescaped newline splitting lines: %q", out)
+			}
+			if !strings.Contains(out, `\nNotes\x1b[2J`) {
+				t.Errorf("doc sync output missing escaped path: %q", out)
+			}
+		})
+	}
+}
+
+

@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-08 00:30
+  last_modified: 2026-10-08 01:10
   status: current
 ---
 
@@ -34,9 +34,10 @@ using Go escapes; `strconv.UnquoteChar` decodes them.
 
 ## `remarkable doc inspect <id-or-name>`
 
-Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines. `Pages` counts
-native pages; folders, and PDFs uploaded without `--initialize-pages` and not yet
-opened on the tablet, report 0.
+Print `ID`, `Name`, `Type`, `Format`, `Pages`, `Modified` key-value lines; values escape
+characters failing `unicode.IsPrint`, newlines, `\`, and invalid UTF-8 bytes using Go escapes
+decodable with `strconv.UnquoteChar`. `Pages` counts native pages; folders, and PDFs uploaded
+without `--initialize-pages` and not yet opened on the tablet, report 0.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |
@@ -52,7 +53,8 @@ error. Emit headerless `page-index<TAB>snippet` per matching page; no matches pr
 rows. Each row covers its page's first counted match: the snippet holds the matched page
 text plus up to 20 characters (Unicode code points) before it and 40 after, with whitespace
 runs collapsed to single spaces and trimmed from both ends; characters failing `unicode.IsPrint`,
-`\`, and invalid UTF-8 bytes take Go escapes decodable with `strconv.UnquoteChar`.
+`\`, and invalid UTF-8 bytes take Go escapes decodable with `strconv.UnquoteChar`. Escaped characters
+must be decoded before snippet text is reused as a search query.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

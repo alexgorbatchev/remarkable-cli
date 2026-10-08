@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
@@ -164,10 +163,13 @@ func newDocCmd() *cobra.Command {
 				return err
 			}
 
+			rows := make([][]string, len(links))
+			for i, l := range links {
+				rows[i] = linkFields(l)
+			}
+
 			if agent.IsAgentMode() {
-				for _, l := range links {
-					fmt.Fprintln(cmd.OutOrStdout(), strings.Join(linkFields(l), "\t"))
-				}
+				agent.PrintTable(cmd.OutOrStdout(), nil, rows)
 				return nil
 			}
 
@@ -177,10 +179,6 @@ func newDocCmd() *cobra.Command {
 			}
 
 			headers := []string{"LINK #", "TARGET PAGE", "URI", "TEXT", "RECT"}
-			rows := make([][]string, 0, len(links))
-			for _, l := range links {
-				rows = append(rows, linkFields(l))
-			}
 			agent.PrintTable(cmd.OutOrStdout(), headers, rows)
 			return nil
 		},

@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-10-08 01:10
   status: current
 ---
 
@@ -30,8 +30,10 @@ Composite background/handwriting into PNG. Emit `OK: Rendered page N to PATH`.
 
 Export all pages as `OUTPUT-DIR/DOCUMENT-NAME/page-NNN.FORMAT`, starting at `000`.
 Trim the document name and replace slash/backslash with `-`. Emit `written: PATH`
-or `skipped: PATH` per page. Unsupported formats fail before export; PNG background
-download errors propagate. Page selection is unavailable.
+or `skipped: PATH` per page; `PATH` escapes characters failing `unicode.IsPrint`, `\`,
+and invalid UTF-8 bytes using Go escapes decodable with `strconv.UnquoteChar`.
+Unsupported formats fail before export; PNG background download errors propagate.
+Page selection is unavailable.
 
 | Flag | Short | Type | Default | Behavior |
 | --- | --- | --- | --- | --- |

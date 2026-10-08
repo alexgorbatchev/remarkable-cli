@@ -209,6 +209,32 @@ func TestPrintTable_Escaping(t *testing.T) {
 	}
 }
 
+func TestPrintTable_HumanModeEscaping(t *testing.T) {
+	orig := os.Getenv("AGENT")
+	defer os.Setenv("AGENT", orig)
+	os.Unsetenv("AGENT")
+
+	headers := []string{"ID", "NAME"}
+	rows := [][]string{
+		{"id-1", "Escape\x1b[2J\a and tab\tand\nnewline"},
+	}
+
+	var buf bytes.Buffer
+	PrintTable(&buf, headers, rows)
+	out := buf.String()
+
+	if strings.Contains(out, "\x1b") {
+		t.Errorf("human PrintTable output contains raw ESC: %q", out)
+	}
+	if strings.Contains(out, "\a") {
+		t.Errorf("human PrintTable output contains raw BEL: %q", out)
+	}
+	if !strings.Contains(out, `Escape\x1b[2J\a and tab\tand\nnewline`) {
+		t.Errorf("human PrintTable output does not contain expected escaped cell: %q", out)
+	}
+}
+
+
 func TestPrintTree_Escaping(t *testing.T) {
 	orig := os.Getenv("AGENT")
 	defer os.Setenv("AGENT", orig)

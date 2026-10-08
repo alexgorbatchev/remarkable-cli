@@ -108,23 +108,28 @@ func PrintableText(text string) string {
 
 // PrintTable formats tabular data as an ASCII table in human mode, or flat TSV in agent mode.
 func PrintTable(w io.Writer, headers []string, rows [][]string) {
+	escapedRows := make([][]string, len(rows))
+	for i, row := range rows {
+		escapedRow := make([]string, len(row))
+		for j, cell := range row {
+			escapedRow[j] = PrintableText(cell)
+		}
+		escapedRows[i] = escapedRow
+	}
+
 	if IsAgentMode() {
 		// Flat, compact, token-conservative TSV output
 		if len(headers) > 0 {
 			fmt.Fprintln(w, strings.Join(headers, "\t"))
 		}
-		for _, row := range rows {
-			escapedRow := make([]string, len(row))
-			for j, cell := range row {
-				escapedRow[j] = PrintableText(cell)
-			}
-			fmt.Fprintln(w, strings.Join(escapedRow, "\t"))
+		for _, row := range escapedRows {
+			fmt.Fprintln(w, strings.Join(row, "\t"))
 		}
 		return
 	}
 
 	table := tablewriter.NewTable(w, tablewriter.WithHeader(headers))
-	_ = table.Bulk(rows)
+	_ = table.Bulk(escapedRows)
 	_ = table.Render()
 }
 
