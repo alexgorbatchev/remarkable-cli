@@ -192,9 +192,12 @@ func testUploadPDF(t *testing.T, initialize bool, failure string) {
 		if err == nil {
 			t.Fatal("expected upload error")
 		}
-		wantError := map[string]string{"collision": "already exists", "deleted-folder": "not a collection", "document-folder": "not a collection", "missing-folder": "not a collection", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
+		wantError := map[string]string{"collision": "already exists", "deleted-folder": "deleted or in trash", "document-folder": "not a collection", "missing-folder": "not found", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
 		if !strings.Contains(err.Error(), wantError) {
 			t.Fatalf("wrong failure: %v, want %q", err, wantError)
+		}
+		if failure == "missing-folder" && !errors.Is(err, cloud.ErrItemNotFound) {
+			t.Fatalf("expected ErrItemNotFound for missing folder: %v", err)
 		}
 		switch failure {
 		case "conflict", "unknown", "corrupt":

@@ -27,7 +27,7 @@ func newStrokeCmd() *cobra.Command {
 	strokeInspectCmd := &cobra.Command{
 		Use:   "inspect <file.rm>",
 		Short: "Inspect structure, tools, and color palette of a .rm file",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MatchAll(cobra.ExactArgs(1), nonEmptyPathArg),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rmBytes, err := stroke.ReadFile(args[0])
 			if err != nil {
@@ -67,7 +67,7 @@ func newStrokeCmd() *cobra.Command {
 	strokeExportCmd := &cobra.Command{
 		Use:   "export <file.rm>",
 		Short: "Convert binary .rm file directly into a standalone layered SVG",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MatchAll(cobra.ExactArgs(1), nonEmptyPathArg),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rmBytes, err := stroke.ReadFile(args[0])
 			if err != nil {

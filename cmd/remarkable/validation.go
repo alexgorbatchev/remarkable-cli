@@ -85,6 +85,10 @@ func pairingCodeArg(_ *cobra.Command, args []string) error {
 	return nil
 }
 
+func nonEmptyPathArg(_ *cobra.Command, args []string) error {
+	return requireNonEmptyPath(args[0])
+}
+
 func settingsIdentityArgs(_ *cobra.Command, args []string) error {
 	return doc.ValidateSettingsIdentities(args[0], args[1])
 }

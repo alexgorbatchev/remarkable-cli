@@ -153,7 +153,7 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 	if err != nil {
 		return nil, fmt.Errorf("reading upload root snapshot: %w", err)
 	}
-	folderFound := opts.Folder == ""
+	var folderItem *cloud.ItemMetadata
 	for _, entry := range manifest.Entries {
 		if entry.ID == "." {
 			continue
@@ -178,14 +178,23 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 			return nil, fmt.Errorf("reading upload metadata: %w", err)
 		}
 		if entry.ID == opts.Folder {
-			folderFound = metadata.Type == cloud.ItemTypeCollection && !metadata.Deleted && metadata.Parent != "trash"
+			m := metadata
+			folderItem = &m
 		}
 		if !metadata.Deleted && metadata.Parent == opts.Folder && metadata.VisibleName == opts.Title {
 			return nil, fmt.Errorf("title %q already exists in destination folder (%s); choose a distinct title", opts.Title, entry.ID)
 		}
 	}
-	if !folderFound {
-		return nil, fmt.Errorf("destination folder %s is missing, deleted, or not a collection", opts.Folder)
+	if opts.Folder != "" {
+		if folderItem == nil {
+			return nil, fmt.Errorf("destination folder %s not found: %w", opts.Folder, cloud.ErrItemNotFound)
+		}
+		if folderItem.Type != cloud.ItemTypeCollection {
+			return nil, fmt.Errorf("destination folder %s is not a collection", opts.Folder)
+		}
+		if folderItem.Deleted || folderItem.Parent == "trash" {
+			return nil, fmt.Errorf("destination folder %s is deleted or in trash", opts.Folder)
+		}
 	}
 	return root, nil
 }

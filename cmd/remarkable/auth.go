@@ -69,6 +69,7 @@ func newAuthCmd() *cobra.Command {
 	authStatusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Check connection status to reMarkable Cloud API",
+		Args:  cobra.NoArgs,
 		RunE:  runAuthStatus,
 	}
 
@@ -116,6 +117,7 @@ func newAuthCmd() *cobra.Command {
 	authTokenCmd := &cobra.Command{
 		Use:   "token",
 		Short: "Print current active bearer user token",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Second)
 			defer cancel()
@@ -147,6 +149,7 @@ func newStatusShortcutCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check connection status to reMarkable Cloud API (alias for 'auth status')",
+		Args:  cobra.NoArgs,
 		RunE:  runAuthStatus,
 	}
 }

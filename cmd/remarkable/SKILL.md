@@ -4,7 +4,7 @@ description: Use when operating the remarkable CLI for cloud documents, native h
 author: alexgorbatchev
 metadata:
   created_on: 2026-09-30 09:29
-  last_modified: 2026-10-08 03:45
+  last_modified: 2026-10-08 05:55
   status: current
 ---
 
@@ -36,11 +36,13 @@ global flags (`global` reference); groups print help.
   prefixed `ERR: ` in agent mode or `[ERROR] ` in human mode. Invocation errors
   print the command's usage screen before that message: unknown flags, wrong
   argument counts, missing required flags, and values rejected without cloud or
-  file access (`--format`, negative `--page`, empty `doc render`/`doc archive`
-  `--output`, empty `--mapping`, upload `--title`/`--folder`/`--evidence`,
-  pairing-code length, non-UUID `doc import` or `doc settings transfer`
-  arguments, identical settings UUIDs, blank `doc search` queries). Failures
-  after a command starts, such as unreadable files or cloud errors, print no usage.
+  file access (`--format`, negative `--page`, empty `doc sync` `--output-dir`,
+  empty `doc render`/`doc archive` `--output`, empty paths (`stroke inspect`,
+  `stroke export`, `doc upload`, `doc upload-check`), empty `--mapping`, upload
+  `--title`/`--folder`/`--evidence`, pairing-code length, non-UUID `doc import`
+  or `doc settings transfer` arguments, identical settings UUIDs, blank `doc search`
+  queries). Failures after a command starts, such as unreadable files or cloud
+  errors, print no usage.
 - Obtain the user's code before pairing, which overwrites credentials.
   Keep tokens private; cloud commands can renew and persist credentials.
   When the cloud rejects credentials or a pairing code, or the credentials file

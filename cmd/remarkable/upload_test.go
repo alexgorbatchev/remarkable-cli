@@ -23,7 +23,9 @@ func TestUploadCommandValidation(t *testing.T) {
 		{"doc", "upload", "planner.pdf", "--title", " ", "--evidence", "upload.json"},
 		{"doc", "upload", "planner.pdf", "--title", "Planner", "--folder", "bad", "--evidence", "upload.json"},
 		{"doc", "upload", "planner.pdf", "--title", "Planner", "--evidence", "upload.json", "--initialize-pages=maybe"},
+		{"doc", "upload", "", "--title", "Planner", "--evidence", "upload.json"},
 		{"doc", "upload-check"},
+		{"doc", "upload-check", ""},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			out, err := executeRoot(args...)
@@ -200,3 +202,48 @@ func TestUploadCheckRejectsMalformedEvidenceBeforeAuthentication(t *testing.T) {
 		})
 	}
 }
+
+func TestUploadFolderErrors(t *testing.T) {
+	fixture := newImportCloud(t, func(r *http.Request) int { return 0 })
+	t.Setenv("REMARKABLE_HOST", fixture.url)
+
+	pdfPath := "../../internal/doc/testdata/linked_pages.pdf"
+
+	// 1. Missing folder UUID -> exit 3
+	evidencePath := filepath.Join(t.TempDir(), "evidence1.json")
+	missingFolderID := "22222222-2222-4222-8222-222222222222"
+	_, err := executeRoot(
+		"doc", "upload", pdfPath,
+		"--title", "Test Upload Missing Folder",
+		"--evidence", evidencePath,
+		"--folder", missingFolderID,
+		"--config", fixture.credentials,
+	)
+	if err == nil {
+		t.Fatal("expected error for missing folder, got nil")
+	}
+	if exitStatus(err) != 3 {
+		t.Errorf("exit status for missing folder = %d, want 3 (err: %v)", exitStatus(err), err)
+	}
+
+	// 2. Existing UUID of DocumentType (not collection) -> exit 1, naming collection
+	evidencePath2 := filepath.Join(t.TempDir(), "evidence2.json")
+	docID := "11111111-1111-4111-8111-111111111111" // from fixture, has type "DocumentType"
+	_, err2 := executeRoot(
+		"doc", "upload", pdfPath,
+		"--title", "Test Upload Doc As Folder",
+		"--evidence", evidencePath2,
+		"--folder", docID,
+		"--config", fixture.credentials,
+	)
+	if err2 == nil {
+		t.Fatal("expected error for non-collection folder, got nil")
+	}
+	if exitStatus(err2) != 1 {
+		t.Errorf("exit status for non-collection folder = %d, want 1 (err: %v)", exitStatus(err2), err2)
+	}
+	if !strings.Contains(err2.Error(), "not a collection") {
+		t.Errorf("error message missing 'not a collection': %v", err2)
+	}
+}
+

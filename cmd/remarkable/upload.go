@@ -15,7 +15,7 @@ import (
 
 func newDocUploadCmd() *cobra.Command {
 	var opts doc.UploadOptions
-	cmd := &cobra.Command{Use: "upload <pdf>", Short: "Upload a local PDF as a separate cloud document", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "upload <pdf>", Short: "Upload a local PDF as a separate cloud document", Args: cobra.MatchAll(cobra.ExactArgs(1), nonEmptyPathArg), RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 		defer cancel()
 		client, err := newCloudClient(ctx)
@@ -44,7 +44,7 @@ func newDocUploadCmd() *cobra.Command {
 }
 
 func newDocUploadCheckCmd() *cobra.Command {
-	return &cobra.Command{Use: "upload-check <evidence>", Short: "Freshly check an upload's saved identity and bytes without retrying", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "upload-check <evidence>", Short: "Freshly check an upload's saved identity and bytes without retrying", Args: cobra.MatchAll(cobra.ExactArgs(1), nonEmptyPathArg), RunE: func(cmd *cobra.Command, args []string) error {
 		if _, err := doc.ReadUploadEvidence(args[0]); err != nil {
 			return err
 		}

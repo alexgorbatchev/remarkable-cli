@@ -44,6 +44,7 @@ func newDocCmd() *cobra.Command {
 	docListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List documents and folders in reMarkable Cloud",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 25*time.Second)
 			defer cancel()
@@ -80,6 +81,7 @@ func newDocCmd() *cobra.Command {
 	docTreeCmd := &cobra.Command{
 		Use:   "tree",
 		Short: "Display virtual folder and document hierarchy as a tree",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
@@ -341,7 +343,7 @@ func newDocCmd() *cobra.Command {
 			return agent.PrintStatus(cmd.OutOrStdout(), "ok", fmt.Sprintf("Sync complete: %d written, %d skipped", written, skipped))
 		},
 	}
-	docSyncCmd.Flags().StringVarP(&syncOutputDirFlag, "output-dir", "o", ".", "Output directory for exported pages")
+	docSyncCmd.Flags().VarP(checkedString(&syncOutputDirFlag, ".", validString(requireNonEmptyPath)), "output-dir", "o", "Output directory for exported pages")
 	docSyncCmd.Flags().Var(checkedString(&syncFormatFlag, "png", doc.ParseSyncFormat), "format", "Page format (png, svg, rm)")
 	docSyncCmd.Flags().IntVar(&syncDPIFlag, "dpi", 200, "Rendering resolution DPI for PNGs")
 	docSyncCmd.Flags().BoolVarP(&syncForceFlag, "force", "f", false, "Force re-export even if page already exists")

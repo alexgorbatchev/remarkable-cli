@@ -240,6 +240,16 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				{"links page", []string{"doc", "links"}, []string{"doc-1", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
 				{"render page", []string{"doc", "render"}, []string{"doc-1", "-o", "out.png", "--page", "-1"}, `invalid argument "-1" for "--page" flag: page index must be 0 or greater`},
 				{"reference topic", []string{"skill", "reference", "cat"}, []string{"no-such-topic"}, `invalid argument "no-such-topic" for "remarkable skill reference cat"`},
+				{"sync output-dir", []string{"doc", "sync"}, []string{"doc-1", "-o", ""}, `invalid argument "" for "-o, --output-dir" flag: path must not be empty`},
+				{"doc list extra args", []string{"doc", "list"}, []string{"extra"}, `unknown command "extra" for "remarkable doc list"`},
+				{"doc tree extra args", []string{"doc", "tree"}, []string{"extra"}, `unknown command "extra" for "remarkable doc tree"`},
+				{"auth status extra args", []string{"auth", "status"}, []string{"extra"}, `unknown command "extra" for "remarkable auth status"`},
+				{"auth token extra args", []string{"auth", "token"}, []string{"extra"}, `unknown command "extra" for "remarkable auth token"`},
+				{"status extra args", []string{"status"}, []string{"extra"}, `unknown command "extra" for "remarkable status"`},
+				{"stroke inspect empty path", []string{"stroke", "inspect"}, []string{""}, "path must not be empty"},
+				{"stroke export empty path", []string{"stroke", "export"}, []string{""}, "path must not be empty"},
+				{"doc upload empty path", []string{"doc", "upload"}, []string{"", "--title", "T", "--evidence", "e.json"}, "path must not be empty"},
+				{"doc upload-check empty path", []string{"doc", "upload-check"}, []string{""}, "path must not be empty"},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
