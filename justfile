@@ -9,11 +9,11 @@ default:
 
 # Run CLI in human mode (default)
 run *args:
-    go run -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable "$@"
+    go run -ldflags "-s -w -X main.version={{ version }}" ./cmd/remarkable "$@"
 
 # Run CLI in agent-facing mode
 run-ai *args:
-    AGENT=1 go run -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable "$@"
+    AGENT=1 go run -ldflags "-s -w -X main.version={{ version }}" ./cmd/remarkable "$@"
 
 # Run test suite
 test:
@@ -22,11 +22,11 @@ test:
 # Build binary into bin/
 build:
     mkdir -p bin
-    go build -ldflags "-s -w -X main.version={{version}}" -o bin/remarkable ./cmd/remarkable
+    go build -ldflags "-s -w -X main.version={{ version }}" -o bin/remarkable ./cmd/remarkable
 
 # Install binary to GOPATH bin directory
 install:
-    go install -ldflags "-s -w -X main.version={{version}}" ./cmd/remarkable
+    go install -ldflags "-s -w -X main.version={{ version }}" ./cmd/remarkable
 
 # Run static analysis and lint
 lint:
@@ -62,3 +62,7 @@ native-import-typecheck:
 # Clean up build binaries and temporary files
 clean:
     rm -rf bin coverage.out .tmp dist
+
+# Download project dependencies for local development
+setup:
+    go mod download
