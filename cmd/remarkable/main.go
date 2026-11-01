@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v2"
+	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v4"
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
 	"github.com/spf13/cobra"

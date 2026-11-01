@@ -3,7 +3,7 @@ module github.com/alexgorbatchev/remarkable-cli
 go 1.26.2
 
 require (
-	github.com/alexgorbatchev/cobra-help-tree/v2 v2.1.1
+	github.com/alexgorbatchev/cobra-help-tree/v4 v4.0.0
 	github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261007041015-403691f0fc82
 	github.com/alexgorbatchev/go-remarkable-render v0.0.0-20261006221344-61287a92812e
 	github.com/alexgorbatchev/go-rmscene v0.0.0-20260929164147-03ef03e1e1ac
