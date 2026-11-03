@@ -6,9 +6,8 @@ import (
 )
 
 // TestDocInspectReadFailures runs doc inspect against a cloud that fails the
-// read of the content file or, for --pages, the second read of the document
-// manifest, which follows the one that resolves the document, and on a
-// document that lists no content file. Each must exit with the cause's status
+// read of the content file or document manifest, and on a document that lists
+// no content file. Each must exit with the cause's status
 // and name it, never print a document with no pages or with every page empty.
 func TestDocInspectReadFailures(t *testing.T) {
 	cases := []struct {
@@ -21,7 +20,7 @@ func TestDocInspectReadFailures(t *testing.T) {
 		wantText []string
 	}{
 		{"content", "/sync/v3/files/content-hash", 0, []string{"doc", "inspect", "doc-1", "--no-cache"}, exitCloudUnavailable, []string{"fetching content schema", "injected cloud failure"}},
-		{"pages manifest", "/sync/v3/files/doc-hash", 1, []string{"doc", "inspect", "doc-1", "--pages", "--no-cache"}, exitCloudUnavailable, []string{"fetching document manifest", "injected cloud failure"}},
+		{"pages manifest", "/sync/v3/files/doc-hash", 0, []string{"doc", "inspect", "doc-1", "--pages", "--no-cache"}, exitCloudUnavailable, []string{"resolving document", "injected cloud failure"}},
 		{"missing content", "", 0, []string{"doc", "inspect", "nocontent-1", "--no-cache"}, exitMissing, []string{"fetching content schema", "content entry not found for item nocontent-1"}},
 	}
 	for _, mode := range errorModes {

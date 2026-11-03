@@ -5,8 +5,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -40,7 +38,30 @@ func executeRootOutAndErr(args ...string) (string, string, error) {
 	return stdout.String(), stderr.String(), err
 }
 
-func setupCLITestEnv(t *testing.T) (*httptest.Server, string) {
+func TestDocumentHelpDescribesAcceptedPaths(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			t.Setenv("AGENT", mode.agent)
+			t.Setenv("COLUMNS", "240")
+			for _, verb := range []string{"archive", "search", "links", "inspect", "cat", "render", "sync"} {
+				t.Run(verb, func(t *testing.T) {
+					out, stderr, err := executeRootOutAndErr("doc", verb, "--help")
+					if err != nil || stderr != "" {
+						t.Fatalf("help failed: %v, stderr %q", err, stderr)
+					}
+					if !strings.Contains(out, "Document UUID, exact display name, or folder path") {
+						t.Errorf("help omits folder paths: %q", out)
+					}
+					if verb == "search" && !strings.Contains(out, "0-based page indexes") {
+						t.Errorf("search help omits index origin: %q", out)
+					}
+				})
+			}
+		})
+	}
+}
+
+func setupCLITestEnv(t *testing.T) (*testcloud.Server, string) {
 	t.Helper()
 	return setupCLITestEnvWithFailure(t, "")
 }
@@ -65,21 +86,21 @@ const pairedCredentials = "devicetoken: dev\nusertoken: usr\n"
 // writeCredentials writes content to a new credentials file and returns its path.
 func writeCredentials(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.json")
+	path := filepath.Join(t.TempDir(), "credentials")
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("writing credentials: %v", err)
 	}
 	return path
 }
 
-func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*httptest.Server, string) {
+func setupCLITestEnvWithFailure(t *testing.T, failedPath string) (*testcloud.Server, string) {
 	t.Helper()
 	return setupCLITestEnvFailing(t, failedPath, 0)
 }
 
 // setupCLITestEnvFailing starts the mock cloud with every request to
 // failedPath after the first okRequests failing with HTTP 502.
-func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*httptest.Server, string) {
+func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*testcloud.Server, string) {
 	t.Helper()
 
 	var fail *testcloud.Failure
@@ -106,12 +127,12 @@ func setupCLITestEnvFailing(t *testing.T, failedPath string, okRequests int) (*h
 	// developer's real blob cache.
 	t.Setenv("REMARKABLE_CACHE_DIR", t.TempDir())
 
-	return ts.Server, configPath
+	return ts, configPath
 }
 
 func TestAuthStatusListingFailure(t *testing.T) {
 	for _, mode := range []string{"0", "1"} {
-		for _, args := range [][]string{{"auth", "status"}, {"status"}} {
+		for _, args := range [][]string{{"auth", "status"}} {
 			t.Run(mode+"/"+strings.Join(args, " "), func(t *testing.T) {
 				t.Setenv("AGENT", mode)
 				ts, _ := setupCLITestEnvWithFailure(t, "/sync/v3/files/root-hash")
@@ -144,7 +165,6 @@ func TestAuthStatusRootFailure(t *testing.T) {
 		})
 	}
 }
-
 
 func TestDocSyncCloudFailures(t *testing.T) {
 	for _, mode := range []string{"0", "1"} {
@@ -328,7 +348,7 @@ func TestAuthCommands(t *testing.T) {
 
 	// 2. Auth status in agent mode
 	t.Setenv("AGENT", "1")
-	outAgent, errAgent := executeRoot("status", "--no-cache")
+	outAgent, errAgent := executeRoot("auth", "status", "--no-cache")
 	if errAgent != nil || !strings.Contains(outAgent, "status: connected") {
 		t.Fatalf("auth status agent failed: %v, out: %s", errAgent, outAgent)
 	}
@@ -352,10 +372,10 @@ func TestAuthCommands(t *testing.T) {
 	}
 
 	// Auth pair save error
-	_, _ = executeRoot("auth", "pair", "12345678", "-c", "/dev/null/cannot/write/config.json")
+	_, _ = executeRoot("auth", "pair", "12345678", "-c", "/dev/null/cannot/write/credentials")
 
 	// Missing config file error
-	t.Setenv("REMARKABLE_CONFIG", "/nonexistent/config.json")
+	t.Setenv("REMARKABLE_CONFIG", "/nonexistent/credentials")
 	_, errMissing := executeRoot("auth", "status")
 	if errMissing == nil {
 		t.Error("expected error on missing config in auth status")
@@ -432,7 +452,6 @@ func TestDocSearch_HumanModeEscaping(t *testing.T) {
 		t.Errorf("doc search human output double-escaped backslash: %q", out)
 	}
 }
-
 
 func TestDocCommands(t *testing.T) {
 	ts, _ := setupCLITestEnv(t)
@@ -562,31 +581,8 @@ func TestDocCommands(t *testing.T) {
 }
 
 func TestDocList_EscapedNames(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		write := func(s string) {
-			if _, err := io.WriteString(w, s); err != nil {
-				t.Error(err)
-			}
-		}
-		switch r.URL.Path {
-		case "/token/v2/user", "/token/json/2/user/new":
-			write("mock-token")
-		case "/sync/v3/root":
-			write(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)
-		case "/sync/v3/files/root-hash":
-			write("forged-hash:forged-1:0:100\n")
-		case "/sync/v3/files/forged-hash":
-			write("forged-meta:forged-1.metadata:0:50\n")
-		case "/sync/v3/files/forged-meta":
-			write(`{"visibleName":"Notes\tDocumentType\nfake-id\tInjected","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z"}`)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-
-	configPath := writeCredentials(t, pairedCredentials)
-	t.Setenv("REMARKABLE_HOST", ts.URL)
+	url, configPath := newFolderCloud(t, []folderItem{{id: "forged-1", name: "Notes\tDocumentType\nfake-id\tInjected"}})
+	t.Setenv("REMARKABLE_HOST", url)
 	t.Setenv("REMARKABLE_CONFIG", configPath)
 	t.Setenv("AGENT", "1")
 
@@ -608,31 +604,9 @@ func TestDocList_EscapedNames(t *testing.T) {
 }
 
 func TestDocSync_EscapedPaths(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		write := func(s string) {
-			if _, err := io.WriteString(w, s); err != nil {
-				t.Error(err)
-			}
-		}
-		switch r.URL.Path {
-		case "/token/v2/user", "/token/json/2/user/new":
-			write("mock-token")
-		case "/sync/v3/root":
-			write(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)
-		case "/sync/v3/files/root-hash":
-			write("doc-hash:doc-1:0:100\n")
-		case "/sync/v3/files/doc-hash":
-			write("meta-hash:doc-1.metadata:0:50\ncontent-hash:doc-1.content:0:100\nstroke-hash:doc-1/page-1.rm:0:200\n")
-		case "/sync/v3/files/meta-hash":
-			write(`{"visibleName":"My\nNotes\u001b[2J","type":"DocumentType","lastModified":"2026-09-29T10:00:00Z"}`)
-		case "/sync/v3/files/content-hash":
-			write(`{"fileType":"notebook","cPages":{"pages":[{"id":"page-1"}]}}`)
-		case "/sync/v3/files/stroke-hash":
-			write("fake-rm")
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
+	ts := testcloud.New(t, testcloud.Options{Preset: testcloud.PresetCLI, Documents: []string{"doc-1"}, ExtraFiles: map[string][]byte{
+		"/sync/v3/files/meta-hash": []byte(`{"visibleName":"My\nNotes\u001b[2J","type":"DocumentType"}`),
+	}})
 	defer ts.Close()
 
 	configPath := writeCredentials(t, pairedCredentials)
@@ -706,6 +680,3 @@ func TestCommandWriteErrors(t *testing.T) {
 		}
 	}
 }
-
-
-

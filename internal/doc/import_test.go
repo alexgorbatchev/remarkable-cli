@@ -18,6 +18,7 @@ import (
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	"github.com/alexgorbatchev/go-rmscene"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 const importDocID = "11111111-1111-4111-8111-111111111111"
@@ -50,7 +51,7 @@ func importFixture(t *testing.T, failure string, existing []byte) (*cloud.Client
 		blobs[hash] = data
 		manifest += fmt.Sprintf("%s:0:%s:0:%d\n", hash, name, len(data))
 	}
-	docHash := importHash([]byte(manifest))
+	docHash := testcloud.ManifestHash([]byte(manifest))
 	blobs[docHash] = []byte(manifest)
 	rootData := []byte(fmt.Sprintf("4\n0:.:1:100\n%s:0:%s:3:100\n", docHash, importDocID))
 	root := cloud.RootState{Hash: importHash(rootData), Generation: 1, SchemaVersion: 4}

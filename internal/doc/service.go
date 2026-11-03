@@ -65,27 +65,31 @@ func List(ctx context.Context, client *cloud.Client, folderID, docType, query st
 
 // BuildTree constructs a hierarchical tree of cloud folders and documents.
 // Siblings appear by case-folded name, then name bytes, then ID.
-func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, error) {
+// The second result counts live items whose parent chain cannot reach the root.
+func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, int, error) {
 	items, err := client.ListItems(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("fetching items for tree: %w", err)
+		return nil, 0, fmt.Errorf("fetching items for tree: %w", err)
 	}
 	// Siblings share a folder path, so sortItems leaves each parent's children
 	// in sibling order (case-folded name, name bytes, ID) for the grouping below.
 	sortItems(items)
 
 	byParent := make(map[string][]*cloud.Item)
-	byID := make(map[string]*cloud.Item)
 	for _, it := range items {
-		byID[it.ID] = it
 		byParent[it.Metadata.Parent] = append(byParent[it.Metadata.Parent], it)
 	}
 
 	rootNode := &agent.TreeNode{Label: "/"}
+	visited := make(map[string]bool)
 
 	var addChildren func(node *agent.TreeNode, parentID string)
 	addChildren = func(node *agent.TreeNode, parentID string) {
 		for _, child := range byParent[parentID] {
+			if visited[child.ID] {
+				continue
+			}
+			visited[child.ID] = true
 			label := child.Metadata.VisibleName
 			if child.IsCollection() {
 				label += "/"
@@ -99,7 +103,7 @@ func BuildTree(ctx context.Context, client *cloud.Client) (*agent.TreeNode, erro
 	}
 
 	addChildren(rootNode, "")
-	return rootNode, nil
+	return rootNode, len(items) - len(visited), nil
 }
 
 // PageDetail holds page-level metadata and stroke presence.
@@ -198,17 +202,9 @@ func SearchDocument(ctx context.Context, client *cloud.Client, idOrName string, 
 		return nil, fmt.Errorf("fetching document manifest: %w", err)
 	}
 
-	pdfFile := manifest.Find(item.ID + ".pdf")
-	if pdfFile == nil {
-		pdfFile = manifest.FindSuffix(".pdf")
-	}
-	if pdfFile == nil {
-		return nil, fmt.Errorf("document %q has no searchable PDF text", idOrName)
-	}
-
-	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	pdfBytes, err := backgroundPDF(ctx, client, item, manifest)
 	if err != nil {
-		return nil, fmt.Errorf("downloading template PDF: %w", err)
+		return nil, err
 	}
 
 	doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
@@ -249,17 +245,9 @@ func GetLinks(ctx context.Context, client *cloud.Client, idOrName string, pageId
 		return nil, fmt.Errorf("fetching document manifest: %w", err)
 	}
 
-	pdfFile := manifest.Find(item.ID + ".pdf")
-	if pdfFile == nil {
-		pdfFile = manifest.FindSuffix(".pdf")
-	}
-	if pdfFile == nil {
-		return nil, fmt.Errorf("document %q has no background PDF", idOrName)
-	}
-
-	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	pdfBytes, err := backgroundPDF(ctx, client, item, manifest)
 	if err != nil {
-		return nil, fmt.Errorf("downloading template PDF: %w", err)
+		return nil, err
 	}
 
 	doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
@@ -290,90 +278,60 @@ func Cat(ctx context.Context, client *cloud.Client, idOrName string, pageIdx int
 	if err != nil {
 		return err
 	}
-
 	item, err := client.Resolve(ctx, idOrName)
 	if err != nil {
 		return fmt.Errorf("resolving document %q: %w", idOrName, err)
 	}
-
 	manifest, err := item.GetManifest(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
-
 	switch format {
-	case "pdf":
-		pdfFile := manifest.Find(item.ID + ".pdf")
-		if pdfFile == nil {
-			pdfFile = manifest.FindSuffix(".pdf")
-		}
-		if pdfFile == nil {
-			return fmt.Errorf("document %q has no background PDF", idOrName)
-		}
-		data, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
+	case "pdf", "text":
+		data, err := backgroundPDF(ctx, client, item, manifest)
 		if err != nil {
-			return fmt.Errorf("downloading PDF blob: %w", err)
+			return err
 		}
-		_, err = w.Write(data)
-		return err
-
-	case "text":
-		pdfFile := manifest.Find(item.ID + ".pdf")
-		if pdfFile == nil {
-			pdfFile = manifest.FindSuffix(".pdf")
+		if format == "pdf" {
+			_, err = w.Write(data)
+			return err
 		}
-		if pdfFile == nil {
-			return fmt.Errorf("document %q has no PDF text to extract", idOrName)
-		}
-		pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
-		if err != nil {
-			return fmt.Errorf("downloading PDF blob: %w", err)
-		}
-		doc, cleanup, err := render.OpenDocumentFromBytes(pdfBytes)
+		pdf, cleanup, err := render.OpenDocumentFromBytes(data)
 		if err != nil {
 			return fmt.Errorf("opening PDF: %w", err)
 		}
 		defer cleanup()
-
-		text, err := doc.Text(pageIdx)
+		text, err := pdf.Text(pageIdx)
 		if err != nil {
 			return fmt.Errorf("extracting text: %w", err)
 		}
 		_, err = io.WriteString(w, text)
 		return err
-
-	default: // ParseCatFormat leaves only "rm" and "svg".
-		docContent, err := item.GetContent(ctx)
+	default:
+		content, err := item.GetContent(ctx)
 		if err != nil {
 			return fmt.Errorf("fetching content schema: %w", err)
 		}
-		pageID, err := nativePageID(getPageIDs(docContent), pageIdx)
+		pageID, err := nativePageID(getPageIDs(content), pageIdx)
 		if err != nil {
 			return err
 		}
-		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
-		fileEntry := manifest.Find(rmName)
-		if fileEntry == nil {
-			fileEntry = manifest.FindSuffix(pageID + ".rm")
+		data, present, err := strokeBlob(ctx, client, item, manifest, pageID)
+		if err != nil {
+			return err
 		}
-		if fileEntry == nil {
+		if !present {
 			return fmt.Errorf("no stroke data found for page %d (%s)", pageIdx, pageID)
 		}
-		rmBytes, err := client.GetBlob(ctx, fileEntry.Hash, rmName)
-		if err != nil {
-			return fmt.Errorf("downloading stroke blob: %w", err)
-		}
-
 		if format == "rm" {
-			_, err = w.Write(rmBytes)
+			_, err = w.Write(data)
 			return err
 		}
-
-		svgStr, err := rmscene.RenderRMToSVG(rmBytes)
+		svg, err := rmscene.RenderRMToSVG(data)
 		if err != nil {
 			return fmt.Errorf("converting strokes to SVG: %w", err)
 		}
-		_, err = io.WriteString(w, svgStr)
+		_, err = io.WriteString(w, svg)
 		return err
 	}
 }
@@ -384,46 +342,26 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	if err != nil {
 		return fmt.Errorf("resolving document %q: %w", idOrName, err)
 	}
-
 	manifest, err := item.GetManifest(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching document manifest: %w", err)
 	}
-
-	pdfFile := manifest.Find(item.ID + ".pdf")
-	if pdfFile == nil {
-		pdfFile = manifest.FindSuffix(".pdf")
-	}
-	if pdfFile == nil {
-		return fmt.Errorf("document %q has no PDF stationery template", idOrName)
-	}
-	pdfBytes, err := client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
-	if err != nil {
-		return fmt.Errorf("downloading template PDF: %w", err)
-	}
-
-	docContent, err := item.GetContent(ctx)
-	if err != nil {
-		return fmt.Errorf("fetching content schema: %w", err)
-	}
-	pageID, err := nativePageID(getPageIDs(docContent), pageIdx)
+	pdfBytes, err := backgroundPDF(ctx, client, item, manifest)
 	if err != nil {
 		return err
 	}
-	rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
-
-	var rmBytes []byte
-	fileEntry := manifest.Find(rmName)
-	if fileEntry == nil {
-		fileEntry = manifest.FindSuffix(pageID + ".rm")
+	content, err := item.GetContent(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching content schema: %w", err)
 	}
-	if fileEntry != nil {
-		rmBytes, err = client.GetBlob(ctx, fileEntry.Hash, rmName)
-		if err != nil {
-			return fmt.Errorf("downloading stroke blob: %w", err)
-		}
+	pageID, err := nativePageID(getPageIDs(content), pageIdx)
+	if err != nil {
+		return err
 	}
-
+	rmBytes, _, err := strokeBlob(ctx, client, item, manifest, pageID)
+	if err != nil {
+		return err
+	}
 	if dpi <= 0 {
 		dpi = render.DefaultDPI
 	}
@@ -431,7 +369,6 @@ func RenderPage(ctx context.Context, client *cloud.Client, idOrName string, page
 	if err != nil {
 		return fmt.Errorf("rendering page: %w", err)
 	}
-
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
@@ -501,15 +438,9 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 
 	var pdfBytes []byte
 	if opts.Format == "png" {
-		pdfFile := manifest.Find(item.ID + ".pdf")
-		if pdfFile == nil {
-			pdfFile = manifest.FindSuffix(".pdf")
-		}
-		if pdfFile != nil {
-			pdfBytes, err = client.GetBlob(ctx, pdfFile.Hash, item.ID+".pdf")
-			if err != nil {
-				return nil, fmt.Errorf("downloading background PDF: %w", err)
-			}
+		pdfBytes, err = backgroundPDF(ctx, client, item, manifest)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -521,7 +452,11 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 		}
 	}
 
-	docDir := filepath.Join(opts.OutputDir, sanitizeFilename(item.Metadata.VisibleName))
+	component := sanitizeFilename(item.Metadata.VisibleName)
+	if component == "." || !filepath.IsLocal(component) || strings.ContainsRune(component, 0) {
+		return nil, fmt.Errorf("document %q has an invalid output directory name %q", item.ID, item.Metadata.VisibleName)
+	}
+	docDir := filepath.Join(opts.OutputDir, component)
 	var results []SyncPageResult
 
 	for _, pageIdx := range pageIndices {
@@ -544,17 +479,9 @@ func SyncDocument(ctx context.Context, client *cloud.Client, idOrName string, op
 			}
 		}
 
-		rmName := fmt.Sprintf("%s/%s.rm", item.ID, pageID)
-		var rmBytes []byte
-		entry := manifest.Find(rmName)
-		if entry == nil {
-			entry = manifest.FindSuffix(pageID + ".rm")
-		}
-		if entry != nil {
-			rmBytes, err = client.GetBlob(ctx, entry.Hash, rmName)
-			if err != nil {
-				return results, fmt.Errorf("downloading strokes for page %d: %w", pageIdx, err)
-			}
+		rmBytes, _, err := strokeBlob(ctx, client, item, manifest, pageID)
+		if err != nil {
+			return results, fmt.Errorf("downloading strokes for page %d: %w", pageIdx, err)
 		}
 
 		if err := os.MkdirAll(docDir, 0755); err != nil {

@@ -140,12 +140,3 @@ func newAuthCmd() *cobra.Command {
 	authCmd.AddCommand(authTokenCmd)
 	return authCmd
 }
-
-func newStatusShortcutCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "Check connection status to reMarkable Cloud API (alias for 'auth status')",
-		Args:  cobra.NoArgs,
-		RunE:  runAuthStatus,
-	}
-}

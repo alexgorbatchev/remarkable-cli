@@ -49,7 +49,7 @@ func TestTestCloudPresetsAndFailure(t *testing.T) {
 			t.Errorf("doc-1 name = %q, want My Document", item.Metadata.VisibleName)
 		}
 
-		resp, err := http.Get(ts.URL + "/sync/v3/files/custom-file")
+		resp, err := http.Get(ts.URL + "/sync/v3/files/" + ts.Hashes["custom-file"])
 		if err != nil {
 			t.Fatalf("get custom file: %v", err)
 		}

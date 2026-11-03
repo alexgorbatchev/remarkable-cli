@@ -3,16 +3,14 @@ package doc
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"math/rand/v2"
-	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	"github.com/alexgorbatchev/remarkable-cli/internal/agent"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 type listingFixtureItem struct {
@@ -45,7 +43,7 @@ var orderFixture = []listingFixtureItem{
 	{"d-old", "Old note", "DocumentType", "f-archive"},
 	{"d-zulu", "Zulu", "DocumentType", "f-1"},
 	{"d-same", "Same", "DocumentType", "f-2"},
-	// The cloud library omits trashed items, so d-lost's parent is missing.
+	// The cloud library omits trashed items and their descendants.
 	{"f-trashed", "Old", "CollectionType", "trash"},
 	{"d-lost", "Lost", "DocumentType", "f-trashed"},
 	// Folders that are each other's parent never reach the root.
@@ -66,7 +64,7 @@ var wantListOrder = []string{
 	"d-old",
 	"d-zulu",
 	"d-same",
-	"d-attached", "f-loop-b", "f-loop-a", "d-lost",
+	"d-attached", "f-loop-b", "f-loop-a",
 }
 
 // newShuffledListingClient serves orderFixture with root manifest entries in a
@@ -80,37 +78,11 @@ func newShuffledListingClient(t *testing.T, seed uint64) *cloud.Client {
 		items[i], items[j] = items[j], items[i]
 	})
 
-	var root strings.Builder
-	files := make(map[string]string)
+	var library []testcloud.LibraryItem
 	for _, it := range items {
-		fmt.Fprintf(&root, "%s-schema:%s:0:1\n", it.id, it.id)
-		files[it.id+"-schema"] = fmt.Sprintf("%s-meta:%s.metadata:0:1\n", it.id, it.id)
-		files[it.id+"-meta"] = fmt.Sprintf(`{"visibleName":%q,"type":%q,"parent":%q}`, it.name, it.itemType, it.parent)
+		library = append(library, testcloud.LibraryItem{ID: it.id, Metadata: cloud.ItemMetadata{VisibleName: it.name, Type: cloud.ItemType(it.itemType), Parent: it.parent}})
 	}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/sync/v3/root":
-			if _, err := w.Write([]byte(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)); err != nil {
-				t.Error(err)
-			}
-			return
-		case "/sync/v3/files/root-hash":
-			if _, err := w.Write([]byte(root.String())); err != nil {
-				t.Error(err)
-			}
-			return
-		}
-		body, ok := files[strings.TrimPrefix(r.URL.Path, "/sync/v3/files/")]
-		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		if _, err := w.Write([]byte(body)); err != nil {
-			t.Error(err)
-		}
-	}))
-	t.Cleanup(ts.Close)
+	ts := testcloud.NewLibrary(t, library)
 
 	client, err := cloud.NewClient(
 		cloud.WithConfig(&cloud.Config{DeviceToken: "dev", UserToken: "usr"}),
@@ -220,9 +192,12 @@ func TestBuildTreeOrderIsDeterministic(t *testing.T) {
 			for _, seed := range listingSeeds {
 				client := newShuffledListingClient(t, seed)
 				for call := range 2 {
-					tree, err := BuildTree(context.Background(), client)
+					tree, omitted, err := BuildTree(context.Background(), client)
 					if err != nil {
 						t.Fatalf("seed %d call %d: BuildTree failed: %v", seed, call, err)
+					}
+					if omitted != 3 {
+						t.Fatalf("omitted %d items, want 3", omitted)
 					}
 					var out bytes.Buffer
 					if err := agent.PrintTree(&out, tree); err != nil {

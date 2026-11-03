@@ -140,17 +140,17 @@ func TestReadFailuresFailInsteadOfReportingEmpty(t *testing.T) {
 			wantStatus: http.StatusBadGateway,
 		},
 		{
-			name:     "inspect content parse",
+			name:     "inspect content corruption",
 			failure:  mockFailure{path: "/sync/v3/files/content-hash", body: "not json"},
 			call:     inspect(false),
-			wantText: "unmarshal content",
+			wantText: "blob checksum mismatch",
 		},
 		{
-			// Resolving doc-1 reads its manifest once; --pages reads it again.
+			// Failure to resolve the manifest must prevent partial inspection.
 			name:       "inspect pages manifest fetch",
-			failure:    mockFailure{path: "/sync/v3/files/doc-hash", after: 1},
+			failure:    mockFailure{path: "/sync/v3/files/doc-hash"},
 			call:       inspect(true),
-			wantText:   "fetching document manifest",
+			wantText:   "resolving document",
 			wantStatus: http.StatusBadGateway,
 		},
 		{
@@ -242,8 +242,8 @@ func TestDocService_ListAndTree(t *testing.T) {
 	}
 
 	// 2. BuildTree
-	tree, err := BuildTree(ctx, client)
-	if err != nil || tree == nil || len(tree.Children) == 0 {
+	tree, omitted, err := BuildTree(ctx, client)
+	if err != nil || tree == nil || len(tree.Children) == 0 || omitted != 0 {
 		t.Fatalf("BuildTree failed: %v", err)
 	}
 
@@ -306,7 +306,7 @@ func TestSearchDocument(t *testing.T) {
 			name:            "doc with no PDF",
 			doc:             "doc-nopdf",
 			query:           SearchQuery{Text: "query"},
-			wantErrContains: "no searchable PDF text",
+			wantErrContains: "no background PDF",
 		},
 		{
 			name:            "corrupt PDF",
@@ -368,7 +368,7 @@ func TestGetLinks(t *testing.T) {
 			name:            "doc-nopdf has no background PDF",
 			doc:             "doc-nopdf",
 			page:            0,
-			wantErrContains: `document "doc-nopdf" has no background PDF`,
+			wantErrContains: `document has no background PDF: doc-nopdf`,
 		},
 		{
 			name:            "doc-corrupt opening PDF error",
@@ -507,7 +507,7 @@ func TestCat(t *testing.T) {
 			doc:             "doc-nopdf",
 			page:            0,
 			format:          "text",
-			wantErrContains: "no PDF text",
+			wantErrContains: "no background PDF",
 		},
 		{
 			name:            "doc-nostroke rm",
@@ -612,7 +612,7 @@ func TestRenderPage(t *testing.T) {
 			doc:             "doc-nopdf",
 			page:            0,
 			dpi:             200,
-			wantErrContains: "no PDF stationery template",
+			wantErrContains: "no background PDF",
 		},
 		{
 			name:            "doc-corrupt missing content schema",
@@ -927,36 +927,11 @@ func TestParseFormats(t *testing.T) {
 }
 
 func TestList_CaseFoldingQuery(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		write := func(s string) {
-			if _, err := io.WriteString(w, s); err != nil {
-				t.Error(err)
-			}
-		}
-		switch r.URL.Path {
-		case "/token/v2/user", "/token/json/2/user/new":
-			write("mock-token")
-		case "/sync/v3/root":
-			write(`{"hash":"root-hash","generation":1,"schemaVersion":3}`)
-		case "/sync/v3/files/root-hash":
-			write("h1:d1:0:10\nh2:d2:0:10\nh3:d3:0:10\n")
-		case "/sync/v3/files/h1":
-			write("m1:d1.metadata:0:50\n")
-		case "/sync/v3/files/m1":
-			write(`{"visibleName":"Straße","type":"DocumentType"}`)
-		case "/sync/v3/files/h2":
-			write("m2:d2.metadata:0:50\n")
-		case "/sync/v3/files/m2":
-			write(`{"visibleName":"κόσμος","type":"DocumentType"}`)
-		case "/sync/v3/files/h3":
-			write("m3:d3.metadata:0:50\n")
-		case "/sync/v3/files/m3":
-			write(`{"visibleName":"ſtyle guide","type":"DocumentType"}`)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
+	ts := testcloud.NewLibrary(t, []testcloud.LibraryItem{
+		{ID: "d1", Metadata: cloud.ItemMetadata{VisibleName: "Straße", Type: cloud.ItemTypeDocument}},
+		{ID: "d2", Metadata: cloud.ItemMetadata{VisibleName: "κόσμος", Type: cloud.ItemTypeDocument}},
+		{ID: "d3", Metadata: cloud.ItemMetadata{VisibleName: "ſtyle guide", Type: cloud.ItemTypeDocument}},
+	})
 
 	client, err := cloud.NewClient(
 		cloud.WithConfig(&cloud.Config{DeviceToken: "dev", UserToken: "usr"}),
@@ -987,4 +962,3 @@ func TestList_CaseFoldingQuery(t *testing.T) {
 		})
 	}
 }
-

@@ -254,8 +254,8 @@ func TestArchiveDocumentPreservesSnapshot(t *testing.T) {
 func TestArchiveDocumentFailureLeavesNoArchive(t *testing.T) {
 	for _, test := range []struct{ scenario, want string }{
 		{"changed", "cloud source changed"}, {"changed-hash", "cloud source changed"},
-		{"resolution-change", "source changed during resolution"}, {"manifest", "manifest hash mismatch"},
-		{"missing", "downloading native file"}, {"corrupt", "hash or size mismatch"}, {"size", "hash or size mismatch"},
+		{"resolution-change", "source changed during resolution"}, {"manifest", "blob checksum mismatch"},
+		{"missing", "downloading native file"}, {"corrupt", "blob checksum mismatch"}, {"size", "hash or size mismatch"},
 		{"interrupted", "unexpected EOF"}, {"unsafe", "invalid native archive entry"},
 		{"existing", "already exists"}, {"publish-race", "publishing archive without replacement"},
 		{"canceled", "context canceled"}, {"empty-output", "output path is required"}, {"folder", "is not a document"},

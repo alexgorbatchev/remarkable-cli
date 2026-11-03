@@ -17,6 +17,8 @@ import (
 // nothing else, reuse those files on later runs, refill a deleted cache, and
 // --no-cache neither reads nor writes the cache.
 func TestCacheDirHoldsDownloadedBlobs(t *testing.T) {
+	ts, _ := setupCLITestEnv(t)
+	defer ts.Close()
 	fixtures := loadCLIFixtures(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
 	// catPage streams doc-1's whole background PDF or the raw strokes of page 0.
@@ -58,19 +60,21 @@ func TestCacheDirHoldsDownloadedBlobs(t *testing.T) {
 		// Every manifest, metadata, content, PDF and stroke file doc cat downloaded is
 		// cached under its cloud hash.
 		want := []string{"content-hash", "doc-hash", "meta-hash", "pdf-hash", "root-hash", "stroke-hash"}
+		for i, key := range want {
+			want[i] = ts.Hashes[key]
+		}
+		slices.Sort(want)
 		if !slices.Equal(names, want) {
 			t.Fatalf("blob cache entries = %v, want %v", names, want)
 		}
 		for hash, data := range map[string][]byte{"pdf-hash": fixtures.PDF, "stroke-hash": fixtures.Strokes} {
-			got, err := os.ReadFile(filepath.Join(cacheDir, "blobs", hash))
+			got, err := os.ReadFile(filepath.Join(cacheDir, "blobs", ts.Hashes[hash]))
 			if err != nil || !bytes.Equal(got, data) {
 				t.Fatalf("cached %s differs from the downloaded bytes (err %v)", hash, err)
 			}
 		}
 	}
 
-	ts, _ := setupCLITestEnv(t)
-	defer ts.Close()
 	downloadPage()
 	assertCache()
 

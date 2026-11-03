@@ -2,8 +2,8 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/alexgorbatchev/cobra-help-tree/v4 v4.0.0 h1:lsgP09cFsQq25htGjEYvh8ATiBE7t7R7ECfJBe01QVU=
 github.com/alexgorbatchev/cobra-help-tree/v4 v4.0.0/go.mod h1:iW2OKycMBhufRu+sBuCIqV8uwzqLfLzz24zyP65j/cY=
-github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261007041015-403691f0fc82 h1:hPsPSusgc+Q7hGDW1f7cjnEwzTqu6ym274iP+EP4cEc=
-github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261007041015-403691f0fc82/go.mod h1:8f3Tefpoe53jHXZKob/J51eFOnlr5He+vL6OdE7pimM=
+github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261103141542-72c9989bfc82 h1:huNce8eMAw3hrhol6I88Gc+Ekk6O7oDB8HVLAOy+7F4=
+github.com/alexgorbatchev/go-remarkable-cloud v0.0.0-20261103141542-72c9989bfc82/go.mod h1:8f3Tefpoe53jHXZKob/J51eFOnlr5He+vL6OdE7pimM=
 github.com/alexgorbatchev/go-remarkable-render v0.0.0-20261006221344-61287a92812e h1:ruoF8yePyIDLpi7LDltDgmMfHXpMWov8Ms+OsAZJBd4=
 github.com/alexgorbatchev/go-remarkable-render v0.0.0-20261006221344-61287a92812e/go.mod h1:1bp8f/Ap9tRLhAb5qjFoVDpNvglETP6NHju6oSvVsQU=
 github.com/alexgorbatchev/go-rmscene v0.0.0-20260929164147-03ef03e1e1ac h1:vhjFtACPpXod5PuLi6RmMrXXLI1yqgIwZ3GkLG6Ol9E=

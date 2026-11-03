@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 func TestImportCommandValidation(t *testing.T) {
@@ -57,7 +58,9 @@ func newImportCloud(t *testing.T, reject func(*http.Request) int) importCloud {
 	}
 	metaHash := store([]byte(`{"visibleName":"Destination","type":"DocumentType"}`))
 	contentHash := store([]byte(`{"fileType":"pdf","pages":["native-page"],"pageCount":1}`))
-	docHash := store([]byte(fmt.Sprintf("3\n%s:0:%s.metadata:0:100\n%s:0:%s.content:0:100\n", metaHash, id, contentHash, id)))
+	manifest := []byte(fmt.Sprintf("3\n%s:0:%s.metadata:0:100\n%s:0:%s.content:0:100\n", metaHash, id, contentHash, id))
+	docHash := testcloud.ManifestHash(manifest)
+	blobs[docHash] = manifest
 	root := cloud.RootState{Hash: store([]byte(fmt.Sprintf("4\n0:.:1:200\n%s:0:%s:2:200\n", docHash, id))), Generation: 1, SchemaVersion: 4}
 	var mu sync.Mutex
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

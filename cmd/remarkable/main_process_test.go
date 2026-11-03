@@ -66,7 +66,7 @@ func isolatedMainEnv(t *testing.T) map[string]string {
 		"HOME":                 home,
 		"XDG_CONFIG_HOME":      filepath.Join(home, "config"),
 		"XDG_CACHE_HOME":       filepath.Join(home, "cache"),
-		"REMARKABLE_CONFIG":    filepath.Join(home, "missing-config.json"),
+		"REMARKABLE_CONFIG":    filepath.Join(home, "missing-credentials"),
 		"REMARKABLE_CACHE_DIR": filepath.Join(home, "cache", "remarkable-cli"),
 		"REMARKABLE_HOST":      closed.URL,
 	}
@@ -150,7 +150,7 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 					"cloud reason ending in a newline",
 					[]string{"doc", "render", "doc-1", "--no-cache", "-o", png},
 					cloudEnv,
-					`resolving document "doc-1": get root state: get root state failed with status 502: injected cloud failure`,
+					`resolving document "doc-1": get root state failed with status 502: injected cloud failure\n`,
 					5,
 				},
 			}
@@ -158,9 +158,9 @@ func TestMainReportsRuntimeFailureOnceWithoutUsage(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					message := inProcessError(t, tc.args...).Error()
 					if tc.trimmed != "" {
-						// The server reason ends the error exactly as sent.
-						if !strings.HasSuffix(message, "\n") {
-							t.Fatalf("returned error %q does not end in a newline", message)
+						// Control characters in the server reason must remain escaped.
+						if !strings.HasSuffix(message, `\n`) {
+							t.Fatalf("returned error %q does not end in an escaped newline", message)
 						}
 						message = tc.trimmed
 					}
@@ -193,7 +193,7 @@ func TestDocLinksWithoutPDF(t *testing.T) {
 				args: []string{"doc", "links", "notebook-1", "--no-cache"},
 				env:  map[string]string{"REMARKABLE_HOST": ts.URL, "REMARKABLE_CONFIG": configPath},
 			})
-			want := mode.prefix + `document "notebook-1" has no background PDF` + "\n"
+			want := mode.prefix + `document has no background PDF: notebook-1` + "\n"
 			if got.exitCode != 1 {
 				t.Errorf("exit status = %d, want %d", got.exitCode, 1)
 			}
@@ -245,7 +245,6 @@ func TestMainReportsInvocationErrorOnceAfterUsage(t *testing.T) {
 				{"doc tree extra args", []string{"doc", "tree"}, []string{"extra"}, `unknown command "extra" for "remarkable doc tree"`},
 				{"auth status extra args", []string{"auth", "status"}, []string{"extra"}, `unknown command "extra" for "remarkable auth status"`},
 				{"auth token extra args", []string{"auth", "token"}, []string{"extra"}, `unknown command "extra" for "remarkable auth token"`},
-				{"status extra args", []string{"status"}, []string{"extra"}, `unknown command "extra" for "remarkable status"`},
 				{"stroke inspect empty path", []string{"stroke", "inspect"}, []string{""}, "path must not be empty"},
 				{"stroke export empty path", []string{"stroke", "export"}, []string{""}, "path must not be empty"},
 				{"doc upload empty path", []string{"doc", "upload"}, []string{"", "--title", "T", "--evidence", "e.json"}, "path must not be empty"},
@@ -368,7 +367,7 @@ func TestMainProcessIgnoresInheritedCredentials(t *testing.T) {
 	ts, _ := setupCLITestEnv(t)
 	defer ts.Close()
 	got := runMainProcess(t, mainRun{args: []string{"doc", "list"}})
-	want := "ERR: credentials file not found at " + got.env["REMARKABLE_CONFIG"] + ": run 'remarkable auth pair <code>' first\n"
+	want := "ERR: credentials file not found at " + got.env["REMARKABLE_CONFIG"] + ": run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect\n"
 	if got.exitCode != 4 {
 		t.Errorf("exit status = %d, want %d", got.exitCode, 4)
 	}
@@ -405,28 +404,28 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 			"rejected session and device tokens",
 			[]string{"doc", "render", "doc-1", "--no-cache", "-o", png},
 			pairedCredentials,
-			`resolving document "doc-1": get root state: auth renewal failed after 401: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header`,
+			`resolving document "doc-1": auth renewal failed after 401: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header\n`,
 			"",
 		},
 		{
 			"rejected device token",
 			[]string{"auth", "token"},
 			pairedCredentials,
-			"fetching user token: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header",
+			`fetching user token: unauthorized: missing or invalid credentials: renew user token failed with status 401: invalid Authorization header\n`,
 			"",
 		},
 		{
 			"no tokens",
 			[]string{"doc", "list", "--no-cache"},
 			"",
-			"listing cloud items: get root state: unauthorized: missing or invalid credentials: neither user token nor device token is configured",
+			"listing cloud items: unauthorized: missing or invalid credentials: neither user token nor device token is configured",
 			"",
 		},
 		{
 			"rejected pairing code",
 			[]string{"auth", "pair", "abcdefgh"},
 			credentialsAbsent,
-			"unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header",
+			`unauthorized: missing or invalid credentials: pair device failed with status 401: invalid Authorization header\n`,
 			"",
 		},
 	}
@@ -434,7 +433,7 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 		t.Run(mode.agent, func(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					config := filepath.Join(t.TempDir(), "config.json")
+					config := filepath.Join(t.TempDir(), "credentials")
 					if tc.credentials != credentialsAbsent {
 						config = writeCredentials(t, tc.credentials)
 					}
@@ -460,6 +459,22 @@ func TestMainHintsPairingWhenCloudRejectsCredentials(t *testing.T) {
 						t.Errorf("stderr = %q, want %q", got.stderr, want)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestMainHintsPairingWhenCredentialsFileMissing(t *testing.T) {
+	for _, mode := range errorModes {
+		t.Run(mode.agent, func(t *testing.T) {
+			got := runMainProcess(t, mainRun{
+				args: []string{"doc", "list"},
+				env:  map[string]string{"AGENT": mode.agent},
+			})
+			want := mode.prefix + "credentials file not found at " + got.env["REMARKABLE_CONFIG"] +
+				": run 'remarkable auth pair <code>' with a new code from https://my.remarkable.com/device/desktop/connect\n"
+			if got.exitCode != 4 || got.stdout != "" || got.stderr != want {
+				t.Errorf("result = %+v, want exit 4, empty stdout, stderr %q", got, want)
 			}
 		})
 	}
@@ -664,5 +679,3 @@ func TestMainHelpCommandUnknownTopic(t *testing.T) {
 		})
 	}
 }
-
-
