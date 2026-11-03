@@ -27,8 +27,8 @@ func TestResolveConfigPath(t *testing.T) {
 		if err := os.MkdirAll(xdgConfigDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		xdgConfigFile := filepath.Join(xdgConfigDir, "config.json")
-		if err := os.WriteFile(xdgConfigFile, []byte("{}"), 0644); err != nil {
+		xdgConfigFile := filepath.Join(xdgConfigDir, "credentials")
+		if err := os.WriteFile(xdgConfigFile, []byte("devicetoken: test-device\nusertoken: test-user\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		t.Setenv("XDG_CONFIG_HOME", tmpXDG)
@@ -87,4 +87,32 @@ func TestResolveCacheDir(t *testing.T) {
 			t.Fatalf("expected %s, got %s", expected, got)
 		}
 	})
+}
+
+func TestCredentialsPathIgnoresFormerJSONFilename(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("REMARKABLE_CONFIG", "")
+	t.Setenv("XDG_CONFIG_HOME", home)
+	dir := filepath.Join(home, "remarkable-cli")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(old, []byte("devicetoken: old\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveConfigPath(""); got != filepath.Join(home, ".rmapi") {
+		t.Fatalf("selected former filename: %s", got)
+	}
+	credentials := filepath.Join(dir, "credentials")
+	if err := os.WriteFile(credentials, []byte("devicetoken: current\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveConfigPath(""); got != credentials {
+		t.Fatalf("credentials path: %s", got)
+	}
+	if got := ResolveConfigPath(old); got != old {
+		t.Fatalf("explicit override ignored: %s", got)
+	}
 }

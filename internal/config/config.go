@@ -9,7 +9,7 @@ import (
 // Priority:
 // 1. Explicit override flag
 // 2. $REMARKABLE_CONFIG env var
-// 3. XDG path: $XDG_CONFIG_HOME/remarkable-cli/config.json (or ~/.config/remarkable-cli/config.json)
+// 3. XDG path: $XDG_CONFIG_HOME/remarkable-cli/credentials (or ~/.config/remarkable-cli/credentials)
 // 4. Default fallback: ~/.rmapi
 func ResolveConfigPath(override string) string {
 	if override != "" {
@@ -26,7 +26,7 @@ func ResolveConfigPath(override string) string {
 		}
 	}
 	if xdg != "" {
-		candidate := filepath.Join(xdg, "remarkable-cli", "config.json")
+		candidate := filepath.Join(xdg, "remarkable-cli", "credentials")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}
