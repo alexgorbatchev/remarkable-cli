@@ -172,18 +172,21 @@ func uploadPageData(pages int, initialize bool) []byte {
 func validateEvidencePageIDs(evidence *UploadEvidence) error {
 	switch evidence.NativePages {
 	case nativePagesPending:
-		if len(evidence.PageIDs) != 0 {
-			return fmt.Errorf("upload evidence records page IDs for %s pages", nativePagesPending)
+		if len(evidence.PageIDs) != 0 || evidence.AuthorUUID != "" {
+			return fmt.Errorf("upload evidence records native identities for %s pages", nativePagesPending)
 		}
 		return nil
 	case NativePagesInitialized:
 	default:
 		return fmt.Errorf("upload evidence has unknown native_pages %q", evidence.NativePages)
 	}
+	if !isUUID(evidence.AuthorUUID) || evidence.AuthorUUID == evidence.Result.ID {
+		return fmt.Errorf("upload evidence has missing or invalid author UUID")
+	}
 	if len(evidence.PageIDs) != evidence.Pages {
 		return fmt.Errorf("upload evidence records %d native page IDs for %d pages", len(evidence.PageIDs), evidence.Pages)
 	}
-	seen := map[string]bool{evidence.Result.ID: true}
+	seen := map[string]bool{evidence.Result.ID: true, evidence.AuthorUUID: true}
 	for i, id := range evidence.PageIDs {
 		if !isUUID(id) || seen[id] {
 			return fmt.Errorf("upload evidence native page %d has a missing, duplicate, or invalid UUID", i)
@@ -199,6 +202,15 @@ func checkUploadedPageIdentity(evidence *UploadEvidence, data []byte) error {
 	var content cloud.DocumentContent
 	if err := json.Unmarshal(data, &content); err != nil {
 		return fmt.Errorf("decoding uploaded content: %w", err)
+	}
+	var native struct {
+		CPages nativePageStructure `json:"cPages"`
+	}
+	if err := json.Unmarshal(data, &native); err != nil {
+		return fmt.Errorf("decoding native author identity: %w", err)
+	}
+	if len(native.CPages.Authors) != 1 || native.CPages.Authors[0].UUID != evidence.AuthorUUID || native.CPages.Authors[0].Number != nativeAuthorNumber {
+		return fmt.Errorf("upload recovery native author identity differs")
 	}
 	pages := content.CPages.Pages
 	if len(content.Pages) != 0 || content.PageCount != evidence.Pages || len(pages) != len(evidence.PageIDs) {

@@ -23,8 +23,9 @@ type UploadEvidence struct {
 	Folder      string `json:"folder"`
 	Pages       int    `json:"pages"`
 	NativePages string `json:"native_pages"`
-	// PageIDs lists the native page UUID of each PDF page, in PDF order, when
-	// NativePages is initialized.
+	// AuthorUUID identifies the author of initialized native page records.
+	AuthorUUID string `json:"author_uuid,omitempty"`
+	// PageIDs lists each native page UUID in PDF order when initialized.
 	PageIDs []string           `json:"page_ids,omitempty"`
 	Result  cloud.CreateResult `json:"result"`
 	Files   []UploadFile       `json:"files"`

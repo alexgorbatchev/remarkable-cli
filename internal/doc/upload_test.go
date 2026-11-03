@@ -18,6 +18,7 @@ import (
 
 	cloud "github.com/alexgorbatchev/go-remarkable-cloud"
 	render "github.com/alexgorbatchev/go-remarkable-render"
+	"github.com/alexgorbatchev/remarkable-cli/internal/testcloud"
 )
 
 const uploadFolderID = "11111111-1111-4111-8111-111111111111"
@@ -74,7 +75,7 @@ func newUploadServer(t *testing.T, failure, evidence string) (*uploadServer, *cl
 		hash := archiveTestHash(data)
 		s.blobs[hash] = data
 		manifest := fmt.Appendf(nil, "3\n%s:0:%s.metadata:0:%d\n", hash, id, len(data))
-		docHash := archiveTestHash(manifest)
+		docHash := testcloud.ManifestHash(manifest)
 		s.blobs[docHash] = manifest
 		root = fmt.Appendf(root, "%s:0:%s:1:%d\n", docHash, id, len(data))
 	}
@@ -109,7 +110,7 @@ func (s *uploadServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 				if evidence.Result.State != cloud.UpdateCommitUnknown || evidence.Result.ID == "" || evidence.Result.DocumentHash == "" {
 					s.t.Error("commit sent before durable recovery identity")
 				}
-				if evidence.NativePages == NativePagesInitialized && len(evidence.PageIDs) != evidence.Pages {
+				if evidence.NativePages == NativePagesInitialized && (len(evidence.PageIDs) != evidence.Pages || !isUUID(evidence.AuthorUUID)) {
 					s.t.Error("commit sent before durable native page identity")
 				}
 			}
@@ -205,7 +206,7 @@ func testUploadPDF(t *testing.T, initialize bool, failure string) {
 		if err == nil {
 			t.Fatal("expected upload error")
 		}
-		wantError := map[string]string{"collision": "already exists", "deleted-folder": "deleted or in trash", "trashed-ancestor-folder": "deleted or in trash", "document-folder": "not a collection", "missing-folder": "not found", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "bytes"}[failure]
+		wantError := map[string]string{"collision": "already exists", "deleted-folder": "deleted or in trash", "trashed-ancestor-folder": "deleted or in trash", "document-folder": "not a collection", "missing-folder": "not found", "invalid-pdf": "validating upload PDF", "evidence-exists": "creating upload evidence", "conflict": "generation", "unknown": "invalid", "corrupt": "blob checksum mismatch"}[failure]
 		if !strings.Contains(err.Error(), wantError) {
 			t.Fatalf("wrong failure: %v, want %q", err, wantError)
 		}
@@ -309,7 +310,9 @@ func testUploadPDF(t *testing.T, initialize bool, failure string) {
 		t.Fatal("recovery accepted corrupted bytes from fresh download")
 	}
 	s.failure = ""
-	s.blobs[s.root.Hash] = bytes.ReplaceAll(s.blobs[s.root.Hash], []byte(evidence.Result.DocumentHash), []byte(strings.Repeat("a", 64)))
+	changedRoot := bytes.ReplaceAll(s.blobs[s.root.Hash], []byte(evidence.Result.DocumentHash), []byte(strings.Repeat("a", 64)))
+	s.root.Hash = archiveTestHash(changedRoot)
+	s.blobs[s.root.Hash] = changedRoot
 	if _, err := CheckUpload(context.Background(), c, evidencePath); err == nil || !strings.Contains(err.Error(), "changed document hash") {
 		t.Fatalf("recovery accepted changed identity: %v", err)
 	}

@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 09:44
+  last_modified: 2026-11-03 12:00
   status: current
 ---
 
@@ -47,7 +47,7 @@ association and all supplied bytes, including the initialized page structure.
 Write credential-free `0600` evidence before staging; durably refresh before commit
 via adjacent temporary files and atomic rename. Record version 1, title, folder,
 page count, native initialization state, `page_ids` (initialized only: page IDs in
-PDF order), library commit result, and each intended file's native name/SHA-256/length.
+PDF order), `author_uuid` (initialized only), library commit result, and each intended file's native name/SHA-256/length.
 Failed staging may leave unreferenced blobs; commit timeouts or evidence/stdout
 failures may follow actual creation. They return nonzero: retain JSON and run
 `upload-check` before retrying, which creates a new UUID and new page IDs.
@@ -56,10 +56,11 @@ failures may follow actual creation. They return nonzero: retain JSON and run
 
 Validate recovery JSON before credentials: attachment names must equal UUID plus
 `.pdf`, `.metadata`, `.content`, `.pagedata`, each exactly once; `native_pages` is
-`pending-tablet-initialization` without `page_ids` or `initialized` with one unique
-UUID per page. Within five minutes, freshly confirm UUID, document hash, attachment
+`pending-tablet-initialization` without page/author identities or `initialized` with one
+unique UUID per page and an author UUID distinct from document/page IDs. Within five minutes, freshly confirm UUID, document hash, attachment
 set, sizes, and SHA-256 against an unchanged root; for initialized pages, also confirm
-the fresh content lists exactly `page_ids` in order with matching redirections. Print
+the fresh content lists exactly `page_ids` in order with matching redirections and
+the recorded author UUID. Print
 upload fields with `state: verified`; generation/root hash remain creation evidence.
 Preserve files/documents and evidence. Missing UUID, changed document or root, or
 differing bytes or page IDs fails nonzero; inspect before retrying creation.

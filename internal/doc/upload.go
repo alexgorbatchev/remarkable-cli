@@ -85,12 +85,11 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 		return nil, fmt.Errorf("upload PDF has no pages")
 	}
 	evidence := &UploadEvidence{Version: 1, Title: opts.Title, Folder: opts.Folder, Pages: pages, NativePages: nativePagesPending}
-	var author string
 	if opts.InitializePages {
 		// Page identity is fixed here, before preflight, and recorded in the
 		// evidence written before staging; recovery never regenerates it.
 		evidence.NativePages = NativePagesInitialized
-		if evidence.PageIDs, author, err = newNativePageIDs(pages); err != nil {
+		if evidence.PageIDs, evidence.AuthorUUID, err = newNativePageIDs(pages); err != nil {
 			return nil, err
 		}
 	}
@@ -99,7 +98,7 @@ func UploadPDF(ctx context.Context, client *cloud.Client, path string, opts Uplo
 		return nil, err
 	}
 	id := uploadUUID()
-	files, err := uploadFiles(id, pdf, evidence, author)
+	files, err := uploadFiles(id, pdf, evidence)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +211,7 @@ func uploadPreflight(ctx context.Context, client *cloud.Client, opts UploadOptio
 	return root, nil
 }
 
-func uploadFiles(id string, pdf []byte, evidence *UploadEvidence, author string) ([]cloud.FileUpdate, error) {
+func uploadFiles(id string, pdf []byte, evidence *UploadEvidence) ([]cloud.FileUpdate, error) {
 	pages := evidence.Pages
 	now := fmt.Sprint(time.Now().UnixMilli())
 	metadata := map[string]any{"type": cloud.ItemTypeDocument, "visibleName": evidence.Title, "parent": evidence.Folder, "deleted": false, "pinned": false, "createdTime": now, "lastModified": now, "lastOpened": "0", "lastOpenedPage": 0}
@@ -222,7 +221,7 @@ func uploadFiles(id string, pdf []byte, evidence *UploadEvidence, author string)
 	content := map[string]any{"fileType": "pdf", "formatVersion": 1, "pageCount": pages, "originalPageCount": pages, "pages": nil, "sizeInBytes": fmt.Sprint(len(pdf)), "coverPageNumber": -1, "documentMetadata": map[string]any{}, "extraMetadata": map[string]any{}, "fontName": "", "lineHeight": -1, "margins": 125, "orientation": "portrait", "textAlignment": "justify", "textScale": 1, "zoomMode": "bestFit", "tags": []any{}, "pageTags": []any{}}
 	initialize := evidence.NativePages == NativePagesInitialized
 	if initialize {
-		if err := initializeContent(content, evidence.PageIDs, author); err != nil {
+		if err := initializeContent(content, evidence.PageIDs, evidence.AuthorUUID); err != nil {
 			return nil, err
 		}
 	}

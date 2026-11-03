@@ -173,7 +173,7 @@ func TestUploadInitializedPagesThenImportAndTransferSettings(t *testing.T) {
 	if content.FormatVersion != 2 || content.PageCount != evidence.Pages || cPages.Original.Value != evidence.Pages || cPages.Original.Timestamp != "1:1" || len(cPages.Pages) != evidence.Pages {
 		t.Fatalf("wrong initialized document structure: %s", rawContent)
 	}
-	if len(cPages.UUIDs) != 1 || !isUUID(cPages.UUIDs[0].First) || cPages.UUIDs[0].Second != 1 || seen[cPages.UUIDs[0].First] {
+	if len(cPages.UUIDs) != 1 || cPages.UUIDs[0].First != evidence.AuthorUUID || cPages.UUIDs[0].Second != 1 || seen[cPages.UUIDs[0].First] {
 		t.Fatalf("wrong native author table: %+v", cPages.UUIDs)
 	}
 	for i, page := range cPages.Pages {
@@ -304,16 +304,16 @@ func TestReadUploadEvidenceValidatesNativePageIdentity(t *testing.T) {
 	const pageB = "33333333-3333-4333-8333-333333333333"
 	for name, change := range map[string]func(*UploadEvidence){
 		"valid initialized": func(*UploadEvidence) {},
-		"valid pending":     func(e *UploadEvidence) { e.NativePages = nativePagesPending; e.PageIDs = nil },
-		"unknown state":     func(e *UploadEvidence) { e.NativePages = "partial" },
-		"pending with IDs":  func(e *UploadEvidence) { e.NativePages = nativePagesPending },
-		"missing IDs":       func(e *UploadEvidence) { e.PageIDs = e.PageIDs[:1] },
-		"duplicate IDs":     func(e *UploadEvidence) { e.PageIDs = []string{pageA, pageA} },
-		"invalid ID":        func(e *UploadEvidence) { e.PageIDs = []string{pageA, "page"} },
-		"document ID":       func(e *UploadEvidence) { e.PageIDs = []string{pageA, id} },
+		"valid pending":     func(e *UploadEvidence) { e.NativePages = nativePagesPending; e.PageIDs = nil; e.AuthorUUID = "" },
+		"missing author":    func(e *UploadEvidence) { e.AuthorUUID = "" }, "invalid author": func(e *UploadEvidence) { e.AuthorUUID = "not-a-uuid" }, "page author": func(e *UploadEvidence) { e.AuthorUUID = pageA }, "unknown state": func(e *UploadEvidence) { e.NativePages = "partial" },
+		"pending with IDs": func(e *UploadEvidence) { e.NativePages = nativePagesPending },
+		"missing IDs":      func(e *UploadEvidence) { e.PageIDs = e.PageIDs[:1] },
+		"duplicate IDs":    func(e *UploadEvidence) { e.PageIDs = []string{pageA, pageA} },
+		"invalid ID":       func(e *UploadEvidence) { e.PageIDs = []string{pageA, "page"} },
+		"document ID":      func(e *UploadEvidence) { e.PageIDs = []string{pageA, id} },
 	} {
 		t.Run(name, func(t *testing.T) {
-			evidence := UploadEvidence{Version: 1, Pages: 2, NativePages: NativePagesInitialized, PageIDs: []string{pageA, pageB}, Result: cloud.CreateResult{ID: id, DocumentHash: strings.Repeat("a", 64)}}
+			evidence := UploadEvidence{Version: 1, Pages: 2, NativePages: NativePagesInitialized, AuthorUUID: "44444444-4444-4444-8444-444444444444", PageIDs: []string{pageA, pageB}, Result: cloud.CreateResult{ID: id, DocumentHash: strings.Repeat("a", 64)}}
 			for _, suffix := range []string{".pdf", ".metadata", ".content", ".pagedata"} {
 				evidence.Files = append(evidence.Files, UploadFile{Name: id + suffix, SHA256: strings.Repeat("b", 64), Size: 1})
 			}
@@ -347,5 +347,24 @@ func TestCheckUploadRejectsEvidencePageIDsDifferingFromCloud(t *testing.T) {
 	}
 	if _, err := CheckUpload(context.Background(), c, path); err == nil || !strings.Contains(err.Error(), "native page identity") {
 		t.Fatalf("recovery accepted page IDs that differ from the cloud: %v", err)
+	}
+}
+
+func TestCheckUploadRejectsChangedAuthorEvidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "upload.json")
+	_, client := newUploadServer(t, "", path)
+	evidence, err := UploadPDF(t.Context(), client, "testdata/linked_pages.pdf", UploadOptions{Title: "Planner", Evidence: path, InitializePages: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isUUID(evidence.AuthorUUID) {
+		t.Fatalf("author identity missing: %q", evidence.AuthorUUID)
+	}
+	evidence.AuthorUUID = "44444444-4444-4444-8444-444444444444"
+	if err := writeUploadEvidence(path, evidence, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CheckUpload(t.Context(), client, path); err == nil || !strings.Contains(err.Error(), "author identity") {
+		t.Fatalf("changed author accepted: %v", err)
 	}
 }
