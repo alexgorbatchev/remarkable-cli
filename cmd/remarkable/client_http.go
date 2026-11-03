@@ -21,6 +21,7 @@ const (
 	cloudBlobAttempts   = 3
 	cloudRetryDelay     = 250 * time.Millisecond
 	blobPathPrefix      = "/sync/v3/files/"
+	maxBufferedBlobBody = 512 * 1024 * 1024 // matches the cloud client's blob limit
 )
 
 // The command context bounds the entire operation; each attempt gets its own
@@ -76,7 +77,7 @@ func (t *blobTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if err == nil && attempts > 1 && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
 			// The SDK consumes blobs with ReadAll. Complete the read here so a
 			// truncated body can be retried before exposing any partial bytes.
-			resp, err = bufferBlobResponse(resp)
+			resp, err = bufferBlobResponse(resp, maxBufferedBlobBody)
 			cancel()
 		}
 		if req.Context().Err() != nil {
@@ -94,6 +95,10 @@ func (t *blobTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 		delay := retryAfter(resp, t.retryDelay*time.Duration(1<<i))
+		var proxyErr *proxyConnectError
+		if errors.As(err, &proxyErr) {
+			delay = parseRetryAfter(proxyErr.retryAfter, delay)
+		}
 		closeResponse(resp)
 		cancel()
 		if err := waitRetry(req.Context(), delay); err != nil {
@@ -130,9 +135,16 @@ func replayableBlob(req *http.Request) bool {
 	return req.Method == http.MethodGet || req.Method == http.MethodPut && req.GetBody != nil
 }
 
-func bufferBlobResponse(resp *http.Response) (*http.Response, error) {
-	data, err := io.ReadAll(resp.Body)
+func bufferBlobResponse(resp *http.Response, limit int64) (*http.Response, error) {
+	if resp.ContentLength > limit {
+		closeResponse(resp)
+		return nil, fmt.Errorf("blob response exceeds %d bytes", limit)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	closeErr := resp.Body.Close()
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("blob response exceeds %d bytes", limit)
+	}
 	if err != nil {
 		return nil, &bodyReadError{err: err}
 	}
@@ -147,6 +159,10 @@ func transientResponse(resp *http.Response, err error) bool {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return false
+		}
+		var proxyErr *proxyConnectError
+		if errors.As(err, &proxyErr) {
+			return transientStatus(proxyErr.statusCode)
 		}
 		var networkError net.Error
 		return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
@@ -170,7 +186,10 @@ func retryAfter(resp *http.Response, fallback time.Duration) time.Duration {
 	if resp == nil {
 		return fallback
 	}
-	value := resp.Header.Get("Retry-After")
+	return parseRetryAfter(resp.Header.Get("Retry-After"), fallback)
+}
+
+func parseRetryAfter(value string, fallback time.Duration) time.Duration {
 	if seconds, err := strconv.ParseUint(value, 10, 32); err == nil {
 		return time.Duration(seconds) * time.Second
 	}
@@ -219,14 +238,18 @@ func (b *cancelBody) Read(p []byte) (int, error) {
 // proxyConnectError instead. Other refusals keep net/http's error.
 func checkProxyConnect(_ context.Context, _ *url.URL, _ *http.Request, resp *http.Response) error {
 	if cloudFailureStatus(resp.StatusCode) {
-		return &proxyConnectError{status: resp.Status}
+		return &proxyConnectError{status: resp.Status, statusCode: resp.StatusCode, retryAfter: resp.Header.Get("Retry-After")}
 	}
 	return nil
 }
 
 // proxyConnectError reports a proxy that answered CONNECT with a server error
 // or with 408 or 429.
-type proxyConnectError struct{ status string }
+type proxyConnectError struct {
+	status     string
+	statusCode int
+	retryAfter string
+}
 
 func (e *proxyConnectError) Error() string {
 	return "proxy answered CONNECT with " + e.status
