@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-08 01:10
+  last_modified: 2026-11-03 12:00
   status: current
 ---
 
@@ -29,7 +29,8 @@ Composite background/handwriting into PNG. Emit `OK: Rendered page N to PATH`.
 ## `remarkable doc sync <id-or-name>`
 
 Export all pages as `OUTPUT-DIR/DOCUMENT-NAME/page-NNN.FORMAT`, starting at `000`.
-Trim the document name and replace slash/backslash with `-`. Emit `written: PATH`
+Trim the document name and replace slash/backslash with `-`. Empty, dot, parent-directory,
+and NUL-containing names fail with the document ID before any output is created. Emit `written: PATH`
 or `skipped: PATH` per page; `PATH` escapes characters failing `unicode.IsPrint`, `\`,
 and invalid UTF-8 bytes using Go escapes decodable with `strconv.UnquoteChar`.
 Unsupported formats fail before export; PNG background download errors propagate.

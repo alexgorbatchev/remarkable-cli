@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-08 03:15
+  last_modified: 2026-11-03 12:00
   status: current
 ---
 
@@ -14,7 +14,8 @@ Document group; operational subcommands require cloud credentials.
 List TSV `ID`, `NAME`, `TYPE`, `MODIFIED`; filters combine. Rows sort by parent folder
 path (root first, then each folder by name and ID), name, then ID. Names compare
 case-folded (Unicode full folding), then by UTF-8 bytes; IDs by bytes; type is not a
-key. Items whose parent chain misses the root (e.g. in a trashed folder) come last by parent ID.
+key. Deleted/trashed items and their descendants are excluded. Items whose parent chain misses
+the root (e.g. a missing parent or cycle) come last by parent ID.
 Agent TSV fields escape characters failing `unicode.IsPrint`, `\`, and invalid UTF-8 bytes
 using Go escapes; `strconv.UnquoteChar` decodes them.
 
@@ -28,7 +29,9 @@ using Go escapes; `strconv.UnquoteChar` decodes them.
 ## `remarkable doc tree`
 
 Print indented `*` bullets rooted at `/`; folder labels end in `/`; siblings sort as in
-`doc list`. Items whose parent chain misses the root are omitted. List IDs with `doc list`.
+`doc list`. When items cannot reach the root through folders, a final warning counts
+the omitted items and explains that a parent is missing, is not a folder, or is cyclic.
+List their IDs with `doc list`.
 Labels escape characters failing `unicode.IsPrint`, newlines, `\`, and invalid UTF-8 bytes
 using Go escapes; `strconv.UnquoteChar` decodes them.
 

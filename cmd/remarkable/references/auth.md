@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-08 07:30
+  last_modified: 2026-11-03 12:00
   status: current
 ---
 
@@ -24,7 +24,3 @@ Emit `status: connected`, `generation`, `items`, and `latency_ms` key-value line
 ## `remarkable auth token`
 
 Renew and print the bearer user token as a raw stdout line. Treat it as a secret.
-
-## `remarkable status`
-
-Run the same operation as `remarkable auth status`.

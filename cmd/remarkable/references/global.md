@@ -1,7 +1,7 @@
 ---
 metadata:
   created_on: 2026-10-07 07:04
-  last_modified: 2026-10-07 07:04
+  last_modified: 2026-11-03 12:00
   status: current
 ---
 
@@ -21,9 +21,10 @@ Supplying a boolean flag enables it; `--flag=false` disables it.
 | `--version` | `-v` | `bool` | `false` | Print only the raw version and a newline. |
 
 Resolve credentials in this order: `--config`, `REMARKABLE_CONFIG`, an existing
-`$XDG_CONFIG_HOME/remarkable-cli/config.json` (default XDG base: `~/.config`),
+`$XDG_CONFIG_HOME/remarkable-cli/credentials` (default XDG base: `~/.config`),
 then `~/.rmapi`; without that XDG file or an override, pairing writes `~/.rmapi`.
-A `.json` filename keeps the credential format: pairing writes `devicetoken: ...` text.
+Credentials use rmapi `devicetoken: ...` and `usertoken: ...` lines; JSON is rejected.
+The former XDG `config.json` filename is no longer selected automatically.
 
 Resolve the cache in this order: `--cache-dir`, `REMARKABLE_CACHE_DIR`,
 `$XDG_CACHE_HOME/remarkable-cli` (default XDG base: `~/.cache`). Set `REMARKABLE_HOST`
@@ -33,8 +34,8 @@ only to direct cloud and authentication requests to an alternate endpoint.
 HTTP policy is identical in normal/debug modes: 90 seconds per attempt for headers and
 complete body, bounded by the command context. Hashed blob GET and replayable PUT to
 `/sync/v3/files/<64-hex-hash>` get at most three attempts for timeouts,
-disconnected/truncated responses, and HTTP 408/429/500/502/503/504. Replay preserves
-bytes/headers; successful blob bodies are fully buffered before exposure. Backoff is 250 ms
+disconnected/truncated responses, and HTTP 408/429/500/502/503/504, including proxy CONNECT responses. Replay preserves
+bytes/headers; successful blob bodies are buffered up to 512 MiB before exposure. Oversized bodies fail without retry. Backoff is 250 ms
 then 500 ms, overridden by valid `Retry-After` seconds/HTTP-date. Cancellation interrupts
 requests, body reads, and waits. Root/authentication/other routes get one transport
 attempt. Read-only GET/HEAD and replayable blobs follow redirects with Go's ten-redirect
