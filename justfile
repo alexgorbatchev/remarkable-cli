@@ -59,9 +59,9 @@ native-import-typecheck:
     bun install --cwd scripts/native-import-check --frozen-lockfile
     bun run --cwd scripts/native-import-check typecheck
 
-# Clean up build binaries and temporary files
+# Clean build outputs while preserving session-owned scratch
 clean:
-    rm -rf bin coverage.out .tmp dist
+    rm -rf bin coverage.out dist
 
 # Download project dependencies for local development
 setup:
